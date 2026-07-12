@@ -24,6 +24,7 @@ export async function GET() {
     where: {
       userId: session.user.id,
       startDate: { gte: fourWeeksAgo },
+      mergedIntoId: null,
       rawJson: { not: Prisma.DbNull },
     },
     orderBy: { startDate: "desc" },
@@ -48,11 +49,11 @@ export async function GET() {
   }
 
   // ── Intensity Distribution (aggregate across all recent activities) ──
-  let totalZ1 = 0, totalZ2 = 0, totalZ3 = 0;
+  let totalZ1 = 0, totalZ2 = 0, totalZ3 = 0, totalZ4 = 0, totalZ5 = 0;
   let totalAnalyzedSec = 0;
   const activityDistributions: {
     id: string; name: string; date: string; type: string;
-    zone1Pct: number; zone2Pct: number; zone3Pct: number; distributionType: string;
+    zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number; distributionType: string;
   }[] = [];
 
   for (const log of logs) {
@@ -66,6 +67,8 @@ export async function GET() {
     totalZ1 += dist.zone1Pct;
     totalZ2 += dist.zone2Pct;
     totalZ3 += dist.zone3Pct;
+    totalZ4 += dist.zone4Pct;
+    totalZ5 += dist.zone5Pct;
     totalAnalyzedSec += dist.analyzedDuration;
 
     activityDistributions.push({
@@ -76,20 +79,26 @@ export async function GET() {
       zone1Pct: dist.zone1Pct,
       zone2Pct: dist.zone2Pct,
       zone3Pct: dist.zone3Pct,
+      zone4Pct: dist.zone4Pct,
+      zone5Pct: dist.zone5Pct,
       distributionType: dist.distributionType,
     });
   }
 
-  const avgDistribution = activityDistributions.length > 0 ? {
-    zone1Pct: Math.round((totalZ1 / activityDistributions.length) * 10) / 10,
-    zone2Pct: Math.round((totalZ2 / activityDistributions.length) * 10) / 10,
-    zone3Pct: Math.round((totalZ3 / activityDistributions.length) * 10) / 10,
-    distributionType: totalZ1 / activityDistributions.length >= 75 && totalZ3 / activityDistributions.length >= 5
+  const count = activityDistributions.length;
+  const avgDistribution = count > 0 ? {
+    zone1Pct: Math.round((totalZ1 / count) * 10) / 10,
+    zone2Pct: Math.round((totalZ2 / count) * 10) / 10,
+    zone3Pct: Math.round((totalZ3 / count) * 10) / 10,
+    zone4Pct: Math.round((totalZ4 / count) * 10) / 10,
+    zone5Pct: Math.round((totalZ5 / count) * 10) / 10,
+    // 3-zone classification uses mapped zones: Easy=Z1+Z2, Moderate=Z3, Hard=Z4+Z5
+    distributionType: ((totalZ1 + totalZ2) / count >= 75 && (totalZ4 + totalZ5) / count >= 5)
       ? "polarized" as const
-      : totalZ2 / activityDistributions.length >= 30
+      : totalZ3 / count >= 30
       ? "threshold-heavy" as const
       : "pyramidal" as const,
-    activityCount: activityDistributions.length,
+    activityCount: count,
     totalAnalyzedHours: Math.round(totalAnalyzedSec / 3600 * 10) / 10,
   } : null;
 

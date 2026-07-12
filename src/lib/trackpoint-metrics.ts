@@ -153,18 +153,25 @@ export function computeHrTss(
   };
 }
 
-// ─── Intensity Distribution (80/20 Polarization) ────────────
+// ─── Intensity Distribution (5-Zone Coggan Model) ────────────
 
 /**
  * Compute intensity distribution from trackpoint HR data.
- * Uses the 3-zone model for polarization analysis:
- *   Zone 1: < VT1 (aerobic threshold) — below 80% maxHR
- *   Zone 2: VT1 to VT2 — 80-90% maxHR
- *   Zone 3: > VT2 (anaerobic) — above 90% maxHR
+ * Uses the 5-zone Coggan model:
+ *   Zone 1: Active Recovery    (< 68% maxHR)
+ *   Zone 2: Endurance          (68-83% maxHR)
+ *   Zone 3: Tempo              (83-94% maxHR)
+ *   Zone 4: Threshold          (94-105% maxHR)
+ *   Zone 5: VO2Max/Anaerobic   (> 105% maxHR)
  *
- * Polarized = Z1 > 75% and Z3 > 5% (lots of easy + some very hard, little in between)
- * Pyramidal = Z1 > Z2 > Z3 (tapered distribution)
- * Threshold-heavy = Z2 > 30% (too much "grey zone")
+ * Distribution classification (3-zone polarization mapped from Coggan):
+ *   Z1 (Easy)   = Coggan Z1 + Z2
+ *   Z2 (Moderate) = Coggan Z3
+ *   Z3 (Hard)   = Coggan Z4 + Z5
+ *
+ * Polarized = Easy > 75% and Hard > 5%
+ * Pyramidal = Easy > Moderate > Hard
+ * Threshold-heavy = Moderate > 30%
  */
 export function computeIntensityDistribution(
   trackPoints: TrackPoint[],
@@ -173,30 +180,39 @@ export function computeIntensityDistribution(
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
   if (hrPoints.length < 30 || maxHr <= 0) return null;
 
-  const vt1 = maxHr * 0.80; // first ventilatory threshold (~80% maxHR)
-  const vt2 = maxHr * 0.90; // second ventilatory threshold (~90% maxHR)
+  const thresholds = [0.68, 0.83, 0.94, 1.05]; // upper bounds as ratio of maxHR
+  const zoneCount = [0, 0, 0, 0, 0];
 
-  let z1 = 0, z2 = 0, z3 = 0;
   for (const tp of hrPoints) {
     const hr = tp.hr!;
-    if (hr < vt1) z1++;
-    else if (hr < vt2) z2++;
-    else z3++;
+    const ratio = hr / maxHr;
+    if (ratio < thresholds[0]) zoneCount[0]++;
+    else if (ratio < thresholds[1]) zoneCount[1]++;
+    else if (ratio < thresholds[2]) zoneCount[2]++;
+    else if (ratio < thresholds[3]) zoneCount[3]++;
+    else zoneCount[4]++;
   }
 
-  const total = z1 + z2 + z3;
-  const z1Pct = Math.round((z1 / total) * 1000) / 10;
-  const z2Pct = Math.round((z2 / total) * 1000) / 10;
-  const z3Pct = Math.round((z3 / total) * 1000) / 10;
+  const total = zoneCount.reduce((a, b) => a + b, 0);
+  const z1Pct = Math.round((zoneCount[0] / total) * 1000) / 10;
+  const z2Pct = Math.round((zoneCount[1] / total) * 1000) / 10;
+  const z3Pct = Math.round((zoneCount[2] / total) * 1000) / 10;
+  const z4Pct = Math.round((zoneCount[3] / total) * 1000) / 10;
+  const z5Pct = Math.round((zoneCount[4] / total) * 1000) / 10;
+
+  // 3-zone polarization mapping: Easy = Z1+Z2, Moderate = Z3, Hard = Z4+Z5
+  const easyPct = z1Pct + z2Pct;
+  const moderatePct = z3Pct;
+  const hardPct = z4Pct + z5Pct;
 
   let distributionType: IntensityDistribution["distributionType"];
   if (total < 60) {
     distributionType = "insufficient_data";
-  } else if (z1Pct >= 75 && z3Pct >= 5) {
+  } else if (easyPct >= 75 && hardPct >= 5) {
     distributionType = "polarized";
-  } else if (z1Pct >= z2Pct && z2Pct >= z3Pct) {
+  } else if (easyPct >= moderatePct && moderatePct >= hardPct) {
     distributionType = "pyramidal";
-  } else if (z2Pct >= 30) {
+  } else if (moderatePct >= 30) {
     distributionType = "threshold-heavy";
   } else {
     distributionType = "pyramidal";
@@ -206,8 +222,8 @@ export function computeIntensityDistribution(
     zone1Pct: z1Pct,
     zone2Pct: z2Pct,
     zone3Pct: z3Pct,
-    zone4Pct: 0,
-    zone5Pct: 0,
+    zone4Pct: z4Pct,
+    zone5Pct: z5Pct,
     distributionType,
     analyzedDuration: total, // seconds (1 Hz assumption)
   };

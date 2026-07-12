@@ -37,7 +37,7 @@ export async function POST() {
   // Collect data for coach notes
   const [logs, goals, bodyMetrics, facilities, availabilityCount] = await Promise.all([
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 90 * 86400000) } },
+      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 90 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
       select: { startDate: true, name: true, type: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true, tss: true, remarks: true },
     }),
@@ -109,49 +109,63 @@ export async function POST() {
       remarks: log.remarks!,
     }));
 
-  const coachNotes = await generateCoachNotes({
-    athleteName: session.user.name || "Athlete",
-    goals: goals.map((goal) => ({
-      name: goal.name,
-      targetDate: goal.targetDate.toISOString().split("T")[0],
-      distanceMeters: goal.distanceMeters,
-      elevationGainMeters: goal.elevationGainMeters,
-      priority: goal.priority,
-    })),
-    recentWeeks: weekLabels.map((label, idx) => ({
-      label,
-      volumeMeters: weeklyVolumes[idx] || 0,
-      elevationMeters: 0,
-      durationSeconds: 0,
-      activityCount: 0,
-    })),
-    currentWeek: {
-      volumeMeters: weeklyVolume,
-      elevationMeters: weeklyElevation,
-      durationSeconds: weeklyDuration,
-      activityCount: weekLogs.length,
-    },
-    pmc: {
-      ctl: latestPmc.ctl,
-      atl: latestPmc.atl,
-      tsb: latestPmc.tsb,
-      tsbTrend,
-    },
-    fatigue: null,
-    readinessScore: readinessResult.readinessScore,
-    volumeAdherence: readinessResult.volumeAdherence,
-    elevationAdherence: 50,
-    consistencyScore: readinessResult.consistency,
-    weeklyPlan: null,
-    recentRemarks,
-    facilities: facilities.map((f) => ({
-      name: f.name,
-      type: f.type,
-      distanceMeters: f.distanceMeters,
-      elevationGainMeters: f.elevationGainMeters,
-      notes: f.notes,
-    })),
+  // Load user's LLM config for per-user API key support
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
   });
+
+  const coachNotes = await generateCoachNotes(
+    {
+      athleteName: session.user.name || "Athlete",
+      goals: goals.map((goal) => ({
+        name: goal.name,
+        targetDate: goal.targetDate.toISOString().split("T")[0],
+        distanceMeters: goal.distanceMeters,
+        elevationGainMeters: goal.elevationGainMeters,
+        priority: goal.priority,
+      })),
+      recentWeeks: weekLabels.map((label, idx) => ({
+        label,
+        volumeMeters: weeklyVolumes[idx] || 0,
+        elevationMeters: 0,
+        durationSeconds: 0,
+        activityCount: 0,
+      })),
+      currentWeek: {
+        volumeMeters: weeklyVolume,
+        elevationMeters: weeklyElevation,
+        durationSeconds: weeklyDuration,
+        activityCount: weekLogs.length,
+      },
+      pmc: {
+        ctl: latestPmc.ctl,
+        atl: latestPmc.atl,
+        tsb: latestPmc.tsb,
+        tsbTrend,
+      },
+      fatigue: null,
+      readinessScore: readinessResult.readinessScore,
+      volumeAdherence: readinessResult.volumeAdherence,
+      elevationAdherence: 50,
+      consistencyScore: readinessResult.consistency,
+      weeklyPlan: null,
+      recentRemarks,
+      facilities: facilities.map((f) => ({
+        name: f.name,
+        type: f.type,
+        distanceMeters: f.distanceMeters,
+        elevationGainMeters: f.elevationGainMeters,
+        notes: f.notes,
+      })),
+    },
+    {
+      apiKey: user?.llmApiKey ?? undefined,
+      baseUrl: user?.llmBaseUrl ?? undefined,
+      model: user?.llmModel ?? undefined,
+      provider: user?.llmProvider ?? undefined,
+    }
+  );
 
   // Save to the current week's WeeklyPlan so it persists across page loads
   if (coachNotes) {

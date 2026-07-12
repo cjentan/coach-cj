@@ -1,13 +1,10 @@
 /**
  * Multi-provider LLM abstraction.
  * Supports: Ollama (local), DeepSeek, OpenAI, Anthropic.
- * All use OpenAI-compatible chat completions except Anthropic (native SDK).
+ * All use OpenAI-compatible chat completions.
  *
- * Configure via env:
- *   LLM_PROVIDER=ollama|deepseek|openai|anthropic
- *   LLM_BASE_URL=http://ollama:11434/v1   (Ollama/OpenAI-compatible)
- *   LLM_API_KEY=sk-xxx                     (not needed for Ollama)
- *   LLM_MODEL=mistral:7b                   (model name)
+ * Each user must configure their own API key in Settings → API Credentials.
+ * No server-side fallback — LLM features are hidden when no key is set.
  */
 
 export interface LlmMessage {
@@ -19,40 +16,66 @@ export interface LlmOptions {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
 }
 
-const LLM_PROVIDER = (process.env.LLM_PROVIDER || "ollama").toLowerCase();
-const LLM_BASE_URL = process.env.LLM_BASE_URL || "http://ollama:11434/v1";
-const LLM_API_KEY = process.env.LLM_API_KEY || "ollama"; // Ollama ignores the key
-const LLM_MODEL = process.env.LLM_MODEL || "mistral:7b";
-
-export function isLlmConfigured(): boolean {
-  // Ollama doesn't need an API key — it's always "configured" if the service is up
-  if (LLM_PROVIDER === "ollama") return true;
-  // For cloud providers, check the key is set
-  return LLM_API_KEY.length > 8;
+/**
+ * Check whether a user has configured an LLM.
+ * Requires a non-empty API key (or Ollama provider).
+ */
+export function isLlmConfigured(apiKey?: string, provider?: string): boolean {
+  if (provider === "ollama") return true;
+  return !!apiKey && apiKey.length > 8;
 }
 
-export function getLlmProvider(): string {
-  return LLM_PROVIDER;
-}
+/**
+ * Provider → default base URL map.
+ */
+export const PROVIDER_BASE_URLS: Record<string, string> = {
+  openai: "https://api.openai.com/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  ollama: "http://localhost:11434/v1",
+};
 
-export function getLlmModel(): string {
-  return LLM_MODEL;
-}
+/**
+ * Provider → available models.
+ */
+export const PROVIDER_MODELS: Record<string, string[]> = {
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
+  ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
+};
 
 /**
  * Send a chat completion request. Returns the model's text response.
  * Falls back to null if the LLM is unavailable.
+ *
+ * Requires apiKey, baseUrl, and model — either in opts or resolved externally.
  */
 export async function chat(
   messages: LlmMessage[],
   opts: LlmOptions = {}
 ): Promise<string | null> {
-  const { temperature = 0.3, maxTokens = 1024, jsonMode = false } = opts;
+  const {
+    temperature = 0.3,
+    maxTokens = 1024,
+    jsonMode = false,
+    apiKey,
+    baseUrl,
+    model,
+  } = opts;
+
+  if (!apiKey || !baseUrl || !model) {
+    console.error("LLM not configured — missing apiKey, baseUrl, or model");
+    return null;
+  }
 
   const body: Record<string, unknown> = {
-    model: LLM_MODEL,
+    model,
     messages,
     temperature,
     max_tokens: maxTokens,
@@ -63,14 +86,14 @@ export async function chat(
   }
 
   try {
-    const res = await fetch(`${LLM_BASE_URL}/chat/completions`, {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${LLM_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(300000), // 5 min timeout for slow local LLMs
+      signal: AbortSignal.timeout(300000),
     });
 
     if (!res.ok) {
@@ -101,4 +124,23 @@ export async function ask(
     ],
     opts
   );
+}
+
+/**
+ * Fetch a user's LLM configuration from the database.
+ */
+export async function resolveUserLlmConfig(
+  userId: string
+): Promise<{ apiKey?: string; baseUrl?: string; model?: string; provider?: string }> {
+  const { prisma } = await import("./prisma");
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
+  });
+  return {
+    apiKey: user?.llmApiKey ?? undefined,
+    baseUrl: user?.llmBaseUrl ?? undefined,
+    model: user?.llmModel ?? undefined,
+    provider: user?.llmProvider ?? undefined,
+  };
 }

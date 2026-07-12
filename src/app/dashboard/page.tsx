@@ -11,7 +11,7 @@ import { formatDistance, formatDuration } from "@/lib/utils";
 import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database } from "lucide-react";
 import PlanAdjustDialog from "@/components/plan/plan-adjust-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface LogEntry {
   id: string; name: string; type: string; startDate: string;
@@ -53,6 +53,7 @@ interface Stats {
   weeklyDistance: number; weeklyElevation: number; weeklyDuration: number;
   weeklyCount: number; weeklyTss: number; avgDailyTss: number;
   avgHr: number | null; activeGoals: number; latestWeight: number | null;
+  latestRestingHr: number | null; estimatedMaxHr: number | null;
   lastWeek: StatsComparison | null;
   currentMonth: StatsComparison | null;
   lastMonth: StatsComparison | null;
@@ -74,7 +75,7 @@ interface TrackpointInsights {
   message?: string;
   activityCount?: number;
   intensityDistribution?: {
-    zone1Pct: number; zone2Pct: number; zone3Pct: number;
+    zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number;
     distributionType: "polarized" | "pyramidal" | "threshold-heavy";
     activityCount: number; totalAnalyzedHours: number;
   } | null;
@@ -114,24 +115,6 @@ const TIME_RANGES = [
   { label: "1Y", days: 365 },
 ];
 
-function StatCard({ label, value, sub, icon, color }: {
-  label: string; value: string | number; sub?: string;
-  icon: React.ReactNode; color?: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-muted-foreground uppercase tracking-wide">{label}</span>
-          <span className={color || "text-muted-foreground"}>{icon}</span>
-        </div>
-        <div className={`text-2xl font-bold ${color || ""}`}>{value}</div>
-        {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -146,8 +129,30 @@ export default function DashboardPage() {
   const [pmc, setPmc] = useState<PmcData | null>(null);
   const [pmcHistory, setPmcHistory] = useState<PmcHistoryPoint[]>([]);
   const [pmcDays, setPmcDays] = useState(90);
+  const [pmcMetrics, setPmcMetrics] = useState<Set<string>>(new Set(["tss", "ctl"]));
+  const [trendMetrics, setTrendMetrics] = useState<Set<string>>(new Set(["readinessScore", "weeklyVolumeMeters"]));
+
+  const PMC_METRICS = [
+    { key: "tss", label: "Daily TSS Load", color: "#a855f7", unit: "", format: (v: number) => String(Math.round(v)) },
+    { key: "ctl", label: "CTL · Fitness", color: "#3b82f6", unit: "", format: (v: number) => String(Math.round(v)) },
+    { key: "atl", label: "ATL · Fatigue", color: "#f59e0b", unit: "", format: (v: number) => String(Math.round(v)) },
+    { key: "tsb", label: "TSB · Form", color: "#22c55e", unit: "", format: (v: number) => String(Math.round(v)) },
+  ] as const;
+
+  const TREND_METRICS = [
+    { key: "readinessScore", label: "Readiness Score", color: "#3b82f6", unit: "", format: (v: number) => String(Math.round(v)), yAxisId: "left", orientation: "left" as const,
+      tickFormatter: (v: number) => String(Math.round(v)) },
+    { key: "weeklyVolumeMeters", label: "Weekly Volume", color: "#3b82f6", unit: "km", format: (v: number) => `${(v / 1000).toFixed(1)}`, yAxisId: "right1", orientation: "right" as const,
+      tickFormatter: (v: number) => `${(v / 1000).toFixed(0)}k` },
+    { key: "weeklyTss", label: "Weekly TSS", color: "#a855f7", unit: "", format: (v: number) => String(Math.round(v)), yAxisId: "right2", orientation: "right" as const,
+      tickFormatter: (v: number) => String(Math.round(v)) },
+    { key: "activityCount", label: "Activities", color: "#22c55e", unit: "", format: (v: number) => String(Math.round(v)), yAxisId: "right3", orientation: "right" as const,
+      tickFormatter: (v: number) => String(Math.round(v)) },
+  ] as const;
   const [trackpointInsights, setTrackpointInsights] = useState<TrackpointInsights | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
+  const [trendWeeks, setTrendWeeks] = useState(52);
+  const [trendGrouping, setTrendGrouping] = useState<"week" | "month">("week");
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
@@ -169,35 +174,30 @@ export default function DashboardPage() {
     setLoading(true);
     setFetchError("");
     try {
-      const [logRes, statsRes, goalsRes, fatigueRes, rdRes, planRes, pmcRes, notesRes] = await Promise.all([
-        fetch("/api/dashboard/recent"),
-        fetch("/api/dashboard/stats"),
-        fetch("/api/dashboard/goals"),
-        fetch("/api/dashboard/fatigue"),
-        fetch("/api/dashboard/readiness"),
-        fetch("/api/dashboard/plan"),
-        fetch("/api/dashboard/pmc"),
-        fetch("/api/dashboard/notes"),
-      ]);
-      if (!logRes.ok || !statsRes.ok) throw new Error(`${logRes.status}/${statsRes.status}`);
-      setLogs(await logRes.json());
-      setStats(await statsRes.json());
-      if (goalsRes.ok) setGoals(await goalsRes.json());
-      if (fatigueRes.ok) setFatigue(await fatigueRes.json());
-      if (rdRes.ok) setReadiness(await rdRes.json());
-      if (planRes.ok) { const p = await planRes.json(); setPlan(p); }
-      if (notesRes.ok) {
-        const n = await notesRes.json();
-        if (n.coachNotes) { setCoachNotes(n.coachNotes); setCoachNotesAt(n.generatedAt); }
-      }
-      if (pmcRes.ok) setPmc(await pmcRes.json());
-      // Trackpoint insights (fire-and-forget — loads after main data)
+      // Consolidated endpoint — single HTTP round-trip for all main dashboard data
+      const res = await fetch("/api/dashboard/load");
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      setLogs(data.logs || []);
+      setStats(data.stats || null);
+      setGoals(data.goals || []);
+      setFatigue(data.fatigue || null);
+      setReadiness(data.readiness || null);
+      setPmc(data.pmc || null);
+      if (data.coachNotes) { setCoachNotes(data.coachNotes); setCoachNotesAt(data.coachNotesAt); }
+
+      // Plan loads separately (may trigger plan generation)
+      fetch("/api/dashboard/plan")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => d && setPlan(d))
+        .catch(() => {});
+      // Trackpoint insights (fire-and-forget)
       fetch("/api/dashboard/trackpoint-insights")
         .then((r) => r.ok ? r.json() : null)
         .then((d) => d && setTrackpointInsights(d))
         .catch(() => {});
       // Historical trends (fire-and-forget)
-      fetch("/api/dashboard/trends?weeks=52")
+      fetch(`/api/dashboard/trends?weeks=${trendWeeks}&grouping=${trendGrouping}`)
         .then((r) => r.ok ? r.json() : null)
         .then((d) => d?.trends && setTrends(d.trends))
         .catch(() => {});
@@ -243,6 +243,15 @@ export default function DashboardPage() {
   useEffect(() => {
     if (status === "authenticated") fetchPmcHistory(pmcDays);
   }, [status, pmcDays, fetchPmcHistory]);
+
+  // Refetch trends when range or grouping changes
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetch(`/api/dashboard/trends?weeks=${trendWeeks}&grouping=${trendGrouping}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d?.trends && setTrends(d.trends))
+      .catch(() => {});
+  }, [status, trendWeeks, trendGrouping]);
 
   if (status === "loading" || loading) {
     return <div className="max-w-5xl mx-auto px-4 py-8">Loading...</div>;
@@ -385,16 +394,115 @@ export default function DashboardPage() {
 
       {/* Secondary Stats Row */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-          {stats.avgHr && (
-            <StatCard label="Avg HR" value={`${stats.avgHr} bpm`}
-              icon={<Heart className="h-4 w-4 text-red-500" />} />
-          )}
-          <StatCard label="Active Goals" value={stats.activeGoals}
-            icon={<Target className="h-4 w-4" />} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          {/* Heart Rate Card — resting HR + HR zone boundaries */}
+          <Card>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Heart className="h-3.5 w-3.5 text-red-500" /> Heart Rate Zones
+                </span>
+              </div>
+              <div className="flex items-baseline gap-3 mb-3 pb-3 border-b">
+                {stats.latestRestingHr ? (
+                  <div>
+                    <span className="text-2xl font-bold">{stats.latestRestingHr}</span>
+                    <span className="text-sm text-muted-foreground ml-1">bpm</span>
+                    <div className="text-[10px] text-muted-foreground">Resting HR</div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground italic">No resting HR data</div>
+                )}
+                {stats.estimatedMaxHr && (
+                  <div className="border-l pl-3">
+                    <span className="text-lg font-semibold">{stats.estimatedMaxHr}</span>
+                    <span className="text-xs text-muted-foreground ml-0.5">bpm</span>
+                    <div className="text-[10px] text-muted-foreground">Est. max HR</div>
+                  </div>
+                )}
+                {stats.avgHr && (
+                  <div className="border-l pl-3">
+                    <span className="text-lg font-semibold">{Math.round(stats.avgHr)}</span>
+                    <span className="text-xs text-muted-foreground ml-0.5">bpm</span>
+                    <div className="text-[10px] text-muted-foreground">Avg exercise</div>
+                  </div>
+                )}
+              </div>
+              {/* HR Zone boundaries computed from maxHR + restingHR */}
+              {(() => {
+                const maxHr = stats.estimatedMaxHr;
+                const restHr = stats.latestRestingHr;
+                if (!maxHr) return <div className="text-xs text-muted-foreground italic">Log activities with heart rate data to calculate zones.</div>;
+
+                // Coggan 5-zone thresholds as % of maxHR (or HR reserve if resting available)
+                const thresholds = [0.68, 0.83, 0.94, 1.05];
+                const zoneLabels = ["Z1 Recov", "Z2 Endur", "Z3 Tempo", "Z4 Thresh", "Z5 Anaer"];
+                const zoneColors = ["bg-blue-400", "bg-green-400", "bg-amber-400", "bg-orange-500", "bg-red-500"];
+                const zoneTextColors = ["text-blue-500", "text-green-500", "text-amber-500", "text-orange-600", "text-red-500"];
+
+                const zones = zoneLabels.map((_, i) => {
+                  let lower: number;
+                  let upper: number;
+                  if (restHr) {
+                    const reserve = maxHr - restHr;
+                    lower = i === 0 ? 0 : Math.round(restHr + reserve * thresholds[i - 1]);
+                    upper = i < 5 ? Math.round(restHr + reserve * thresholds[Math.min(i, thresholds.length - 1)]) : 999;
+                  } else {
+                    lower = i === 0 ? 0 : Math.round(maxHr * thresholds[i - 1]);
+                    upper = i < 5 ? Math.round(maxHr * thresholds[Math.min(i, thresholds.length - 1)]) : 999;
+                  }
+                  return { lower, upper, label: zoneLabels[i], color: zoneColors[i], textColor: zoneTextColors[i] };
+                });
+
+                return (
+                  <div className="space-y-1.5">
+                    {zones.map((z) => (
+                      <div key={z.label} className="flex items-center gap-2 text-[11px]">
+                        <span className="w-16 text-muted-foreground shrink-0">{z.label}</span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className={`${z.color} h-full rounded-full`} style={{ width: `${100 / 5}%`, marginLeft: `${(z.lower / (maxHr * 1.1)) * 100}%` }} />
+                        </div>
+                        <span className={`w-20 text-right font-medium tabular-nums ${z.textColor}`}>
+                          {z.lower === 0 ? `<${z.upper}` : z.upper >= 999 ? `>${z.lower}` : `${z.lower}–${z.upper}`} bpm
+                        </span>
+                      </div>
+                    ))}
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      {restHr ? "Karvonen formula" : "% of maxHR"} · Coggan 5-zone model
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
           {stats.latestWeight && (
-            <StatCard label="Weight" value={`${stats.latestWeight} kg`}
-              icon={<Activity className="h-4 w-4" />} />
+            <Card>
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                    <Activity className="h-3.5 w-3.5" /> Weight
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold">{stats.latestWeight}</span>
+                  <span className="text-sm text-muted-foreground">kg</span>
+                </div>
+                <div className="mt-3 pt-3 border-t space-y-1">
+                  {stats.activeGoals > 0 && (
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <Target className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">{stats.activeGoals} active goal{stats.activeGoals !== 1 ? "s" : ""}</span>
+                    </div>
+                  )}
+                  {stats.weeklyCount > 0 && (
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <Activity className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="text-muted-foreground">{stats.weeklyCount} activit{stats.weeklyCount !== 1 ? "ies" : "y"} this week</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
@@ -487,91 +595,77 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* PMC History Charts */}
+      {/* PMC History Charts — multi-metric toggleable chart */}
       {pmcHistory.length > 0 && (
         <Card className="mb-6">
           <CardContent className="py-4">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" /> PMC Charts
               </h2>
-              <div className="flex gap-1">
-                {TIME_RANGES.map((r) => (
-                  <Button
-                    key={r.days}
-                    variant={pmcDays === r.days ? "default" : "outline"}
-                    size="sm"
-                    className="h-7 px-2.5 text-xs"
-                    onClick={() => setPmcDays(r.days)}
-                  >
-                    {r.label}
-                  </Button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1 flex-wrap">
+                  {PMC_METRICS.map((m) => (
+                    <button
+                      key={m.key}
+                      onClick={() => {
+                        setPmcMetrics((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(m.key)) {
+                            if (next.size > 1) next.delete(m.key);
+                          } else {
+                            next.add(m.key);
+                          }
+                          return next;
+                        });
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${
+                        pmcMetrics.has(m.key)
+                          ? "text-foreground border"
+                          : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"
+                      }`}
+                      style={pmcMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}
+                    >
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  {TIME_RANGES.map((r) => (
+                    <Button
+                      key={r.days}
+                      variant={pmcDays === r.days ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => setPmcDays(r.days)}
+                    >
+                      {r.label}
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* TSS Chart */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">Daily TSS Load</h3>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={pmcHistory} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={30} />
-                      <Tooltip labelFormatter={(v: string) => v} contentStyle={{ fontSize: 12 }} />
-                      <Area type="monotone" dataKey="tss" stroke="#a855f7" fill="#a855f7" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* CTL Chart */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">CTL · Chronic Training Load (Fitness)</h3>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={pmcHistory} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={30} />
-                      <Tooltip labelFormatter={(v: string) => v} contentStyle={{ fontSize: 12 }} />
-                      <Area type="monotone" dataKey="ctl" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.12} strokeWidth={2} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* ATL Chart */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">ATL · Acute Training Load (Fatigue)</h3>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={pmcHistory} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={30} />
-                      <Tooltip labelFormatter={(v: string) => v} contentStyle={{ fontSize: 12 }} />
-                      <Area type="monotone" dataKey="atl" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.12} strokeWidth={2} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* TSB Chart */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">TSB · Training Stress Balance (Form)</h3>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={pmcHistory} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={30} />
-                      <Tooltip labelFormatter={(v: string) => v} contentStyle={{ fontSize: 12 }} />
-                      <Area type="monotone" dataKey="tsb" stroke="#22c55e" fill="#22c55e" fillOpacity={0.10} strokeWidth={2} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={pmcHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10 }} width={30} />
+                    <Tooltip
+                      labelFormatter={(v: string) => v}
+                      formatter={(v: number, name: string) => {
+                        const m = PMC_METRICS.find((mm) => mm.key === name);
+                        return m ? [m.format(v), m.label] : [v, name];
+                      }}
+                      contentStyle={{ fontSize: 12 }}
+                    />
+                    {PMC_METRICS.filter((m) => pmcMetrics.has(m.key)).map((m) => (
+                      <Area key={m.key} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </CardContent>
@@ -582,76 +676,146 @@ export default function DashboardPage() {
       {trends.length >= 2 && (
         <Card className="mb-6">
           <CardContent className="py-4">
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" /> Historical Trends
-            </h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Readiness over time */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">Readiness Score</h3>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trends} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={30} domain={[0, 100]} />
-                      <Tooltip labelFormatter={(v: string) => `Week of ${v}`} contentStyle={{ fontSize: 12 }} />
-                      <Area type="monotone" dataKey="readinessScore" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.12} strokeWidth={2} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> Historical Trends
+              </h2>
+              <div className="flex items-center gap-2">
+                <Tabs value={trendGrouping} onValueChange={(v) => setTrendGrouping(v as "week" | "month")}>
+                  <TabsList className="h-7">
+                    <TabsTrigger value="week" className="text-xs px-2.5">Weekly</TabsTrigger>
+                    <TabsTrigger value="month" className="text-xs px-2.5">Monthly</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <div className="flex gap-1">
+                  {[
+                    { label: "1M", weeks: 4 },
+                    { label: "3M", weeks: 12 },
+                    { label: "6M", weeks: 24 },
+                    { label: "1Y", weeks: 52 },
+                    { label: "Max", weeks: 200 },
+                  ].map((r) => (
+                    <Button
+                      key={r.weeks}
+                      variant={trendWeeks === r.weeks ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setTrendWeeks(r.weeks)}
+                    >
+                      {r.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap mb-3">
+              {TREND_METRICS.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => {
+                    setTrendMetrics((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(m.key)) {
+                        if (next.size > 1) next.delete(m.key);
+                      } else {
+                        next.add(m.key);
+                      }
+                      return next;
+                    });
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${
+                    trendMetrics.has(m.key)
+                      ? "text-foreground border"
+                      : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"
+                  }`}
+                  style={trendMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}
+                >
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  {(() => {
+                    const visibleMetrics = TREND_METRICS.filter((m) => trendMetrics.has(m.key));
+                    const leftCount = visibleMetrics.filter((m) => m.orientation === "left").length;
+                    const rightCount = visibleMetrics.filter((m) => m.orientation === "right").length;
+                    const chartMargin = {
+                      top: 4,
+                      right: rightCount > 1 ? 20 + rightCount * 32 : rightCount > 0 ? 20 : 8,
+                      left: leftCount > 1 ? 20 + leftCount * 32 : leftCount > 0 ? 20 : 8,
+                      bottom: 0,
+                    };
 
-              {/* Weekly Volume (distance bars + elevation line) */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">Weekly Volume</h3>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={trends} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={40} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip
-                        labelFormatter={(v: string) => `Week of ${v}`}
-                        formatter={(v: number, name: string) => [name === "weeklyVolumeMeters" ? `${(v / 1000).toFixed(1)} km` : `${v}m`, name === "weeklyVolumeMeters" ? "Distance" : "Elevation"]}
-                        contentStyle={{ fontSize: 12 }}
-                      />
-                      <Bar dataKey="weeklyVolumeMeters" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                    // Assign positions: first left axis gets offset 0, second gets offset 1, etc.
+                    const leftAxisPositions: Record<string, number> = {};
+                    let leftIdx = 0;
+                    const rightAxisPositions: Record<string, number> = {};
+                    let rightIdx = 0;
+                    for (const m of TREND_METRICS) {
+                      if (!trendMetrics.has(m.key)) continue;
+                      if (m.orientation === "left") {
+                        leftAxisPositions[m.yAxisId] = leftIdx++;
+                      } else {
+                        rightAxisPositions[m.yAxisId] = rightIdx++;
+                      }
+                    }
+
+                    return (
+                      <AreaChart
+                        data={trends}
+                        margin={chartMargin}
+                        onClick={(data) => {
+                          if (!data?.activeLabel) return;
+                          const label = data.activeLabel;
+                          if (trendGrouping === "month" && label.length === 7) {
+                            router.push(`/training-logs?from=${label}-01&to=${label}-31`);
+                          } else if (label.length === 10) {
+                            const d = new Date(label);
+                            const weekEnd = new Date(d);
+                            weekEnd.setDate(weekEnd.getDate() + 6);
+                            const toStr = weekEnd.toISOString().split("T")[0];
+                            router.push(`/training-logs?from=${label}&to=${toStr}`);
+                          }
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.length > 7 ? v.slice(5) : v} interval="preserveStartEnd" />
+                        {visibleMetrics.map((m) => (
+                          <YAxis
+                            key={m.yAxisId}
+                            yAxisId={m.yAxisId}
+                            orientation={m.orientation}
+                            stroke={m.color}
+                            tick={{ fontSize: 10, fill: m.color }}
+                            width={m.orientation === "left"
+                              ? (leftAxisPositions[m.yAxisId] === 0 ? 30 : 44)
+                              : (rightAxisPositions[m.yAxisId] === 0 ? 30 : 44)
+                            }
+                            tickFormatter={m.tickFormatter}
+                            domain={m.key === "readinessScore" ? [0, 100] : ["auto", "auto"]}
+                          />
+                        ))}
+                        <Tooltip
+                          labelFormatter={(v: string) => v.length > 7 ? `Week of ${v}` : v}
+                          formatter={(v: number, name: string) => {
+                            const mt = TREND_METRICS.find((mm) => mm.key === name);
+                            return mt ? [mt.format(v), mt.label] : [v, name];
+                          }}
+                          contentStyle={{ fontSize: 12 }}
+                        />
+                        {visibleMetrics.map((m) => (
+                          <Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />
+                        ))}
+                      </AreaChart>
+                    );
+                  })()}
+                </ResponsiveContainer>
               </div>
-
-              {/* Weekly TSS */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">Weekly Training Load (TSS)</h3>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={trends} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={30} />
-                      <Tooltip labelFormatter={(v: string) => `Week of ${v}`} contentStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="weeklyTss" fill="#a855f7" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Activity Count */}
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <h3 className="text-xs font-medium text-muted-foreground mb-2">Activities per Week</h3>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={trends} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                      <YAxis tick={{ fontSize: 10 }} width={20} allowDecimals={false} />
-                      <Tooltip labelFormatter={(v: string) => `Week of ${v}`} contentStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="activityCount" fill="#22c55e" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="text-[10px] text-muted-foreground mt-1 text-center">
+                Click on a data point to view training logs for that period
               </div>
             </div>
           </CardContent>
@@ -668,20 +832,24 @@ export default function DashboardPage() {
                 <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" /> Intensity Distribution
                 </h2>
-                <div className="space-y-2">
-                  {(["zone1Pct", "zone2Pct", "zone3Pct"] as const).map((zone, i) => {
-                    const labels = ["Zone 1 · Easy", "Zone 2 · Moderate", "Zone 3 · Hard"];
-                    const colors = ["bg-blue-500", "bg-amber-500", "bg-red-500"];
-                    const pct = trackpointInsights.intensityDistribution![zone];
+                <div className="space-y-1.5">
+                  {([
+                    { key: "zone1Pct" as const, label: "Z1 · Recovery", color: "bg-blue-400" },
+                    { key: "zone2Pct" as const, label: "Z2 · Endurance", color: "bg-green-400" },
+                    { key: "zone3Pct" as const, label: "Z3 · Tempo", color: "bg-amber-400" },
+                    { key: "zone4Pct" as const, label: "Z4 · Threshold", color: "bg-orange-500" },
+                    { key: "zone5Pct" as const, label: "Z5 · VO₂Max", color: "bg-red-500" },
+                  ]).map((zone) => {
+                    const pct = trackpointInsights.intensityDistribution![zone.key];
                     const hrs = trackpointInsights.intensityDistribution!.totalAnalyzedHours * (pct / 100);
                     return (
-                      <div key={zone}>
+                      <div key={zone.key}>
                         <div className="flex justify-between text-xs mb-0.5">
-                          <span className="text-muted-foreground">{labels[i]}</span>
+                          <span className="text-muted-foreground">{zone.label}</span>
                           <span className="font-medium">{pct}% ({hrs.toFixed(1)}h)</span>
                         </div>
                         <div className="w-full bg-muted rounded-full h-2">
-                          <div className={`${colors[i]} h-2 rounded-full`} style={{ width: `${pct}%` }} />
+                          <div className={`${zone.color} h-2 rounded-full`} style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     );
@@ -698,10 +866,10 @@ export default function DashboardPage() {
                     </Badge>
                     <span className="text-xs text-muted-foreground">
                       {trackpointInsights.intensityDistribution.distributionType === "polarized"
-                        ? "80/20 split — ideal for endurance"
+                        ? "80/20 split (Z1+Z2 vs Z4+Z5) — ideal for endurance"
                         : trackpointInsights.intensityDistribution.distributionType === "pyramidal"
-                        ? "Tapered — reduce mid-zone"
-                        : "Too much grey zone — add easy days"}
+                        ? "Tapered distribution — healthy training balance"
+                        : "Too much Z3 (tempo) — consider more easy days"}
                     </span>
                   </div>
                 </div>

@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import {
-  AreaChart, Area, LineChart, Line, BarChart, Bar,
+  AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceArea, ComposedChart, Legend,
+  ReferenceArea, ComposedChart,
 } from "recharts";
 import { formatTime as fmtTime } from "@/lib/trackpoint-charts";
+import type { CombinedDataPoint } from "@/lib/trackpoint-charts";
 
 // ─── Shared tooltip style ────────────────────────────────────
 
@@ -253,6 +255,259 @@ export function VamCard({ totalGain, vamTotal, peakVam30min }: {
           <div className="text-[10px] text-muted-foreground">Peak 30min VAM</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Combined Metrics Chart ──────────────────────────────────
+
+type MetricKey = "ele" | "hr" | "pace" | "gap" | "power";
+type XAxisMode = "distance" | "time";
+
+interface MetricDef {
+  key: MetricKey;
+  label: string;
+  color: string;
+  unit: string;
+  yAxisId: string;
+  orientation: "left" | "right";
+  reversed?: boolean;
+  formatValue?: (v: number) => string;
+}
+
+const METRICS: MetricDef[] = [
+  { key: "ele",  label: "Elevation", color: "#8b5cf6", unit: "m",       yAxisId: "ele",   orientation: "left" },
+  { key: "hr",   label: "Heart Rate",color: "#ef4444", unit: "bpm",     yAxisId: "hr",    orientation: "left" },
+  { key: "pace", label: "Pace",      color: "#0ea5e9", unit: "/km",    yAxisId: "pace",  orientation: "right", reversed: true,
+    formatValue: (v) => { const m = Math.floor(v); return `${m}:${Math.round((v - m) * 60).toString().padStart(2, "0")}`; } },
+  { key: "gap",  label: "GAP",       color: "#10b981", unit: "/km",    yAxisId: "gap",   orientation: "right", reversed: true,
+    formatValue: (v) => { const m = Math.floor(v); return `${m}:${Math.round((v - m) * 60).toString().padStart(2, "0")}`; } },
+  { key: "power",label: "Power",     color: "#f59e0b", unit: "W",       yAxisId: "power", orientation: "right" },
+];
+
+function formatPaceVal(v: number): string {
+  const min = Math.floor(v);
+  const sec = Math.round((v - min) * 60);
+  return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+/** Format the x-axis label depending on mode. */
+function formatXAxis(value: number, mode: XAxisMode): string {
+  if (mode === "distance") return `${(value / 1000).toFixed(1)}km`;
+  return fmtTime(value);
+}
+
+export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
+  distanceData: CombinedDataPoint[];
+  timeData: CombinedDataPoint[];
+  maxHr?: number;
+}) {
+  const [visible, setVisible] = useState<Record<MetricKey, boolean>>({
+    ele: true, hr: true, pace: true, gap: true, power: true,
+  });
+  const [xAxisMode, setXAxisMode] = useState<XAxisMode>("distance");
+  const data = xAxisMode === "distance" ? distanceData : timeData;
+
+  const toggleMetric = (key: MetricKey) => {
+    setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Determine which side's axes to show
+  const leftMetrics = METRICS.filter((m) => m.orientation === "left" && visible[m.key]);
+  const rightMetrics = METRICS.filter((m) => m.orientation === "right" && visible[m.key]);
+
+  // Compute Y-axis domains
+  function domain(key: MetricKey): [number, number] {
+    const vals = data.map((d) => d[key]).filter((v): v is number => v != null);
+    if (vals.length === 0) return [0, 100];
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const pad = key === "pace" || key === "gap" ? 0.5 : key === "hr" ? 5 : max * 0.05;
+    return [min - pad, max + pad];
+  }
+
+  const chartMargin = {
+    top: 4,
+    right: rightMetrics.length > 1 ? 64 : 8,
+    bottom: 0,
+    left: leftMetrics.length > 1 ? 64 : 8,
+  };
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      {/* Controls bar */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {METRICS.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => toggleMetric(m.key)}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${
+                visible[m.key]
+                  ? "text-foreground border"
+                  : "text-muted-foreground border border-dashed opacity-50"
+              }`}
+              style={visible[m.key] ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}
+            >
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {/* X-axis toggle */}
+        <div className="flex items-center gap-0.5 rounded-lg border p-0.5 bg-background">
+          <button
+            onClick={() => setXAxisMode("distance")}
+            className={`px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors ${
+              xAxisMode === "distance" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Distance
+          </button>
+          <button
+            onClick={() => setXAxisMode("time")}
+            className={`px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors ${
+              xAxisMode === "time" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Time
+          </button>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={chartMargin}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis
+              dataKey={xAxisMode === "distance" ? "distance" : "timeSec"}
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v: number) => formatXAxis(v, xAxisMode)}
+            />
+
+            {/* Left Y-axes: Elevation + HR */}
+            {visible.ele && (
+              <YAxis
+                yAxisId="ele"
+                orientation="left"
+                stroke="#8b5cf6"
+                tick={{ fontSize: 10, fill: "#8b5cf6" }}
+                width={36}
+                domain={domain("ele")}
+                tickFormatter={(v: number) => `${Math.round(v)}m`}
+              />
+            )}
+            {visible.hr && (
+              <YAxis
+                yAxisId="hr"
+                orientation="left"
+                stroke="#ef4444"
+                tick={{ fontSize: 10, fill: "#ef4444" }}
+                width={36}
+                domain={domain("hr")}
+                tickFormatter={(v: number) => `${Math.round(v)}`}
+              />
+            )}
+
+            {/* Right Y-axes: Pace + GAP + Power */}
+            {visible.pace && (
+              <YAxis
+                yAxisId="pace"
+                orientation="right"
+                stroke="#0ea5e9"
+                tick={{ fontSize: 10, fill: "#0ea5e9" }}
+                width={40}
+                reversed
+                domain={domain("pace")}
+                tickFormatter={(v: number) => formatPaceVal(v)}
+              />
+            )}
+            {visible.gap && (
+              <YAxis
+                yAxisId="gap"
+                orientation="right"
+                stroke="#10b981"
+                tick={{ fontSize: 10, fill: "#10b981" }}
+                width={40}
+                reversed
+                domain={domain("gap")}
+                tickFormatter={(v: number) => formatPaceVal(v)}
+              />
+            )}
+            {visible.power && (
+              <YAxis
+                yAxisId="power"
+                orientation="right"
+                stroke="#f59e0b"
+                tick={{ fontSize: 10, fill: "#f59e0b" }}
+                width={36}
+                domain={domain("power")}
+                tickFormatter={(v: number) => `${Math.round(v)}W`}
+              />
+            )}
+
+            <Tooltip
+              contentStyle={tooltipStyle}
+              labelFormatter={(v: number) => formatXAxis(v, xAxisMode)}
+              formatter={(v: number, name: string) => {
+                switch (name) {
+                  case "ele":   return [`${Math.round(v)} m`, "Elevation"];
+                  case "hr":    return [`${Math.round(v)} bpm`, "HR"];
+                  case "pace":  return [`${formatPaceVal(v)} /km`, "Pace"];
+                  case "gap":   return [`${formatPaceVal(v)} /km`, "GAP"];
+                  case "power": return [`${Math.round(v)} W`, "Power"];
+                  case "smoothedPower": return [`${Math.round(v)} W`, "Power (smoothed)"];
+                  default:      return [v, name];
+                }
+              }}
+            />
+
+            {/* Elevation area */}
+            {visible.ele && (
+              <>
+                <defs>
+                  <linearGradient id="combEleGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <Area yAxisId="ele" type="monotone" dataKey="ele" stroke="#8b5cf6" fill="url(#combEleGrad)" strokeWidth={1.5} dot={false} />
+              </>
+            )}
+
+            {/* HR area */}
+            {visible.hr && (
+              <Area yAxisId="hr" type="monotone" dataKey="hr" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={1.5} dot={false} />
+            )}
+
+            {/* Pace line */}
+            {visible.pace && (
+              <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#0ea5e9" strokeWidth={1.5} dot={false} />
+            )}
+
+            {/* GAP line */}
+            {visible.gap && (
+              <Line yAxisId="gap" type="monotone" dataKey="gap" stroke="#10b981" strokeWidth={1.5} dot={false} />
+            )}
+
+            {/* Power: thin raw + thick smoothed */}
+            {visible.power && (
+              <>
+                <Area yAxisId="power" type="monotone" dataKey="power" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.06} strokeWidth={0.5} dot={false} />
+                <Line yAxisId="power" type="monotone" dataKey="smoothedPower" stroke="#f59e0b" strokeWidth={2} dot={false} />
+              </>
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Legend hint */}
+      {visible.pace && visible.gap && (
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Pace (solid blue) · GAP (solid green) · Raw power (thin amber) · Smoothed power (bold amber)
+        </p>
+      )}
     </div>
   );
 }

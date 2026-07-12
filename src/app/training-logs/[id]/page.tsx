@@ -9,16 +9,18 @@ import { formatDistance, formatDuration, formatPace } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Activity, Clock, Mountain, Route, Heart, Zap, ArrowLeft, ArrowRight,
-  ChevronLeft, ChevronRight, MessageSquare, Trash2, TrendingUp, BarChart3,
+  ChevronLeft, ChevronRight, MessageSquare, Trash2, TrendingUp, BarChart3, Flame,
+  MapPin, Copy, CheckCircle, AlertTriangle,
 } from "lucide-react";
 import { TrackPoint } from "@/lib/gpx-parser";
 import {
-  computeSplits, computeElevationProfile, computeHrProfile, computeHrZoneBreakdown,
-  computePaceProfile, computePowerProfile, computeGradeAdjustedPace, computeVam,
+  computeSplits, computeHrZoneBreakdown, computeVam,
+  computeCombinedDistanceData, computeCombinedTimeData,
   extractRoutePoints, extractLaps, formatSplitPace, formatTime,
 } from "@/lib/trackpoint-charts";
 import {
-  ElevationChart, HrChart, HrZoneBar, PaceChart, PowerChart, GapChart, VamCard,
+  HrZoneBar, VamCard,
+  CombinedMetricsChart,
 } from "@/components/training/training-charts";
 import { SplitsTable, LapTable, RouteMap } from "@/components/training/training-tables";
 
@@ -36,6 +38,19 @@ interface TrainingLog {
   elevationGainMeters: number | null; averageHr: number | null; maxHr: number | null;
   averagePower: number | null; normalizedPower: number | null; calories: number | null; tss: number | null;
   rawJson: Record<string, unknown> | null;
+  source: string;
+  duplicateGroupId: string | null;
+  duplicateStatus: string | null;
+  mergedIntoId: string | null;
+}
+
+interface FacilityInfo {
+  id: string; name: string; type: string; surface: string | null;
+}
+
+interface DuplicateGroupInfo {
+  id: string; status: string;
+  trainingLogs: { id: string; name: string; source: string; startDate: string; mergedIntoId: string | null }[];
 }
 
 function deltaStr(current: number, previous: number | null | undefined, unit: string, invert: boolean = false): string {
@@ -50,15 +65,103 @@ function deltaStr(current: number, previous: number | null | undefined, unit: st
   return `${sign}${pct}% ${arrow}`;
 }
 
-function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, onRemarksChange, onDelete }: {
+const SOURCE_LABELS: Record<string, string> = {
+  strava: "Strava",
+  garmin: "Garmin",
+  watch_push: "Watch Push",
+  manual: "Manual",
+};
+
+const SOURCE_COLORS: Record<string, "default" | "secondary" | "outline" | "success" | "warning"> = {
+  strava: "default",
+  garmin: "success",
+  watch_push: "warning",
+  manual: "secondary",
+};
+
+function SourceBadge({ source }: { source: string }) {
+  return (
+    <Badge variant={SOURCE_COLORS[source] || "outline"}>
+      {SOURCE_LABELS[source] || source}
+    </Badge>
+  );
+}
+
+function FacilityPicker({ selected, allFacilities, onChange }: {
+  selected: string[];
+  allFacilities: FacilityInfo[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  function toggle(facilityId: string) {
+    const next = selected.includes(facilityId)
+      ? selected.filter((id) => id !== facilityId)
+      : [...selected, facilityId];
+    onChange(next);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 rounded-full border border-dashed border-input px-2.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-solid transition-colors"
+      >
+        <MapPin className="h-3 w-3" />
+        {selected.length > 0 ? `Edit (${selected.length})` : "Tag facility"}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 z-20 w-56 rounded-md border bg-popover p-2 shadow-md">
+            <p className="text-[10px] font-medium text-muted-foreground px-1 pb-1">Select facilities:</p>
+            {allFacilities.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => toggle(f.id)}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-muted transition-colors text-left"
+              >
+                <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${
+                  selected.includes(f.id) ? "bg-primary border-primary text-primary-foreground" : "border-input"
+                }`}>
+                  {selected.includes(f.id) && <CheckCircle className="h-2.5 w-2.5" />}
+                </div>
+                <span>{f.name}</span>
+                <span className="text-[10px] text-muted-foreground ml-auto">{f.type}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+      <Icon className="h-4 w-4 text-primary shrink-0" />
+      <div className="min-w-0">
+        <div className="text-[10px] text-muted-foreground leading-tight">{label}</div>
+        <div className="text-sm font-semibold truncate">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, facilities, duplicateGroup, allFacilities, onRemarksChange, onDelete, onFacilitiesChange }: {
   log: TrainingLog;
   remarksText: string;
   remarksDirty: boolean;
   saved: boolean;
   deleting: boolean;
   similarRoutes: RouteMatch[];
+  facilities: FacilityInfo[];
+  duplicateGroup: DuplicateGroupInfo | null;
+  allFacilities: FacilityInfo[];
   onRemarksChange: (text: string) => void;
   onDelete: () => void;
+  onFacilitiesChange: (facilityIds: string[]) => void;
 }) {
   const router = useRouter();
   const pace = log.distanceMeters && log.distanceMeters > 0
@@ -72,77 +175,97 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
   const hasTrackpoints = trackPoints && trackPoints.length >= 10;
 
   // Compute all chart data
-  const splits = hasTrackpoints ? computeSplits(trackPoints!) : [];
-  const elevProfile = hasTrackpoints ? computeElevationProfile(trackPoints!) : [];
-  const hrProfile = hasTrackpoints && log.maxHr ? computeHrProfile(trackPoints!) : [];
+  const splitMeters = log.type === "swim" ? 100 : log.type === "ride" ? 5000 : 1000;
+  const splits = hasTrackpoints ? computeSplits(trackPoints!, splitMeters) : [];
   const hrZones = hasTrackpoints && log.maxHr ? computeHrZoneBreakdown(trackPoints!, log.maxHr) : null;
-  const paceProfile = hasTrackpoints ? computePaceProfile(trackPoints!) : [];
-  const powerProfile = hasTrackpoints ? computePowerProfile(trackPoints!) : [];
-  const gapProfile = hasTrackpoints ? computeGradeAdjustedPace(trackPoints!) : [];
   const vam = hasTrackpoints ? computeVam(trackPoints!) : null;
   const routePoints = hasTrackpoints ? extractRoutePoints(trackPoints!) : [];
+  const combinedDistData = hasTrackpoints ? computeCombinedDistanceData(trackPoints!) : [];
+  const combinedTimeData = hasTrackpoints ? computeCombinedTimeData(trackPoints!) : [];
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Badge>{log.type}</Badge>
+          <SourceBadge source={log.source} />
           {log.tss && <Badge variant="outline">TSS {Math.round(log.tss)}</Badge>}
           {log.remarks && <Badge variant="secondary" className="gap-1"><MessageSquare className="h-3 w-3" /> Remarks</Badge>}
         </div>
+
+        {/* Duplicate warning banner */}
+        {duplicateGroup && duplicateGroup.status === "pending" && (
+          <div className="flex items-center gap-2 p-2 mb-2 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              This activity may be a duplicate of{" "}
+              {duplicateGroup.trainingLogs
+                .filter((a) => a.id !== log.id && !a.mergedIntoId)
+                .map((a) => a.name)
+                .join(", ") || "another activity"}
+              .{" "}
+              <a href="/duplicates" className="underline font-medium">Review duplicates</a>
+            </span>
+          </div>
+        )}
+
+        {/* Facility tags */}
+        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+          {facilities.map((f) => (
+            <Badge key={f.id} variant="outline" className="gap-1 text-[11px]">
+              <MapPin className="h-3 w-3" />
+              {f.name}
+              {f.surface && <span className="text-muted-foreground">({f.surface})</span>}
+            </Badge>
+          ))}
+          {allFacilities.length > 0 && (
+            <FacilityPicker
+              selected={facilities.map((f) => f.id)}
+              allFacilities={allFacilities}
+              onChange={onFacilitiesChange}
+            />
+          )}
+        </div>
+
         <CardTitle className="text-2xl">{log.name}</CardTitle>
         <p className="text-sm text-muted-foreground">
           {format(new Date(log.startDate), "EEEE, MMMM d, yyyy 'at' h:mm a")}
         </p>
       </CardHeader>
       <CardContent>
-        {/* Summary stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card><CardContent className="py-4 text-center"><Clock className="h-5 w-5 mx-auto text-primary mb-1" /><div className="text-xl font-bold">{formatDuration(log.durationSeconds)}</div><div className="text-xs text-muted-foreground">Duration</div></CardContent></Card>
-          {log.distanceMeters && <Card><CardContent className="py-4 text-center"><Route className="h-5 w-5 mx-auto text-primary mb-1" /><div className="text-xl font-bold">{formatDistance(log.distanceMeters)}</div><div className="text-xs text-muted-foreground">Distance</div></CardContent></Card>}
-          {log.elevationGainMeters && <Card><CardContent className="py-4 text-center"><Mountain className="h-5 w-5 mx-auto text-primary mb-1" /><div className="text-xl font-bold">{formatDistance(log.elevationGainMeters)}</div><div className="text-xs text-muted-foreground">Elevation</div></CardContent></Card>}
-          <Card><CardContent className="py-4 text-center"><Activity className="h-5 w-5 mx-auto text-primary mb-1" /><div className="text-xl font-bold">{formatPace(pace)}</div><div className="text-xs text-muted-foreground">Avg Pace</div></CardContent></Card>
+        {/* Compact summary stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-6">
+          <Stat icon={Clock} label="Duration" value={formatDuration(log.durationSeconds)} />
+          {log.distanceMeters && <Stat icon={Route} label="Distance" value={formatDistance(log.distanceMeters)} />}
+          {log.elevationGainMeters && <Stat icon={Mountain} label="Elevation" value={formatDistance(log.elevationGainMeters)} />}
+          <Stat icon={Activity} label="Avg Pace" value={formatPace(pace)} />
+          {log.averageHr && (
+            <Stat icon={Heart} label="Heart Rate" value={`${Math.round(log.averageHr)}${log.maxHr ? `/${Math.round(log.maxHr)}` : ""} bpm`} />
+          )}
+          {log.averagePower && (
+            <Stat icon={Zap} label="Power" value={`${Math.round(log.averagePower)}${log.normalizedPower ? ` NP ${Math.round(log.normalizedPower)}` : ""}W`} />
+          )}
+          {log.calories && <Stat icon={Flame} label="Calories" value={`${Math.round(log.calories)} kcal`} />}
+          {vam && <Stat icon={TrendingUp} label="VAM" value={`${vam.vamTotal.toLocaleString()} m/h`} />}
+          {log.tss && <Stat icon={BarChart3} label="TSS" value={String(Math.round(log.tss))} />}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4 mb-6">
-          {log.averageHr && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted"><Heart className="h-5 w-5 text-red-500" /><div><div className="text-sm text-muted-foreground">Heart Rate</div><div className="font-medium">Avg {Math.round(log.averageHr)} bpm{log.maxHr ? ` / Max ${Math.round(log.maxHr)} bpm` : ""}</div></div></div>}
-          {log.averagePower && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted"><Zap className="h-5 w-5 text-amber-500" /><div><div className="text-sm text-muted-foreground">Power</div><div className="font-medium">Avg {Math.round(log.averagePower)}W{log.normalizedPower ? ` / NP ${Math.round(log.normalizedPower)}W` : ""}</div></div></div>}
-          {log.calories && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted"><Zap className="h-5 w-5 text-orange-500" /><div><div className="text-sm text-muted-foreground">Calories</div><div className="font-medium">{Math.round(log.calories)} kcal</div></div></div>}
-          {vam && <div className="flex items-center gap-3 p-3 rounded-lg bg-muted"><TrendingUp className="h-5 w-5 text-purple-500" /><div><div className="text-sm text-muted-foreground">VAM</div><div className="font-medium">{vam.vamTotal.toLocaleString()} m/h</div></div></div>}
-        </div>
-
-        {/* Tier 1: Route Map + Elevation */}
-        {hasTrackpoints && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* Combined Metrics Chart — replaces Elevation, HR, Pace, GAP, Power */}
+        {hasTrackpoints && combinedDistData.length >= 3 && (
+          <div className="space-y-4 mb-4">
             {routePoints.length >= 3 && <RouteMap points={routePoints} />}
-            {elevProfile.length >= 3 && <ElevationChart data={elevProfile} />}
+            <CombinedMetricsChart distanceData={combinedDistData} timeData={combinedTimeData} maxHr={log.maxHr ?? undefined} />
           </div>
         )}
 
-        {/* Tier 1: HR Chart + HR Zones */}
-        {hasTrackpoints && log.maxHr && hrProfile.length >= 3 && (
+        {/* HR Zone Distribution (complementary to combined chart) */}
+        {hrZones && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <HrChart data={hrProfile} maxHr={log.maxHr} />
-            {hrZones && <HrZoneBar zones={hrZones.zones} />}
+            <HrZoneBar zones={hrZones.zones} />
           </div>
         )}
 
-        {/* Tier 2: Pace + GAP */}
-        {hasTrackpoints && paceProfile.length >= 3 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <PaceChart data={paceProfile} />
-            {gapProfile.length >= 3 && <GapChart data={gapProfile} />}
-          </div>
-        )}
-
-        {/* Tier 2: Power */}
-        {powerProfile.length >= 10 && (
-          <div className="mb-4">
-            <PowerChart data={powerProfile} />
-          </div>
-        )}
-
-        {/* Tier 2: VAM card */}
+        {/* VAM card */}
         {vam && (
           <div className="mb-4">
             <VamCard totalGain={vam.totalGain} vamTotal={vam.vamTotal} peakVam30min={vam.peakVam30min} />
@@ -155,7 +278,7 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
               <BarChart3 className="h-3.5 w-3.5" /> Splits
             </h3>
-            <SplitsTable splits={splits} />
+            <SplitsTable splits={splits} type={log.type} />
           </div>
         )}
 
@@ -165,7 +288,7 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
               <BarChart3 className="h-3.5 w-3.5" /> Laps (from file)
             </h3>
-            <LapTable laps={laps} />
+            <LapTable laps={laps} type={log.type} />
           </div>
         )}
 
@@ -316,6 +439,9 @@ export default function TrainingLogDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const [similarRoutes, setSimilarRoutes] = useState<RouteMatch[]>([]);
+  const [facilities, setFacilities] = useState<FacilityInfo[]>([]);
+  const [allFacilities, setAllFacilities] = useState<FacilityInfo[]>([]);
+  const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroupInfo | null>(null);
   const touchRef = useRef<{ startX: number; startY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -329,6 +455,30 @@ export default function TrainingLogDetailPage() {
     } catch {
       alert("Failed to delete. Please try again.");
       setDeleting(false);
+    }
+  }
+
+  async function handleFacilitiesChange(facilityIds: string[]) {
+    setFacilities((prev) => {
+      // Optimistically update (will be replaced by server response)
+      const selected = allFacilities.filter((f) => facilityIds.includes(f.id));
+      return selected;
+    });
+    try {
+      const res = await fetch(`/api/training-logs/${id}/facilities`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityIds }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setFacilities(updated);
+      }
+    } catch {
+      // Revert on error by re-fetching
+      fetch(`/api/training-logs/${id}/facilities`)
+        .then((r) => r.ok ? r.json() : [])
+        .then(setFacilities);
     }
   }
 
@@ -357,6 +507,34 @@ export default function TrainingLogDetailPage() {
       .then((data) => setSimilarRoutes(data.matches || []))
       .catch(() => setSimilarRoutes([]));
   }, [id]);
+
+  // Fetch facilities
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/training-logs/${id}/facilities`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setFacilities)
+      .catch(() => setFacilities([]));
+  }, [id]);
+
+  useEffect(() => {
+    fetch("/api/facilities")
+      .then((r) => r.ok ? r.json() : [])
+      .then(setAllFacilities)
+      .catch(() => setAllFacilities([]));
+  }, []);
+
+  // Fetch duplicate info
+  useEffect(() => {
+    if (!log?.duplicateGroupId) { setDuplicateGroup(null); return; }
+    fetch(`/api/duplicates/list?status=pending`)
+      .then((r) => r.ok ? r.json() : { groups: [] })
+      .then((data) => {
+        const g = data.groups?.find((g: DuplicateGroupInfo) => g.id === log.duplicateGroupId);
+        setDuplicateGroup(g || null);
+      })
+      .catch(() => setDuplicateGroup(null));
+  }, [log?.duplicateGroupId]);
 
   // Auto-save remarks with debounce
   const saveRemarks = useCallback(async (text: string) => {
@@ -520,8 +698,12 @@ export default function TrainingLogDetailPage() {
             saved={saved}
             deleting={deleting}
             similarRoutes={similarRoutes}
+            facilities={facilities}
+            duplicateGroup={duplicateGroup}
+            allFacilities={allFacilities}
             onRemarksChange={handleRemarksChange}
             onDelete={handleDelete}
+            onFacilitiesChange={handleFacilitiesChange}
           />
         </div>
 

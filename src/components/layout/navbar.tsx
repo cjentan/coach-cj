@@ -9,6 +9,7 @@ import { Activity, Shield, Menu, X } from "lucide-react";
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/training-logs", label: "Training" },
+  { href: "/duplicates", label: "Duplicates" },
   { href: "/goals", label: "Goals" },
   { href: "/facilities", label: "Facilities" },
   { href: "/body-metrics", label: "Body" },

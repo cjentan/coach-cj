@@ -8,7 +8,7 @@
  * Uses jsonMode for structured output (Zod-validated).
  */
 import { z } from "zod";
-import { ask, isLlmConfigured, getLlmModel } from "./llm";
+import { ask, isLlmConfigured } from "./llm";
 import { formatDistance } from "./utils";
 
 // ── Types ──────────────────────────────────────────────
@@ -113,7 +113,7 @@ Your task: adjust an athlete's existing weekly training plan based on their natu
 Rules:
 1. RESPECT the athlete's training availability — every non-rest session MUST fall on a day where they have a time slot. If they say they're away, those days MUST become rest.
 2. Never eliminate all rest days — at least 1 rest day per week.
-3. Volume increases are capped at +15% of the current plan's target volume.
+3. Volume increases are capped at +15% of the current plan's target volume. If the current plan has 0 volume (no baseline), use the athlete's recent average weekly volume as the reference instead.
 4. If the athlete mentions illness (flu, sick, fever, unwell, down with), enforce at least 2 consecutive rest days starting from the affected date.
 5. If the athlete mentions a race or event, ensure the day before includes rest or very easy effort.
 6. Reference actual facility names from their list — never invent facilities.
@@ -254,12 +254,20 @@ function applyGuardrails(
 ): string[] {
   const violations: string[] = [];
 
-  // 1. Volume ceiling: ≤ current * 1.15
-  const maxVolume = currentPlan.targetVolumeMeters * 1.15;
-  if (adjusted.targetVolumeMeters > maxVolume) {
-    violations.push(
-      `Volume ${formatDistance(adjusted.targetVolumeMeters)} exceeds +15% cap (max ${formatDistance(maxVolume)})`
-    );
+  // 1. Volume ceiling: ≤ current * 1.15 (or use recent volume as baseline if plan is 0)
+  const volumeBaseline = currentPlan.targetVolumeMeters > 0
+    ? currentPlan.targetVolumeMeters
+    : context.recentVolumeByWeek.length > 0
+      ? context.recentVolumeByWeek.reduce((a, b) => a + b, 0) / context.recentVolumeByWeek.length
+      : 0;
+
+  if (volumeBaseline > 0) {
+    const maxVolume = volumeBaseline * 1.15;
+    if (adjusted.targetVolumeMeters > maxVolume) {
+      violations.push(
+        `Volume ${formatDistance(adjusted.targetVolumeMeters)} exceeds +15% cap (max ${formatDistance(maxVolume)})`
+      );
+    }
   }
 
   // 2. At least 1 rest day
@@ -326,23 +334,38 @@ function applyGuardrails(
 export async function adjustPlan(
   currentPlan: CurrentPlan,
   userPrompt: string,
-  context: PlanContext
+  context: PlanContext,
+  llmConfig?: { apiKey?: string; baseUrl?: string; model?: string; provider?: string }
 ): Promise<AdjustResult | null> {
-  if (!isLlmConfigured()) {
+  if (!isLlmConfigured(llmConfig?.apiKey, llmConfig?.provider)) {
     console.log("LLM not configured — cannot adjust plan");
     return null;
   }
 
-  console.log(`Adjusting plan with ${getLlmModel()}...`);
+  console.log(`Adjusting plan with ${llmConfig?.model || "unknown"}...`);
 
   const userMessage = buildUserMessage(currentPlan, userPrompt, context);
 
-  // First attempt
-  let result = await ask(SYSTEM_PROMPT, userMessage, {
-    temperature: 0.3,
+  const llmOpts = {
+    temperature: 0.3 as const,
     maxTokens: 2048,
-    jsonMode: true,
-  });
+    jsonMode: true as const,
+    apiKey: llmConfig?.apiKey,
+    baseUrl: llmConfig?.baseUrl,
+    model: llmConfig?.model,
+  };
+
+  const retryOpts = {
+    temperature: 0.2 as const,
+    maxTokens: 2048,
+    jsonMode: true as const,
+    apiKey: llmConfig?.apiKey,
+    baseUrl: llmConfig?.baseUrl,
+    model: llmConfig?.model,
+  };
+
+  // First attempt
+  let result = await ask(SYSTEM_PROMPT, userMessage, llmOpts);
 
   if (!result) {
     console.log("LLM returned no response — plan adjust failed");
@@ -360,11 +383,7 @@ export async function adjustPlan(
     // Retry once with error context
     const retryMessage = `${userMessage}\n\n[SYSTEM NOTE: Your previous response was invalid JSON or did not match the required schema. Error: ${(err as Error).message}. Please return ONLY valid JSON matching the schema exactly.]`;
 
-    result = await ask(SYSTEM_PROMPT, retryMessage, {
-      temperature: 0.2,
-      maxTokens: 2048,
-      jsonMode: true,
-    });
+    result = await ask(SYSTEM_PROMPT, retryMessage, retryOpts);
 
     if (!result) {
       console.log("LLM retry also failed");
@@ -389,11 +408,7 @@ export async function adjustPlan(
     const violationMsg = guardrailViolations.map((v) => `- ${v}`).join("\n");
     const retryMessage = `${userMessage}\n\n[SYSTEM NOTE: Your adjusted plan failed safety checks:\n${violationMsg}\n\nPlease fix these issues and return a valid JSON plan.]`;
 
-    result = await ask(SYSTEM_PROMPT, retryMessage, {
-      temperature: 0.2,
-      maxTokens: 2048,
-      jsonMode: true,
-    });
+    result = await ask(SYSTEM_PROMPT, retryMessage, retryOpts);
 
     if (result) {
       try {

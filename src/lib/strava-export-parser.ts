@@ -39,6 +39,7 @@ export async function parseStravaExportZip(
   zipBuffer: Buffer,
   onProgress?: (msg: string) => void,
   onActivity?: ActivityCallback,
+  signal?: AbortSignal,
 ): Promise<StravaExportResult> {
   const log = (msg: string) => {
     console.log(`[import:parse] ${msg}`);
@@ -191,6 +192,17 @@ export async function parseStravaExportZip(
   const total = csvResult.activities.length;
 
   for (let i = 0; i < csvResult.activities.length; i++) {
+    // Check if the import was cancelled
+    if (signal?.aborted) {
+      log(`Import cancelled by user after ${i} activities`);
+      return {
+        activities,
+        errors: [...errors, `Import cancelled after ${i} of ${total} activities`],
+        totalCsvRows: csvResult.totalRows,
+        withRichData,
+        csvOnly,
+      };
+    }
     const csvRow = csvResult.activities[i];
     let rawJson: Record<string, unknown> | null = null;
     let hasRichData = false;
@@ -294,6 +306,18 @@ export async function parseStravaExportZip(
         activities.push(fallback);
       }
       csvOnly++;
+    }
+
+    // Check cancellation again after the activity callback
+    if (signal?.aborted) {
+      log(`Import cancelled by user after ${i + 1} activities`);
+      return {
+        activities,
+        errors: [...errors, `Import cancelled after ${i + 1} of ${total} activities`],
+        totalCsvRows: csvResult.totalRows,
+        withRichData,
+        csvOnly,
+      };
     }
 
     // YIELD to the event loop so heartbeats fire and stream data flushes.

@@ -90,7 +90,13 @@ const sundayWorker = new Worker(
 
     const users = await prisma.user.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        llmApiKey: true,
+        llmBaseUrl: true,
+        llmModel: true,
+        llmProvider: true,
         raceGoals: { where: { status: "active" } },
         trainingAvailability: true,
         trainingFacilities: true,
@@ -170,29 +176,30 @@ const sundayWorker = new Worker(
       const pmcResults = computePMC(pmcInput);
       const latestPmc = pmcResults[pmcResults.length - 1] || { ctl: 30, atl: 30, tsb: 0 };
 
-      const coachNotes = await generateCoachNotes({
-        athleteName: user.name || "Athlete",
-        goals: user.raceGoals.map((g) => ({
-          name: g.name,
-          targetDate: g.targetDate.toISOString().split("T")[0],
-          distanceMeters: g.distanceMeters,
-          elevationGainMeters: g.elevationGainMeters,
-          priority: g.priority,
-        })),
-        recentWeeks: weekLabels.map((label, i) => ({
-          label,
-          volumeMeters: weeklyVolumes[i] || 0,
-          elevationMeters: weeklyElevations[i] || 0,
-          durationSeconds: weeklyDurations[i] || 0,
-          activityCount: 0,
-        })),
-        currentWeek: {
-          volumeMeters: weeklyVolumes[3] || 0,
-          elevationMeters: weeklyElevations[3] || 0,
-          durationSeconds: weeklyDurations[3] || 0,
-          activityCount: 0,
-        },
-        pmc: {
+      const coachNotes = await generateCoachNotes(
+        {
+          athleteName: user.name || "Athlete",
+          goals: user.raceGoals.map((g) => ({
+            name: g.name,
+            targetDate: g.targetDate.toISOString().split("T")[0],
+            distanceMeters: g.distanceMeters,
+            elevationGainMeters: g.elevationGainMeters,
+            priority: g.priority,
+          })),
+          recentWeeks: weekLabels.map((label, i) => ({
+            label,
+            volumeMeters: weeklyVolumes[i] || 0,
+            elevationMeters: weeklyElevations[i] || 0,
+            durationSeconds: weeklyDurations[i] || 0,
+            activityCount: 0,
+          })),
+          currentWeek: {
+            volumeMeters: weeklyVolumes[3] || 0,
+            elevationMeters: weeklyElevations[3] || 0,
+            durationSeconds: weeklyDurations[3] || 0,
+            activityCount: 0,
+          },
+          pmc: {
           ctl: latestPmc.ctl,
           atl: latestPmc.atl,
           tsb: latestPmc.tsb,
@@ -232,7 +239,14 @@ const sundayWorker = new Worker(
           elevationGainMeters: f.elevationGainMeters,
           notes: f.notes,
         })),
-      });
+      },
+      {
+        apiKey: user.llmApiKey ?? undefined,
+        baseUrl: user.llmBaseUrl ?? undefined,
+        model: user.llmModel ?? undefined,
+        provider: user.llmProvider ?? undefined,
+      }
+    );
 
       await prisma.weeklyPlan.upsert({
         where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },

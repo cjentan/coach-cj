@@ -38,6 +38,7 @@ interface FitRecord {
   timestamp?: string | Date;
   distance?: number;
   altitude?: number;
+  enhanced_altitude?: number;
   heart_rate?: number;
   speed?: number;
   power?: number;
@@ -71,8 +72,10 @@ const SPORT_MAP: Record<string, ActivityType> = {
 };
 
 function mapFitSport(sport?: string, subSport?: string): ActivityType {
-  const key = (subSport || sport || "").toLowerCase();
-  return SPORT_MAP[key] || "other";
+  const sportKey = (sport || "").toLowerCase();
+  const subKey = (subSport || "").toLowerCase();
+  // Use the sport first; only override with subSport if it's a known mapped value
+  return SPORT_MAP[subKey] || SPORT_MAP[sportKey] || "other";
 }
 
 export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
@@ -151,7 +154,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           const trackPoints: TrackPoint[] = sessionRecords.map((r) => ({
             lat: r.position_lat != null ? r.position_lat : null,
             lon: r.position_long != null ? r.position_long : null,
-            ele: r.altitude || null,
+            ele: r.altitude ?? r.enhanced_altitude ?? null,
             time: r.timestamp ? new Date(r.timestamp).toISOString() : null,
             hr: r.heart_rate || null,
             cadence: r.cadence || null,
@@ -223,7 +226,7 @@ function computeFromFitRecords(records: FitRecord[]): ParsedFileActivity | null 
     return {
       lat: r.position_lat != null ? r.position_lat : null,
       lon: r.position_long != null ? r.position_long : null,
-      ele: r.altitude || null,
+      ele: r.altitude ?? r.enhanced_altitude ?? null,
       time: r.timestamp ? new Date(r.timestamp).toISOString() : null,
       hr: r.heart_rate || null,
       cadence: r.cadence || null,

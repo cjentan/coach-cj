@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Zap, Clock, CheckCircle2, XCircle, Loader2, Send, Lightbulb, Server } from "lucide-react";
+import { Brain, Zap, Clock, CheckCircle2, XCircle, Loader2, Send, Lightbulb, Server, Settings, Key } from "lucide-react";
 
 interface LlmStatus {
   configured: boolean;
@@ -89,27 +90,42 @@ export default function LlmTestPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading status...
             </div>
+          ) : !llmStatus.configured ? (
+            <div className="text-center py-6 space-y-4">
+              <div className="flex justify-center">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                  <Key className="h-6 w-6 text-muted-foreground" />
+                </div>
+              </div>
+              <div>
+                <p className="font-medium mb-1">No AI Provider Configured</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  You need to set up your own API key to use AI coaching features.
+                </p>
+                <Link href="/settings/credentials">
+                  <Button variant="default" size="sm">
+                    <Settings className="h-4 w-4 mr-2" /> Configure in Settings
+                  </Button>
+                </Link>
+              </div>
+            </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4 text-sm">
               <div className="flex items-center justify-between p-2 rounded bg-muted">
                 <span className="text-muted-foreground">Provider</span>
-                <Badge variant="outline">{llmStatus.provider}</Badge>
+                <Badge variant="outline">{llmStatus.provider || "—"}</Badge>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-muted">
                 <span className="text-muted-foreground">Model</span>
-                <Badge variant="outline">{llmStatus.model}</Badge>
+                <Badge variant="outline">{llmStatus.model || "—"}</Badge>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-muted">
                 <span className="text-muted-foreground">Base URL</span>
-                <span className="font-mono text-xs truncate max-w-[200px]">{llmStatus.baseUrl}</span>
+                <span className="font-mono text-xs truncate max-w-[200px]">{llmStatus.baseUrl || "—"}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-muted">
                 <span className="text-muted-foreground">Configured</span>
-                {llmStatus.configured ? (
-                  <Badge variant="success"><CheckCircle2 className="h-3 w-3 mr-1" /> Yes</Badge>
-                ) : (
-                  <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> No</Badge>
-                )}
+                <Badge variant="success"><CheckCircle2 className="h-3 w-3 mr-1" /> Yes</Badge>
               </div>
             </div>
           )}

@@ -15,7 +15,7 @@ type ActivityLog = {
   id: string; type: string; name: string; startDate: string;
   distanceMeters: number | null; elevationGainMeters: number | null;
   durationSeconds: number; averageHr: number | null; tss: number | null;
-  remarks?: string | null;
+  remarks?: string | null; source: string;
 };
 
 type ActivityType = "all" | "run" | "ride" | "swim" | "hike";
@@ -28,6 +28,16 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: "hike", label: "Hike" },
 ];
 
+type ActivitySource = "all" | "strava" | "garmin" | "watch_push" | "manual";
+
+const ACTIVITY_SOURCES: { value: ActivitySource; label: string }[] = [
+  { value: "all", label: "All Sources" },
+  { value: "strava", label: "Strava" },
+  { value: "garmin", label: "Garmin" },
+  { value: "watch_push", label: "Watch Push" },
+  { value: "manual", label: "Manual" },
+];
+
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   run: <Activity className="h-4 w-4" />,
   ride: <Bike className="h-4 w-4" />,
@@ -38,6 +48,22 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 const TYPE_BADGE_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
   run: "default", ride: "secondary", swim: "outline", hike: "outline",
 };
+
+const SOURCE_LABELS: Record<string, string> = {
+  strava: "Strava", garmin: "Garmin", watch_push: "Watch", manual: "Manual",
+};
+
+const SOURCE_COLORS: Record<string, "default" | "secondary" | "outline" | "success" | "warning"> = {
+  strava: "default", garmin: "success", watch_push: "warning", manual: "secondary",
+};
+
+function SourceBadge({ source }: { source: string }) {
+  return (
+    <Badge variant={SOURCE_COLORS[source] || "outline"} className="text-[10px] shrink-0">
+      {SOURCE_LABELS[source] || source}
+    </Badge>
+  );
+}
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
@@ -57,6 +83,7 @@ export default function TrainingLogsPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [activityFilter, setActivityFilter] = useState<ActivityType>("all");
+  const [sourceFilter, setSourceFilter] = useState<ActivitySource>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -79,6 +106,7 @@ export default function TrainingLogsPage() {
   function buildFilterParams(offsetVal: number) {
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetVal) });
     if (activityFilter !== "all") params.set("type", activityFilter);
+    if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (dateFrom) params.set("from", dateFrom);
     if (dateTo) params.set("to", dateTo);
     return params;
@@ -113,7 +141,7 @@ export default function TrainingLogsPage() {
     }
   }
 
-  useEffect(() => { loadLogs(); }, [activityFilter, dateFrom, dateTo]);
+  useEffect(() => { loadLogs(); }, [activityFilter, sourceFilter, dateFrom, dateTo]);
 
   const weeklyStats = useMemo(() => {
     const weekStart = getWeekStart(new Date());
@@ -158,11 +186,11 @@ export default function TrainingLogsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle>
-            {(activityFilter !== "all" || dateFrom || dateTo) && (
+            {(activityFilter !== "all" || sourceFilter !== "all" || dateFrom || dateTo) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setActivityFilter("all"); setDateFrom(""); setDateTo(""); }}
+                onClick={() => { setActivityFilter("all"); setSourceFilter("all"); setDateFrom(""); setDateTo(""); }}
               >
                 Clear Filters
               </Button>
@@ -170,12 +198,19 @@ export default function TrainingLogsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-4 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Activity Type</Label>
               <Select value={activityFilter} onValueChange={(v) => setActivityFilter(v as ActivityType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ACTIVITY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Data Source</Label>
+              <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as ActivitySource)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{ACTIVITY_SOURCES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5"><Label className="text-xs">From</Label><Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} /></div>
@@ -204,6 +239,7 @@ export default function TrainingLogsPage() {
                           <span className="text-muted-foreground">{TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}</span>
                           <span className="font-semibold truncate">{log.name}</span>
                           <Badge variant={TYPE_BADGE_VARIANTS[log.type] || "outline"} className="shrink-0 capitalize">{log.type}</Badge>
+                          <SourceBadge source={log.source} />
                         </div>
                         <p className="text-sm text-muted-foreground">{new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</p>
                       </div>

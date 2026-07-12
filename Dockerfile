@@ -1,17 +1,23 @@
-# Stage 1: Install dependencies
+# Stage 1: Install ALL dependencies (including devDependencies for building)
 FROM node:20-slim AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 
 # Stage 2: Build
 FROM node:20-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+
+# Layer 1: Copy deps (only invalidated when package.json/lock changes)
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN echo "BUILD TIME: $(date)" && md5sum src/lib/training-load.ts
+
+# Layer 2: Copy Prisma schema & generate client (only invalidated when schema changes)
+COPY prisma ./prisma
 RUN npx prisma generate
+
+# Layer 3: Copy source & build (invalidated on any source change)
+COPY . .
 RUN npm run build
 # Compile worker TypeScript for the background job container
 RUN npx tsc -p tsconfig.worker.json

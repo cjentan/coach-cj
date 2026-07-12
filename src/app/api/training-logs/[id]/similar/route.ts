@@ -29,11 +29,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const distMin = currentDist * 0.7;
   const distMax = currentDist * 1.3;
 
-  // Pre-filter: activities with similar distance, with GPS data, excluding self
+  // Pre-filter: activities with similar distance, with GPS data, excluding self and merged duplicates
   const candidates = await prisma.trainingLog.findMany({
     where: {
       userId: session.user.id,
       id: { not: params.id },
+      mergedIntoId: null,
       distanceMeters: { gte: distMin, lte: distMax },
       rawJson: { not: Prisma.DbNull },
     },

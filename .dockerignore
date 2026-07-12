@@ -2,6 +2,7 @@ node_modules/
 .next/
 dist-workers/
 data/
+strava_export/
 .env
 .env.local
 .env.production

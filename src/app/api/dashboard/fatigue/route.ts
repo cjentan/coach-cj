@@ -14,12 +14,12 @@ export async function GET() {
 
   const [recentLogs, olderLogs, bodyMetrics, weekLogs] = await Promise.all([
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: twoWeeksAgo } },
+      where: { userId: session.user.id, startDate: { gte: twoWeeksAgo }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
       select: { startDate: true, tss: true, averageHr: true, distanceMeters: true },
     }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: sixWeeksAgo, lt: twoWeeksAgo } },
+      where: { userId: session.user.id, startDate: { gte: sixWeeksAgo, lt: twoWeeksAgo }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
       select: { startDate: true, tss: true, averageHr: true },
     }),
@@ -30,7 +30,7 @@ export async function GET() {
       select: { recordedAt: true, restingHr: true, weightKg: true },
     }),
     prisma.trainingLog.count({
-      where: { userId: session.user.id, startDate: { gte: weekStart } },
+      where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
     }),
   ]);
 

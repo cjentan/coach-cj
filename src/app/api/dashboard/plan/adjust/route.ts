@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     prisma.trainingAvailability.findMany({ where: { userId: session.user.id } }),
     prisma.trainingFacility.findMany({ where: { userId: session.user.id } }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) } },
+      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
       select: { startDate: true, distanceMeters: true },
     }),
@@ -86,30 +86,46 @@ export async function POST(request: Request) {
     summary: string;
   }> | null) || [];
 
-  const result = await adjustPlan(currentPlan, prompt, {
-    goals: goals.map((g) => ({
-      name: g.name,
-      targetDate: g.targetDate.toISOString().split("T")[0],
-      distanceMeters: g.distanceMeters,
-      elevationGainMeters: g.elevationGainMeters,
-      priority: g.priority,
-    })),
-    availability: availability.map((a) => ({
-      dayOfWeek: a.dayOfWeek,
-      startTime: a.startTime,
-      endTime: a.endTime,
-      facilityIds: a.facilityIds,
-    })),
-    facilities: facilities.map((f) => ({
-      name: f.name,
-      type: f.type,
-      distanceMeters: f.distanceMeters,
-      elevationGainMeters: f.elevationGainMeters,
-    })),
-    fatigueSeverity: fatigueAlert?.severity || null,
-    recentVolumeByWeek: weeklyVolumes,
-    adjustmentHistory,
+  // Load user's LLM config for per-user API key support
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
   });
+
+  const result = await adjustPlan(
+    currentPlan,
+    prompt,
+    {
+      goals: goals.map((g) => ({
+        name: g.name,
+        targetDate: g.targetDate.toISOString().split("T")[0],
+        distanceMeters: g.distanceMeters,
+        elevationGainMeters: g.elevationGainMeters,
+        priority: g.priority,
+      })),
+      availability: availability.map((a) => ({
+        dayOfWeek: a.dayOfWeek,
+        startTime: a.startTime,
+        endTime: a.endTime,
+        facilityIds: a.facilityIds,
+      })),
+      facilities: facilities.map((f) => ({
+        name: f.name,
+        type: f.type,
+        distanceMeters: f.distanceMeters,
+        elevationGainMeters: f.elevationGainMeters,
+      })),
+      fatigueSeverity: fatigueAlert?.severity || null,
+      recentVolumeByWeek: weeklyVolumes,
+      adjustmentHistory,
+    },
+    {
+      apiKey: user?.llmApiKey ?? undefined,
+      baseUrl: user?.llmBaseUrl ?? undefined,
+      model: user?.llmModel ?? undefined,
+      provider: user?.llmProvider ?? undefined,
+    }
+  );
 
   if (!result) {
     return NextResponse.json(

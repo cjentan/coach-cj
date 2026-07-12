@@ -18,7 +18,7 @@ export async function GET() {
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
 
   const recentLogs = await prisma.trainingLog.findMany({
-    where: { userId: session.user.id, startDate: { gte: ninetyDaysAgo } },
+    where: { userId: session.user.id, startDate: { gte: ninetyDaysAgo }, mergedIntoId: null },
     select: { distanceMeters: true, elevationGainMeters: true, startDate: true },
     orderBy: { startDate: "asc" },
   });

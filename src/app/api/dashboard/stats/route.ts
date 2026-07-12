@@ -47,19 +47,19 @@ export async function GET() {
 
   const [weekLogs, lastWeekLogs, monthLogs, lastMonthLogs, goalCount, bodyMetrics] = await Promise.all([
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: weekStart } },
+      where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
       select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
     }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: lastWeekStart, lt: weekStart } },
+      where: { userId: session.user.id, startDate: { gte: lastWeekStart, lt: weekStart }, mergedIntoId: null },
       select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
     }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: monthStart } },
+      where: { userId: session.user.id, startDate: { gte: monthStart }, mergedIntoId: null },
       select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
     }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: lastMonthStart, lte: lastMonthEnd } },
+      where: { userId: session.user.id, startDate: { gte: lastMonthStart, lte: lastMonthEnd }, mergedIntoId: null },
       select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
     }),
     prisma.raceGoal.count({ where: { userId: session.user.id, status: "active" } }),

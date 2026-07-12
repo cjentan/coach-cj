@@ -22,12 +22,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       : { id: true };
     const [prev, next] = await Promise.all([
       prisma.trainingLog.findFirst({
-        where: { userId: session.user.id, startDate: { lt: log.startDate } },
+        where: { userId: session.user.id, mergedIntoId: null, startDate: { lt: log.startDate } },
         orderBy: { startDate: "desc" },
         select: neighborSelect,
       }),
       prisma.trainingLog.findFirst({
-        where: { userId: session.user.id, startDate: { gt: log.startDate } },
+        where: { userId: session.user.id, mergedIntoId: null, startDate: { gt: log.startDate } },
         orderBy: { startDate: "asc" },
         select: neighborSelect,
       }),

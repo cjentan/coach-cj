@@ -13,11 +13,11 @@ export async function GET() {
 
   const [weekLogs, recentLogs, goals, availabilitySlots] = await Promise.all([
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: weekStart } },
+      where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
       select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true, tss: true },
     }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: fourWeeksAgo } },
+      where: { userId: session.user.id, startDate: { gte: fourWeeksAgo }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
       select: { startDate: true, distanceMeters: true },
     }),

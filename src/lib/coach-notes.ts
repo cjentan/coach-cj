@@ -3,7 +3,7 @@
  * Takes the same data the rule-based engine produces and generates
  * natural-language insights about training trajectory, fatigue, and recommendations.
  */
-import { ask, isLlmConfigured, getLlmModel } from "./llm";
+import { ask, isLlmConfigured } from "./llm";
 import { formatDistance, formatDuration } from "./utils";
 
 export interface CoachNotesInput {
@@ -172,18 +172,24 @@ function buildUserMessage(input: CoachNotesInput): string {
   return msg;
 }
 
-export async function generateCoachNotes(input: CoachNotesInput): Promise<string | null> {
-  if (!isLlmConfigured()) {
+export async function generateCoachNotes(
+  input: CoachNotesInput,
+  llmConfig?: { apiKey?: string; baseUrl?: string; model?: string; provider?: string }
+): Promise<string | null> {
+  if (!isLlmConfigured(llmConfig?.apiKey, llmConfig?.provider)) {
     console.log("LLM not configured — skipping AI coach notes");
     return null;
   }
 
-  console.log(`Generating coach notes with ${getLlmModel()}...`);
+  console.log(`Generating coach notes with ${llmConfig?.model || "unknown"}...`);
   const userMessage = buildUserMessage(input);
 
   const result = await ask(SYSTEM_PROMPT, userMessage, {
     temperature: 0.4,
     maxTokens: 800,
+    apiKey: llmConfig?.apiKey,
+    baseUrl: llmConfig?.baseUrl,
+    model: llmConfig?.model,
   });
 
   if (result) {

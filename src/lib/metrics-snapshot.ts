@@ -24,10 +24,11 @@ export async function snapshotWeek(
 
   const [weekLogs, pmcLogs, goals, bodyMetrics, availabilityCount] =
     await Promise.all([
-      // This week's logs
+      // This week's logs (exclude merged duplicates)
       prisma.trainingLog.findMany({
         where: {
           userId,
+          mergedIntoId: null,
           startDate: { gte: weekStart, lt: weekEnd },
         },
         select: {
@@ -43,9 +44,14 @@ export async function snapshotWeek(
         },
       }),
       // Logs for PMC computation (90 days before snapshot week end)
+      // NOTE: rawJson is intentionally omitted here — loading trackpoints for
+      // 90 days of activities is extremely memory-intensive. The database
+      // already stores pre-computed tss from the import, which is adequate
+      // for historical PMC trend computation.
       prisma.trainingLog.findMany({
         where: {
           userId,
+          mergedIntoId: null,
           startDate: { gte: ninetyDaysBeforeEnd, lt: weekEnd },
         },
         orderBy: { startDate: "asc" },
@@ -53,9 +59,6 @@ export async function snapshotWeek(
           startDate: true,
           tss: true,
           durationSeconds: true,
-          averageHr: true,
-          maxHr: true,
-          rawJson: true,
         },
       }),
       // Active goals
@@ -110,17 +113,7 @@ export async function snapshotWeek(
   const tssByDate: Record<string, number> = {};
   for (const log of pmcLogs) {
     const dateKey = log.startDate.toISOString().split("T")[0];
-    const rawJson = log.rawJson as Record<string, unknown> | null;
-    const trackPoints = rawJson?.trackPoints as any[] | undefined;
-    const tss =
-      trackPoints && trackPoints.length >= 2
-        ? computeBestTss(
-            trackPoints as any,
-            log.averageHr,
-            log.maxHr,
-            log.durationSeconds,
-          )
-        : log.tss || Math.round((log.durationSeconds / 3600) * 50);
+    const tss = log.tss || Math.round((log.durationSeconds / 3600) * 50);
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + tss;
   }
 

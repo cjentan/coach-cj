@@ -103,6 +103,7 @@ export async function POST(req: Request) {
 
     // ── Upsert to database ───────────────────────────────
     const imported: Record<string, unknown>[] = [];
+    const updated: Record<string, unknown>[] = [];
     const affectedWeeks = new Set<string>();
 
     for (const activity of activities) {
@@ -110,69 +111,90 @@ export async function POST(req: Request) {
       if (nameOverride) activity.name = nameOverride;
       if (typeOverride) activity.type = typeOverride as ActivityType;
 
-      const externalId =
-        externalIdOverride ||
-        `push-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}-${activity.startDate.toISOString()}-${Math.random().toString(36).slice(2, 8)}`;
-
       const rawJson = buildRawJson(activity, fileName);
 
-      const record = await prisma.trainingLog.upsert({
-        where: {
-          userId_externalId_source: {
+      // Check for exact duplicate from same source before inserting.
+      // A watch may retransmit the same activity with richer GPS data,
+      // so we update the existing record in-place rather than rejecting.
+      const existing = await findExistingDuplicateForPush(userId, activity, rawJson);
+
+      let record: { id: string };
+
+      if (existing) {
+        record = { id: existing.id };
+        updated.push({
+          id: existing.id,
+          name: activity.name,
+          type: activity.type,
+          startDate: activity.startDate.toISOString(),
+          durationSeconds: activity.durationSeconds,
+          distanceMeters: activity.distanceMeters,
+          hasTrackPoints: activity.trackPoints.length > 0,
+          trackPointCount: activity.trackPoints.length,
+        });
+      } else {
+        const externalId =
+          externalIdOverride ||
+          `push-${fileName.replace(/[^a-zA-Z0-9]/g, "-")}-${activity.startDate.toISOString()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        record = await prisma.trainingLog.upsert({
+          where: {
+            userId_externalId_source: {
+              userId,
+              externalId,
+              source: "watch_push",
+            },
+          },
+          create: {
             userId,
             externalId,
-            source: "manual",
+            source: "watch_push",
+            type: activity.type,
+            name: activity.name,
+            description: activity.description,
+            startDate: activity.startDate,
+            durationSeconds: activity.durationSeconds,
+            distanceMeters: activity.distanceMeters,
+            elevationGainMeters: activity.elevationGainMeters,
+            averageHr: activity.averageHr,
+            maxHr: activity.maxHr,
+            averagePower: activity.averagePower,
+            normalizedPower: activity.normalizedPower,
+            calories: activity.calories,
+            tss: activity.tss,
+            rawJson: rawJson as any,
           },
-        },
-        create: {
-          userId,
-          externalId,
-          source: "manual",
-          type: activity.type,
+          update: {
+            type: activity.type,
+            name: activity.name,
+            description: activity.description,
+            startDate: activity.startDate,
+            durationSeconds: activity.durationSeconds,
+            distanceMeters: activity.distanceMeters,
+            elevationGainMeters: activity.elevationGainMeters,
+            averageHr: activity.averageHr,
+            maxHr: activity.maxHr,
+            averagePower: activity.averagePower,
+            normalizedPower: activity.normalizedPower,
+            calories: activity.calories,
+            tss: activity.tss,
+            rawJson: rawJson as any,
+          },
+        });
+
+        imported.push({
+          id: record.id,
           name: activity.name,
-          description: activity.description,
-          startDate: activity.startDate,
+          type: activity.type,
+          startDate: activity.startDate.toISOString(),
           durationSeconds: activity.durationSeconds,
           distanceMeters: activity.distanceMeters,
-          elevationGainMeters: activity.elevationGainMeters,
-          averageHr: activity.averageHr,
-          maxHr: activity.maxHr,
-          averagePower: activity.averagePower,
-          normalizedPower: activity.normalizedPower,
-          calories: activity.calories,
-          tss: activity.tss,
-          rawJson: rawJson as any,
-        },
-        update: {
-          type: activity.type,
-          name: activity.name,
-          description: activity.description,
-          startDate: activity.startDate,
-          durationSeconds: activity.durationSeconds,
-          distanceMeters: activity.distanceMeters,
-          elevationGainMeters: activity.elevationGainMeters,
-          averageHr: activity.averageHr,
-          maxHr: activity.maxHr,
-          averagePower: activity.averagePower,
-          normalizedPower: activity.normalizedPower,
-          calories: activity.calories,
-          tss: activity.tss,
-          rawJson: rawJson as any,
-        },
-      });
+          hasTrackPoints: activity.trackPoints.length > 0,
+          trackPointCount: activity.trackPoints.length,
+        });
+      }
 
       affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
-
-      imported.push({
-        id: record.id,
-        name: activity.name,
-        type: activity.type,
-        startDate: activity.startDate.toISOString(),
-        durationSeconds: activity.durationSeconds,
-        distanceMeters: activity.distanceMeters,
-        hasTrackPoints: activity.trackPoints.length > 0,
-        trackPointCount: activity.trackPoints.length,
-      });
     }
 
     // ── Recompute weekly snapshots ────────────────────────
@@ -180,10 +202,19 @@ export async function POST(req: Request) {
       await snapshotWeek(userId, new Date(weekKey)).catch(() => {});
     }
 
+    const totalNew = imported.length;
+    const totalUpdated = updated.length;
+
     return NextResponse.json({
       success: true,
-      message: `Imported ${imported.length} activit${imported.length === 1 ? "y" : "ies"}`,
+      message:
+        totalNew > 0 && totalUpdated > 0
+          ? `Imported ${totalNew} new activit${totalNew === 1 ? "y" : "ies"}, updated ${totalUpdated} duplicate${totalUpdated === 1 ? "" : "s"}`
+          : totalUpdated > 0
+            ? `Updated ${totalUpdated} existing duplicate${totalUpdated === 1 ? "" : "s"} (no new activities)`
+            : `Imported ${totalNew} activit${totalNew === 1 ? "y" : "ies"}`,
       activities: imported,
+      ...(updated.length > 0 ? { updated } : {}),
     });
   } catch (err) {
     console.error("Push API error:", err);
@@ -195,6 +226,83 @@ export async function POST(req: Request) {
 }
 
 // ── Helpers ────────────────────────────────────────────────
+
+/**
+ * Check if the same activity was already pushed from this source.
+ *
+ * Matches on: same user + watch_push source + same type + start time
+ * within 2 minutes + duration/distance within 5%. These are the same
+ * criteria that the batch duplicate detector would score at ~100 pts.
+ *
+ * When a match is found, the existing record is updated with the new
+ * data (the retransmission may carry richer GPS/HR data), and the
+ * new row is never created — preventing silent duplicates at push time.
+ */
+async function findExistingDuplicateForPush(
+  userId: string,
+  activity: ParsedFileActivity,
+  rawJson: Record<string, unknown>,
+): Promise<{ id: string } | null> {
+  const startWindow = new Date(activity.startDate.getTime() - 120_000);
+  const endWindow = new Date(activity.startDate.getTime() + 120_000);
+
+  const candidates = await prisma.trainingLog.findMany({
+    where: {
+      userId,
+      source: "watch_push",
+      type: activity.type,
+      startDate: { gte: startWindow, lte: endWindow },
+      mergedIntoId: null,
+    },
+    select: {
+      id: true,
+      durationSeconds: true,
+      distanceMeters: true,
+    },
+  });
+
+  for (const candidate of candidates) {
+    // Duration must match within 5%
+    const durRatio = activity.durationSeconds / Math.max(candidate.durationSeconds, 1);
+    if (Math.abs(1 - durRatio) > 0.05) continue;
+
+    // Distance must match within 5% if both activities have it
+    if (
+      activity.distanceMeters != null &&
+      candidate.distanceMeters != null &&
+      activity.distanceMeters > 0 &&
+      candidate.distanceMeters > 0
+    ) {
+      const distRatio = activity.distanceMeters / candidate.distanceMeters;
+      if (Math.abs(1 - distRatio) > 0.05) continue;
+    }
+
+    // Found a match — update the existing record with the latest data.
+    // The retransmission may have more complete trackpoints.
+    await prisma.trainingLog.update({
+      where: { id: candidate.id },
+      data: {
+        name: activity.name,
+        description: activity.description,
+        startDate: activity.startDate,
+        durationSeconds: activity.durationSeconds,
+        distanceMeters: activity.distanceMeters,
+        elevationGainMeters: activity.elevationGainMeters,
+        averageHr: activity.averageHr,
+        maxHr: activity.maxHr,
+        averagePower: activity.averagePower,
+        normalizedPower: activity.normalizedPower,
+        calories: activity.calories,
+        tss: activity.tss,
+        rawJson: rawJson as any,
+      },
+    });
+
+    return { id: candidate.id };
+  }
+
+  return null;
+}
 
 async function parseBuffer(buffer: Buffer, fileName: string): Promise<ParsedFileActivity[]> {
   const lower = fileName.toLowerCase();

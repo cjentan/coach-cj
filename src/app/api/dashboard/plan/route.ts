@@ -37,7 +37,7 @@ export async function GET() {
     prisma.trainingAvailability.findMany({ where: { userId: session.user.id } }),
     prisma.trainingFacility.findMany({ where: { userId: session.user.id } }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) } },
+      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
       select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true },
     }),

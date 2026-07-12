@@ -64,6 +64,7 @@ export default function IngestionPage() {
   const gpxInputRef = useRef<HTMLInputElement>(null);
   const stravaExportInputRef = useRef<HTMLInputElement>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Strava Export ZIP
   const [stravaExportResult, setStravaExportResult] = useState<ImportResult & { withRichData?: number; csvOnly?: number; enriched?: number } | null>(null);
@@ -96,6 +97,18 @@ export default function IngestionPage() {
     }
   }, [stravaExportLog]);
 
+  // ── Cancel any running import ────────────────────────
+  const handleCancel = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setStravaExportLoading(false);
+    setStravaExportPhase("cancelled");
+    setCsvLoading(false);
+    setGpxLoading(false);
+  }, []);
+
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
   }, [status, router]);
@@ -110,10 +123,12 @@ export default function IngestionPage() {
     setStravaExportProgress(null);
     setStravaExportPhase("uploading");
     setLogExpanded(false);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await fetch("/api/ingestion/strava-export", { method: "POST", body: form });
+      const res = await fetch("/api/ingestion/strava-export", { method: "POST", body: form, signal: controller.signal });
 
       if (!res.ok) {
         const text = await res.text();
@@ -230,10 +245,18 @@ export default function IngestionPage() {
         const data = await res.json();
         setStravaExportResult(data);
       }
-    } catch {
-      setStravaExportResult({ imported: 0, skipped: 0, errors: ["Upload failed — network error"], message: "Upload failed — network error" });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setStravaExportResult({
+          imported: 0, skipped: 0, errors: ["Import cancelled"],
+          message: "Import cancelled by user",
+        });
+      } else {
+        setStravaExportResult({ imported: 0, skipped: 0, errors: ["Upload failed — network error"], message: "Upload failed — network error" });
+      }
     }
     setStravaExportLoading(false);
+    abortControllerRef.current = null;
     if (stravaExportInputRef.current) stravaExportInputRef.current.value = "";
   }
 
@@ -244,16 +267,23 @@ export default function IngestionPage() {
     setCsvLoading(true);
     setCsvResult(null);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     const form = new FormData();
     form.append("file", file);
 
     try {
-      const res = await fetch("/api/ingestion/csv", { method: "POST", body: form });
+      const res = await fetch("/api/ingestion/csv", { method: "POST", body: form, signal: controller.signal });
       setCsvResult(await res.json());
-    } catch {
-      setCsvResult({ imported: 0, skipped: 0, errors: ["Upload failed"], message: "Upload failed" });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setCsvResult({ imported: 0, skipped: 0, errors: ["Import cancelled"], message: "Import cancelled by user" });
+      } else {
+        setCsvResult({ imported: 0, skipped: 0, errors: ["Upload failed"], message: "Upload failed" });
+      }
     }
     setCsvLoading(false);
+    abortControllerRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -264,18 +294,25 @@ export default function IngestionPage() {
     setGpxLoading(true);
     setGpxResult(null);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     const form = new FormData();
     for (const file of Array.from(files)) {
       form.append("files", file);
     }
 
     try {
-      const res = await fetch("/api/ingestion/gpx", { method: "POST", body: form });
+      const res = await fetch("/api/ingestion/gpx", { method: "POST", body: form, signal: controller.signal });
       setGpxResult(await res.json());
-    } catch {
-      setGpxResult({ imported: 0, skipped: 0, errors: [], message: "Upload failed", results: [] });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setGpxResult({ imported: 0, skipped: 0, errors: ["Import cancelled"], message: "Import cancelled by user", results: [] });
+      } else {
+        setGpxResult({ imported: 0, skipped: 0, errors: [], message: "Upload failed", results: [] });
+      }
     }
     setGpxLoading(false);
+    abortControllerRef.current = null;
     if (gpxInputRef.current) gpxInputRef.current.value = "";
   }
 
@@ -357,16 +394,26 @@ export default function IngestionPage() {
               {/* ── Processing UI ─────────────────────── */}
               {stravaExportLoading && (
                 <div className="space-y-3">
-                  {/* Phase label */}
-                  <div className="flex items-center gap-2 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span className="font-medium">
-                      {stravaExportPhase === "reading" ? "Reading ZIP file…" :
-                       stravaExportPhase === "parsing" ? "Extracting and parsing activities…" :
-                       stravaExportPhase === "importing" ? "Importing activities to database…" :
-                       stravaExportPhase === "snapshotting" ? "Updating weekly snapshots…" :
-                       "Processing ZIP…"}
-                    </span>
+                  {/* Phase label + Cancel button */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="font-medium">
+                        {stravaExportPhase === "reading" ? "Reading ZIP file…" :
+                         stravaExportPhase === "parsing" ? "Extracting and parsing activities…" :
+                         stravaExportPhase === "importing" ? "Importing activities to database…" :
+                         stravaExportPhase === "snapshotting" ? "Updating weekly snapshots…" :
+                         "Processing ZIP…"}
+                      </span>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleCancel}
+                      disabled={!stravaExportLoading}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" /> Stop
+                    </Button>
                   </div>
 
                   {/* Progress bar */}
@@ -486,8 +533,13 @@ export default function IngestionPage() {
               </div>
 
               {csvLoading && (
-                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Processing CSV...
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Processing CSV...
+                  </div>
+                  <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!csvLoading}>
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Stop
+                  </Button>
                 </div>
               )}
 
@@ -513,8 +565,13 @@ export default function IngestionPage() {
               </div>
 
               {gpxLoading && (
-                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Parsing files...
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Parsing files...
+                  </div>
+                  <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!gpxLoading}>
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Stop
+                  </Button>
                 </div>
               )}
 

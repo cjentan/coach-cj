@@ -79,6 +79,21 @@ export async function POST(req: Request) {
         }
       }, HEARTBEAT_MS);
 
+      // ── Listen for client abort ────────────────────
+      const onAbort = () => {
+        clearInterval(heartbeat);
+        try {
+          s({ type: "error", message: "Import cancelled by user" });
+          s({ type: "summary", imported: 0, enriched: 0, skipped: 0, withRichData: 0, csvOnly: 0, totalCsvRows: 0, errors: ["Import cancelled"], message: "Import stopped — user cancelled" });
+          s({ type: "done" });
+          controller.close();
+        } catch {
+          // stream already closed/cancelled
+        }
+      };
+
+      req.signal.addEventListener("abort", onAbort);
+
       try {
         // ── Phase 1: Read & parse the ZIP ──────────────
         log("Phase 1: Reading ZIP file");
@@ -129,6 +144,11 @@ export async function POST(req: Request) {
               s({ type: "progress", phase: "importing", message: msg });
             },
             async (activity) => {
+              // If the user cancelled, skip processing
+              if (req.signal.aborted) {
+                return;
+              }
+
               try {
                 const existing = await prisma.trainingLog.findFirst({
                   where: { userId, externalId: activity.externalId },
@@ -206,6 +226,7 @@ export async function POST(req: Request) {
                 console.error(`[import] ${msg}`);
               }
             },
+            req.signal,
           );
           totalCsvRows = result.totalCsvRows;
         } catch (err) {
@@ -214,6 +235,12 @@ export async function POST(req: Request) {
           s({ type: "error", message: `Failed to parse ZIP: ${(err as Error).message}` });
           clearInterval(heartbeat);
           controller.close();
+          return;
+        }
+
+        // If the user cancelled, skip remaining phases
+        if (req.signal.aborted) {
+          log("Import cancelled — skipping snapshot and summary");
           return;
         }
 
@@ -238,27 +265,30 @@ export async function POST(req: Request) {
           log("Snapshots complete");
         }
 
-        // ── Final summary ──────────────────────────────
-        s({
-          type: "summary",
-          imported,
-          enriched,
-          skipped,
-          withRichData: result.withRichData,
-          csvOnly: result.csvOnly,
-          totalCsvRows: result.totalCsvRows,
-          errors: [...result.errors, ...fileErrors].slice(0, 20),
-          message: `Imported ${imported} activities (${result.withRichData} with full GPS/trackpoint data` +
-            `${enriched > 0 ? `, ${enriched} upgraded from basic` : ""})` +
-            `${skipped > 0 ? `, ${skipped} skipped` : ""}`,
-        });
+        // ── Final summary (skip if cancelled) ──────────
+        if (!req.signal.aborted) {
+          s({
+            type: "summary",
+            imported,
+            enriched,
+            skipped,
+            withRichData: result.withRichData,
+            csvOnly: result.csvOnly,
+            totalCsvRows: result.totalCsvRows,
+            errors: [...result.errors, ...fileErrors].slice(0, 20),
+            message: `Imported ${imported} activities (${result.withRichData} with full GPS/trackpoint data` +
+              `${enriched > 0 ? `, ${enriched} upgraded from basic` : ""})` +
+              `${skipped > 0 ? `, ${skipped} skipped` : ""}`,
+          });
+        }
       } catch (err) {
         console.error(`[import] Unexpected error:`, err);
         s({ type: "error", message: `Unexpected error: ${(err as Error).message}` });
       } finally {
         clearInterval(heartbeat);
+        req.signal.removeEventListener("abort", onAbort);
         s({ type: "done" });
-        controller.close();
+        try { controller.close(); } catch {}
         log("Stream closed");
       }
     },

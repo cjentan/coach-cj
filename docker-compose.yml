@@ -13,10 +13,6 @@ services:
       - REDIS_URL=redis://redis:6379
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me-in-production}
-      - LLM_PROVIDER=deepseek
-      - LLM_BASE_URL=https://api.deepseek.com/v1
-      - LLM_API_KEY=${DEEPSEEK_API_KEY}
-      - LLM_MODEL=deepseek-chat
     depends_on:
       db:
         condition: service_healthy
@@ -35,10 +31,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public
       - REDIS_URL=redis://redis:6379
-      - LLM_PROVIDER=deepseek
-      - LLM_BASE_URL=https://api.deepseek.com/v1
-      - LLM_API_KEY=${DEEPSEEK_API_KEY}
-      - LLM_MODEL=deepseek-chat
     depends_on:
       db:
         condition: service_healthy

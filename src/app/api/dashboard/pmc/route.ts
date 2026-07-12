@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computePMC } from "@/lib/pmc";
-import { computeBestTss } from "@/lib/trackpoint-metrics";
 
 export async function GET() {
   const session = await auth();
@@ -11,35 +10,26 @@ export async function GET() {
   const now = new Date();
 
   // Fetch last 90 days of logs for PMC computation (42-day CTL needs ~60+ days to stabilize)
-  // Include rawJson to compute better TSS from trackpoint data when available
+  // Use stored TSS values — rawJson is excluded to avoid transferring large trackpoint data
   const logs = await prisma.trainingLog.findMany({
     where: {
       userId: session.user.id,
       startDate: { gte: new Date(now.getTime() - 90 * 86400000) },
+      mergedIntoId: null,
     },
     orderBy: { startDate: "asc" },
     select: {
       startDate: true,
       tss: true,
       durationSeconds: true,
-      averageHr: true,
-      maxHr: true,
-      rawJson: true,
     },
   });
 
-  // Build daily TSS map using trackpoint-derived TSS when available
+  // Build daily TSS map using stored TSS (or estimate from duration)
   const tssByDate: Record<string, number> = {};
   for (const log of logs) {
     const dateKey = log.startDate.toISOString().split("T")[0];
-
-    // Use trackpoint-based TSS if rawJson has trackPoints, fall back to stored TSS
-    const rawJson = log.rawJson as Record<string, unknown> | null;
-    const trackPoints = rawJson?.trackPoints as any[] | undefined;
-    const tss = trackPoints && trackPoints.length >= 2
-      ? computeBestTss(trackPoints as any, log.averageHr, log.maxHr, log.durationSeconds)
-      : (log.tss || Math.round(log.durationSeconds / 3600 * 50));
-
+    const tss = log.tss || Math.round(log.durationSeconds / 3600 * 50);
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + tss;
   }
 

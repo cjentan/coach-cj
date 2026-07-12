@@ -208,9 +208,12 @@ export function parseStravaCsv(content: string): CsvParseResult {
       if (durationSec === 0 && elapsedIdx >= 0) durationSec = Math.round(parseNum(cols[elapsedIdx]) || 0);
       if (durationSec === 0) durationSec = 3600; // default 1h rather than 0
 
-      // Distance: Strava CSV exports in km, convert to meters
+      // Distance: Strava CSV exports in km for most types, convert to meters.
+      // For Swim activities Strava already exports in meters, so skip the ×1000.
       const distRaw = distIdx >= 0 ? parseNum(cols[distIdx]) : null;
-      const distance = distRaw != null ? Math.round(distRaw * 1000) : null;
+      const distance = distRaw != null
+        ? Math.round(type === "swim" ? distRaw : distRaw * 1000)
+        : null;
 
       const elevation = elevIdx >= 0 ? parseNum(cols[elevIdx]) : null;
       const avgHr = avgHrIdx >= 0 ? parseNum(cols[avgHrIdx]) : null;
