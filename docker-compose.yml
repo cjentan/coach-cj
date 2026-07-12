@@ -1,0 +1,102 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: coach-app
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me-in-production}
+      - LLM_PROVIDER=deepseek
+      - LLM_BASE_URL=https://api.deepseek.com/v1
+      - LLM_API_KEY=${DEEPSEEK_API_KEY}
+      - LLM_MODEL=deepseek-chat
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data/uploads:/app/data/uploads
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: coach-worker
+    entrypoint: ["node", "dist-workers/workers/entrypoint.js"]
+    environment:
+      - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public
+      - REDIS_URL=redis://redis:6379
+      - LLM_PROVIDER=deepseek
+      - LLM_BASE_URL=https://api.deepseek.com/v1
+      - LLM_API_KEY=${DEEPSEEK_API_KEY}
+      - LLM_MODEL=deepseek-chat
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data/uploads:/app/data/uploads
+
+  db:
+    image: postgres:16-alpine
+    container_name: coach-db
+    environment:
+      - POSTGRES_USER=coach
+      - POSTGRES_PASSWORD=coach
+      - POSTGRES_DB=coach
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coach"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: coach-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: coach
+    container_name: coach-tailscale
+    env_file:
+      - /docker-data/homelab-tailscale/.env
+    environment:
+      - TS_SERVE_CONFIG=/config/coach-serve.json
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_CERT_DOMAIN=coach.oryx-everest.ts.net
+      - TS_HOSTNAME=coach
+    volumes:
+      - /docker-data/homelab-tailscale/state-coach:/var/lib/tailscale
+      - /docker-data/homelab-tailscale/config:/config
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:

@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+dist-workers/
+
+# database / storage
+data/
+
+# environment secrets
+.env
+.env.local
+.env.production
+
+# personal data exports
+strava_export/
+activities.csv
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Playwright MCP
+.playwright-mcp/
+
+# screenshots (in root)
+*.png
+
+# IDE
+.vscode/
+.idea/

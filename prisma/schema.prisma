@@ -1,0 +1,278 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash     String
+  role             String  @default("user")
+  resetToken       String? @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
+  reviewDayOfWeek  Int     @default(0) @map("review_day_of_week")
+  reviewTime       String  @default("18:00") @map("review_time")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  trainingLogs         TrainingLog[]
+  raceGoals            RaceGoal[]
+  trainingFacilities   TrainingFacility[]
+  bodyMetrics          BodyMetric[]
+  trainingAvailability TrainingAvailability[]
+  weeklyAssessments    WeeklyAssessment[]
+  weeklyPlans          WeeklyPlan[]
+  fatigueAlerts        FatigueAlert[]
+  apiKeys              ApiKey[]
+
+  @@map("users")
+}
+
+enum ActivityType {
+  run
+  ride
+  swim
+  hike
+  walk
+  workout
+  other
+}
+
+enum ActivitySource {
+  strava
+  garmin
+  manual
+}
+
+model TrainingLog {
+  id                  String         @id @default(uuid())
+  userId              String         @map("user_id")
+  externalId          String?        @map("external_id")
+  source              ActivitySource @default(strava)
+  type                ActivityType
+  name                String
+  description         String?
+  remarks             String?
+  startDate           DateTime       @map("start_date")
+  durationSeconds     Int            @map("duration_seconds")
+  distanceMeters      Float?         @map("distance_meters")
+  elevationGainMeters Float?         @map("elevation_gain_meters")
+  averageHr           Float?         @map("average_hr")
+  maxHr               Float?         @map("max_hr")
+  averagePower        Float?         @map("average_power")
+  normalizedPower     Float?         @map("normalized_power")
+  calories            Float?
+  tss                 Float?
+  rawJson             Json?          @map("raw_json")
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId, source])
+  @@index([userId, startDate])
+  @@map("training_logs")
+}
+
+enum GoalStatus {
+  active
+  completed
+  cancelled
+}
+
+enum GoalPriority {
+  A
+  B
+  C
+}
+
+model RaceGoal {
+  id                  String      @id @default(uuid())
+  userId              String      @map("user_id")
+  name                String
+  raceType            String      @map("race_type")
+  targetDate          DateTime    @map("target_date")
+  distanceMeters      Float       @map("distance_meters")
+  elevationGainMeters Float?      @map("elevation_gain_meters")
+  targetTimeSeconds   Int?        @map("target_time_seconds")
+  priority            GoalPriority @default(B)
+  status              GoalStatus  @default(active)
+  notes               String?
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("race_goals")
+}
+
+enum FacilityType {
+  road
+  trail
+  track
+  trainer
+  pool
+  gym
+}
+
+enum SurfaceType {
+  tarmac
+  gravel
+  trail
+  track
+  treadmill
+  trainer
+}
+
+model TrainingFacility {
+  id                  String       @id @default(uuid())
+  userId              String       @map("user_id")
+  name                String
+  type                FacilityType
+  distanceMeters      Float?       @map("distance_meters")
+  elevationGainMeters Float?       @map("elevation_gain_meters")
+  surface             SurfaceType?
+  notes               String?
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("training_facilities")
+}
+
+model BodyMetric {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  recordedAt DateTime @map("recorded_at")
+  weightKg   Float    @map("weight_kg")
+  heightCm   Float?   @map("height_cm")
+  restingHr  Float?   @map("resting_hr")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@map("body_metrics")
+}
+
+model TrainingAvailability {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  dayOfWeek     Int      @map("day_of_week")
+  startTime     String   @map("start_time")
+  endTime       String   @map("end_time")
+  facilityIds   String[] @map("facility_ids")
+  notes         String?
+  effectiveFrom DateTime @default(now()) @map("effective_from")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dayOfWeek])
+  @@map("training_availability")
+}
+
+// Weekly snapshot of computed training metrics.
+// Upserted by snapshotWeek() after training log mutations.
+// Read by /api/dashboard/trends for historical trend charts.
+model WeeklyAssessment {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  weekStartDate         DateTime @map("week_start_date")
+  acuteTrainingLoad     Float?   @map("acute_training_load")
+  chronicTrainingLoad   Float?   @map("chronic_training_load")
+  tsb                   Float?
+  readinessScore        Int?     @map("readiness_score")
+  fitnessScore          Float?   @map("fitness_score")
+  fatigueScore          Float?   @map("fatigue_score")
+  formScore             Float?   @map("form_score")
+  weeklyVolumeMeters    Float?   @map("weekly_volume_meters")
+  weeklyElevationMeters Float?   @map("weekly_elevation_meters")
+  weeklyDurationSeconds Int?     @map("weekly_duration_seconds")
+  goalProgressPct       Json?    @map("goal_progress_pct")
+  recommendations       String[]
+  rawData               Json?    @map("raw_data")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStartDate])
+  @@map("weekly_assessments")
+}
+
+model WeeklyPlan {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  weekStartDate         DateTime @map("week_start_date")
+  generatedAt           DateTime @default(now()) @map("generated_at")
+  targetVolumeMeters    Float?   @map("target_volume_meters")
+  targetElevationMeters Float?   @map("target_elevation_meters")
+  targetDurationSeconds Int?     @map("target_duration_seconds")
+  plannedSessions       Json     @map("planned_sessions")
+  adjustments           String[]
+  trajectoryAssessment  String?  @map("trajectory_assessment")
+  coachNotes            String?  @map("coach_notes")
+  overridesExisting     Boolean  @default(false) @map("overrides_existing")
+  adjustmentHistory     Json?    @map("adjustment_history")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStartDate])
+  @@map("weekly_plans")
+}
+
+enum AlertSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+model FatigueAlert {
+  id                 String        @id @default(uuid())
+  userId             String        @map("user_id")
+  detectedAt         DateTime      @default(now()) @map("detected_at")
+  severity           AlertSeverity
+  signals            Json          @default("[]")
+  recommendation     String
+  recommendedRestDays Int          @default(0) @map("recommended_rest_days")
+  acknowledged       Boolean       @default(false)
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, detectedAt])
+  @@map("fatigue_alerts")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  name       String
+  keyHash    String    @map("key_hash")
+  keyPrefix  String    @map("key_prefix")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("app_settings")
+}
