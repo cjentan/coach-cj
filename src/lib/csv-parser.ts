@@ -25,6 +25,8 @@ export interface ParsedCsvActivity {
   averagePower: number | null;
   calories: number | null;
   tss: number | null;
+  /** Raw path from the Filename column, e.g. "activities/20345958602.fit.gz" */
+  filename: string | null;
 }
 
 export interface CsvParseResult {
@@ -173,6 +175,7 @@ export function parseStravaCsv(content: string): CsvParseResult {
   const powerIdx = findCol(header, "Average Watts", "Weighted Average Power");
   const calIdx = findCol(header, "Calories");
   const descIdx = findCol(header, "Activity Description");
+  const filenameIdx = findCol(header, "Filename");
 
   if (dateIdx < 0) {
     return {
@@ -225,6 +228,9 @@ export function parseStravaCsv(content: string): CsvParseResult {
         tss = Math.round(hours * 50);
       }
 
+      const rawFilename = filenameIdx >= 0 ? (cols[filenameIdx] || "").trim() : "";
+      const filename = rawFilename && rawFilename.includes("/") ? rawFilename : null;
+
       activities.push({
         externalId: idIdx >= 0 ? cols[idIdx] : `csv-${i}`,
         source: "manual" as ActivitySource,
@@ -240,6 +246,7 @@ export function parseStravaCsv(content: string): CsvParseResult {
         averagePower: power,
         calories,
         tss,
+        filename,
       });
     } catch (err) {
       errors.push(`Row ${i + 1}: ${(err as Error).message}`);

@@ -48,9 +48,14 @@ function getWeekStart(date: Date): Date {
   return d;
 }
 
+const PAGE_SIZE = 100;
+
 export default function TrainingLogsPage() {
   const [allLogs, setAllLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [activityFilter, setActivityFilter] = useState<ActivityType>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -64,28 +69,51 @@ export default function TrainingLogsPage() {
     try {
       await fetch(`/api/training-logs/${id}`, { method: "DELETE" });
       setAllLogs((prev) => prev.filter((l) => l.id !== id));
+      setTotal((prev) => prev - 1);
     } catch {
       alert("Failed to delete. Please try again.");
     }
     setDeleting(null);
   }
 
-  useEffect(() => {
-    fetch("/api/training-logs?limit=200")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setAllLogs(data); })
-      .finally(() => setLoading(false));
-  }, []);
+  function buildFilterParams(offsetVal: number) {
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetVal) });
+    if (activityFilter !== "all") params.set("type", activityFilter);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    return params;
+  }
 
-  const filteredLogs = useMemo(() => {
-    return allLogs.filter((log) => {
-      if (activityFilter !== "all" && log.type !== activityFilter) return false;
-      const logDate = log.startDate.slice(0, 10);
-      if (dateFrom && logDate < dateFrom) return false;
-      if (dateTo && logDate > dateTo) return false;
-      return true;
-    });
-  }, [allLogs, activityFilter, dateFrom, dateTo]);
+  async function loadLogs() {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/training-logs?${buildFilterParams(0)}`);
+      const data = await r.json();
+      if (data.logs) {
+        setAllLogs(data.logs);
+        setTotal(data.total);
+        setOffset(data.logs.length);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    setLoadingMore(true);
+    try {
+      const r = await fetch(`/api/training-logs?${buildFilterParams(offset)}`);
+      const data = await r.json();
+      if (data.logs) {
+        setAllLogs((prev) => [...prev, ...data.logs]);
+        setOffset((prev) => prev + data.logs.length);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  useEffect(() => { loadLogs(); }, [activityFilter, dateFrom, dateTo]);
 
   const weeklyStats = useMemo(() => {
     const weekStart = getWeekStart(new Date());
@@ -114,7 +142,7 @@ export default function TrainingLogsPage() {
           <Activity className="h-7 w-7 text-primary" />
           Training Logs
         </h1>
-        <p className="text-muted-foreground mt-1">{allLogs.length} activities loaded</p>
+        <p className="text-muted-foreground mt-1">{total} activities — showing {allLogs.length}</p>
       </div>
 
       {/* Weekly summary */}
@@ -127,7 +155,20 @@ export default function TrainingLogsPage() {
 
       {/* Filters */}
       <Card className="mb-6">
-        <CardHeader><CardTitle className="text-lg flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle>
+            {(activityFilter !== "all" || dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setActivityFilter("all"); setDateFrom(""); setDateTo(""); }}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        </CardHeader>
         <CardContent>
           <div className="grid sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
@@ -144,14 +185,14 @@ export default function TrainingLogsPage() {
       </Card>
 
       {/* Activity list */}
-      {filteredLogs.length === 0 ? (
+      {allLogs.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
           <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">{allLogs.length === 0 ? "No training data yet. Import activities via the Import page." : "No activities match your filters."}</p>
+          <p className="text-muted-foreground">{loadingMore ? "Loading more activities..." : "No activities match your filters."}</p>
         </CardContent></Card>
       ) : (
         <div className="space-y-2">
-          {filteredLogs.map((log) => {
+          {allLogs.map((log) => {
             const dist = log.distanceMeters || 0;
             return (
               <Link key={log.id} href={`/training-logs/${log.id}`}>
@@ -188,6 +229,18 @@ export default function TrainingLogsPage() {
               </Link>
             );
           })}
+          {/* Load More */}
+          {allLogs.length < total && (
+            <div className="text-center pt-4">
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Loading..." : `Load More (${total - allLogs.length} remaining)`}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - NODE_OPTIONS=--max-old-space-size=4096
       - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public
       - REDIS_URL=redis://redis:6379
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}

@@ -103,16 +103,111 @@ export async function POST(req: Request) {
           message: `ZIP loaded (${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)} MB). Extracting and parsing activities…`,
         });
 
-        log("Phase 2: Parsing activities from ZIP");
+        log("Phase 2: Parsing activities from ZIP + importing to DB");
         const startParse = Date.now();
 
-        let result;
+        const userId = session.user.id;
+        let imported = 0;
+        let enriched = 0;
+        let skipped = 0;
+        const fileErrors: string[] = [];
+        const affectedWeeks = new Set<string>();
+        let totalCsvRows = 0;
+
+        s({
+          type: "progress",
+          phase: "importing",
+          message: "Parsing ZIP and importing to database…",
+        });
+
+        let result: import("@/lib/strava-export-parser").StravaExportResult;
         try {
-          // Pass onProgress so parser events are streamed to client AND logged to console
-          result = await parseStravaExportZip(zipBuffer, (msg: string) => {
-            log(msg);
-            s({ type: "progress", phase: "parsing", message: msg });
-          });
+          result = await parseStravaExportZip(
+            zipBuffer,
+            (msg: string) => {
+              log(msg);
+              s({ type: "progress", phase: "importing", message: msg });
+            },
+            async (activity) => {
+              try {
+                const existing = await prisma.trainingLog.findFirst({
+                  where: { userId, externalId: activity.externalId },
+                });
+
+                if (existing) {
+                  if (existing.rawJson != null) {
+                    skipped++;
+                    return;
+                  }
+
+                  await prisma.trainingLog.update({
+                    where: { id: existing.id },
+                    data: {
+                      source: "strava",
+                      type: activity.type,
+                      name: activity.name,
+                      description: activity.description,
+                      startDate: activity.startDate,
+                      durationSeconds: activity.durationSeconds,
+                      distanceMeters: activity.distanceMeters,
+                      elevationGainMeters: activity.elevationGainMeters,
+                      averageHr: activity.averageHr,
+                      maxHr: activity.maxHr ?? existing.maxHr,
+                      averagePower: activity.averagePower,
+                      normalizedPower: activity.normalizedPower ?? existing.normalizedPower,
+                      calories: activity.calories,
+                      tss: activity.tss,
+                      rawJson: activity.rawJson as any,
+                    },
+                  });
+
+                  if (activity.hasRichData) enriched++;
+                  affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
+                  imported++;
+                } else {
+                  await prisma.trainingLog.create({
+                    data: {
+                      userId,
+                      externalId: activity.externalId,
+                      source: "strava",
+                      type: activity.type,
+                      name: activity.name,
+                      description: activity.description,
+                      startDate: activity.startDate,
+                      durationSeconds: activity.durationSeconds,
+                      distanceMeters: activity.distanceMeters,
+                      elevationGainMeters: activity.elevationGainMeters,
+                      averageHr: activity.averageHr,
+                      maxHr: activity.maxHr,
+                      averagePower: activity.averagePower,
+                      normalizedPower: activity.normalizedPower,
+                      calories: activity.calories,
+                      tss: activity.tss,
+                      rawJson: activity.rawJson as any,
+                    },
+                  });
+                  affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
+                  imported++;
+                }
+
+                s({
+                  type: "activity",
+                  externalId: activity.externalId,
+                  name: activity.name,
+                  activityType: activity.type,
+                  status: existing ? (existing.rawJson ? "skipped" : "enriched") : "imported",
+                  hasRichData: activity.hasRichData,
+                  index: imported + enriched + skipped - 1,
+                  total: totalCsvRows,
+                });
+              } catch (err) {
+                const msg = `DB error for ${activity.externalId} ("${activity.name}"): ${(err as Error).message}`;
+                fileErrors.push(msg);
+                console.error(`[import] ${msg}`);
+              }
+            },
+          );
+          totalCsvRows = result.totalCsvRows;
         } catch (err) {
           log(`ERROR parsing ZIP: ${(err as Error).message}`);
           console.error(`[import] Parse error:`, err);
@@ -123,183 +218,7 @@ export async function POST(req: Request) {
         }
 
         const parseMs = Date.now() - startParse;
-        log(`Parsing complete in ${(parseMs / 1000).toFixed(1)}s: ${result.activities.length} activities` +
-          ` (${result.withRichData} with track data, ${result.csvOnly} CSV-only)`);
-
-        if (!result || result.activities.length === 0) {
-          log("No activities found in export");
-          s({
-            type: "summary",
-            imported: 0, enriched: 0, skipped: 0,
-            errors: result?.errors || ["No activities found in the export"],
-            message: result?.errors?.[0] || "No activities found in the export",
-          });
-          clearInterval(heartbeat);
-          s({ type: "done" });
-          controller.close();
-          return;
-        }
-
-        // ── Phase 3: Import to database ────────────────
-        const userId = session.user.id;
-        let imported = 0;
-        let enriched = 0;
-        let skipped = 0;
-        const fileErrors: string[] = [];
-        const affectedWeeks = new Set<string>();
-        const total = result.activities.length;
-
-        s({
-          type: "progress",
-          phase: "importing",
-          total,
-          imported: 0,
-          enriched: 0,
-          skipped: 0,
-          message: `Starting database import of ${total} activities…`,
-        });
-        log(`Phase 3: Importing ${total} activities to database`);
-
-        const startImport = Date.now();
-
-        for (let i = 0; i < total; i++) {
-          const activity = result.activities[i];
-
-          try {
-            const existing = await prisma.trainingLog.findFirst({
-              where: { userId, externalId: activity.externalId },
-            });
-
-            if (existing) {
-              if (existing.rawJson != null) {
-                skipped++;
-                s({
-                  event: "activity",
-                  externalId: activity.externalId,
-                  name: activity.name,
-                  activityType: activity.type,
-                  status: "skipped",
-                  reason: "Already has rich track data",
-                  index: i,
-                  total,
-                });
-                continue;
-              }
-
-              // Upgrade existing
-              await prisma.trainingLog.update({
-                where: { id: existing.id },
-                data: {
-                  source: "strava",
-                  type: activity.type,
-                  name: activity.name,
-                  description: activity.description,
-                  startDate: activity.startDate,
-                  durationSeconds: activity.durationSeconds,
-                  distanceMeters: activity.distanceMeters,
-                  elevationGainMeters: activity.elevationGainMeters,
-                  averageHr: activity.averageHr,
-                  maxHr: activity.maxHr ?? existing.maxHr,
-                  averagePower: activity.averagePower,
-                  normalizedPower: activity.normalizedPower ?? existing.normalizedPower,
-                  calories: activity.calories,
-                  tss: activity.tss,
-                  rawJson: activity.rawJson as any,
-                },
-              });
-
-              if (activity.hasRichData) enriched++;
-              affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
-              imported++;
-
-              s({
-                type: "activity",
-                externalId: activity.externalId,
-                name: activity.name,
-                activityType: activity.type,
-                status: "enriched",
-                duration: activity.durationSeconds,
-                distance: activity.distanceMeters,
-                hasRichData: activity.hasRichData,
-                index: i,
-                total,
-              });
-            } else {
-              // New activity
-              await prisma.trainingLog.create({
-                data: {
-                  userId,
-                  externalId: activity.externalId,
-                  source: "strava",
-                  type: activity.type,
-                  name: activity.name,
-                  description: activity.description,
-                  startDate: activity.startDate,
-                  durationSeconds: activity.durationSeconds,
-                  distanceMeters: activity.distanceMeters,
-                  elevationGainMeters: activity.elevationGainMeters,
-                  averageHr: activity.averageHr,
-                  maxHr: activity.maxHr,
-                  averagePower: activity.averagePower,
-                  normalizedPower: activity.normalizedPower,
-                  calories: activity.calories,
-                  tss: activity.tss,
-                  rawJson: activity.rawJson as any,
-                },
-              });
-              affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
-              imported++;
-
-              s({
-                type: "activity",
-                externalId: activity.externalId,
-                name: activity.name,
-                activityType: activity.type,
-                status: "imported",
-                duration: activity.durationSeconds,
-                distance: activity.distanceMeters,
-                hasRichData: activity.hasRichData,
-                index: i,
-                total,
-              });
-            }
-          } catch (err) {
-            const msg = `${activity.externalId} (“${activity.name}”): ${(err as Error).message}`;
-            fileErrors.push(msg);
-            console.error(`[import] DB error: ${msg}`);
-            skipped++;
-            s({
-              type: "activity",
-              externalId: activity.externalId,
-              name: activity.name,
-              activityType: activity.type,
-              status: "error",
-              error: (err as Error).message,
-              index: i,
-              total,
-            });
-          }
-
-          // Emit progress update for EVERY activity (not batched)
-          s({
-            type: "progress",
-            phase: "importing",
-            current: i + 1,
-            total,
-            imported,
-            enriched,
-            skipped,
-            message: `${i + 1}/${total} — ${imported} imported, ${enriched} enriched, ${skipped} skipped`,
-          });
-
-          // Log every 50 for the server console (not every single one)
-          if ((i + 1) % 50 === 0) {
-            log(`DB progress: ${i + 1}/${total} (${imported} new, ${enriched} enriched, ${skipped} skipped)`);
-          }
-        }
-
-        const importMs = Date.now() - startImport;
-        log(`DB import complete in ${(importMs / 1000).toFixed(1)}s: ${imported} imported, ${enriched} enriched, ${skipped} skipped`);
+        log(`Import complete in ${(parseMs / 1000).toFixed(1)}s: ${imported} imported, ${enriched} enriched, ${skipped} skipped`);
 
         // ── Phase 4: Recompute weekly snapshots ────────
         if (affectedWeeks.size > 0) {
@@ -320,9 +239,6 @@ export async function POST(req: Request) {
         }
 
         // ── Final summary ──────────────────────────────
-        const totalMs = Date.now() - startParse + parseMs;
-        log(`Import finished: ${imported} imported, ${enriched} enriched, ${skipped} skipped in ${(totalMs / 1000).toFixed(1)}s total`);
-
         s({
           type: "summary",
           imported,

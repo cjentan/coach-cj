@@ -52,6 +52,8 @@ interface FitData {
     sessions?: FitSession[];
     records?: FitRecord[];
   };
+  /** Some FIT parsers place records at the top level instead of under activity */
+  records?: FitRecord[];
 }
 
 const SPORT_MAP: Record<string, ActivityType> = {
@@ -93,7 +95,8 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
       try {
         const activities: ParsedFileActivity[] = [];
         const sessions = data?.activity?.sessions || [];
-        const records = data?.activity?.records || [];
+        // Some FIT parsers (fit-file-parser v2+) store records at the top level
+        const records = data?.records || data?.activity?.records || [];
 
         for (const session of sessions) {
           const sportType = mapFitSport(session.sport, session.sub_sport);
@@ -181,7 +184,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
 
         // If no sessions found but we have records, create a single activity from records
         if (activities.length === 0) {
-          const fallbackRecords = data?.activity?.records || [];
+          const fallbackRecords = data?.records || data?.activity?.records || [];
           if (fallbackRecords.length >= 2) {
             const activity = computeFromFitRecords(fallbackRecords);
             if (activity) activities.push(activity);

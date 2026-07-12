@@ -13,11 +13,12 @@ import { parseActivityFile, buildRawJson, ParsedFileActivity } from "./gpx-parse
 import { parseFitFile } from "./fit-parser";
 
 export interface StravaExportResult {
+  /** Only populated when onActivity callback is NOT provided */
   activities: StravaExportActivity[];
   errors: string[];
   totalCsvRows: number;
-  withRichData: number;  // activities that have matching GPX/TCX/FIT
-  csvOnly: number;       // activities from CSV only (no file match)
+  withRichData: number;
+  csvOnly: number;
 }
 
 export interface StravaExportActivity extends ParsedCsvActivity {
@@ -25,6 +26,8 @@ export interface StravaExportActivity extends ParsedCsvActivity {
   hasRichData: boolean;
   normalizedPower: number | null;
 }
+
+export type ActivityCallback = (activity: StravaExportActivity) => Promise<void>;
 
 // Matches files named by activity ID under any directory depth.
 // Examples: activities/123456.gpx, 12345678.tcx, some/deep/path/98765.fit
@@ -35,6 +38,7 @@ const ACTIVITY_FILE_GLOBAL_RE = /(^|\/)(\d{4,})\.(gpx|tcx|fit)(\.gz)?$/i;
 export async function parseStravaExportZip(
   zipBuffer: Buffer,
   onProgress?: (msg: string) => void,
+  onActivity?: ActivityCallback,
 ): Promise<StravaExportResult> {
   const log = (msg: string) => {
     console.log(`[import:parse] ${msg}`);
@@ -101,9 +105,11 @@ export async function parseStravaExportZip(
     };
   }
 
-  // ── Diagnostic: CSV ID samples ──────────────────────────
+  // ── Diagnostic: CSV ID + Filename samples ──────────────
   const csvIdSamples = csvResult.activities.slice(0, 5).map(a => a.externalId);
   log(`CSV activity ID samples: ${csvIdSamples.join(", ")}`);
+  const csvFnSamples = csvResult.activities.slice(0, 5).map(a => a.filename || "(none)");
+  log(`CSV filename samples: ${csvFnSamples.join(", ")}`);
 
   // ── 2. Build lookup of activity files by ID ─────────────
   // Match ANY file that looks like an activity file (numeric name + gpx/tcx/fit),
@@ -157,6 +163,16 @@ export async function parseStravaExportZip(
   // ── Diagnostic: check overlap ───────────────────────────
   const csvIdLookup = new Map<string, boolean>();
   for (const a of csvResult.activities) csvIdLookup.set(a.externalId, true);
+  // Also check by Filename column
+  let fnMatchCount = 0;
+  let fnLookupFailures = 0;
+  for (const a of csvResult.activities) {
+    if (a.filename) {
+      const m = a.filename.match(/(\d{4,})\./);
+      if (m && filesById.has(m[1])) fnMatchCount++;
+      else if (m) fnLookupFailures++;
+    }
+  }
   const fileIdKeys: string[] = [];
   filesById.forEach((_, k) => fileIdKeys.push(k));
   let matchCount = 0;
@@ -164,8 +180,9 @@ export async function parseStravaExportZip(
     if (filesById.has(cid)) matchCount++;
   });
   const unmatchedFileIds = fileIdKeys.filter(fid => !csvIdLookup.has(fid));
-  log(`CSV-to-file match rate: ${matchCount} of ${csvIdLookup.size} CSV IDs have matching files` +
-    (unmatchedFileIds.length > 0 ? `. Unmatched file IDs: ${unmatchedFileIds.join(", ")}` : ""));
+  log(`CSV-to-file match rate (by Activity ID): ${matchCount} of ${csvIdLookup.size}`);
+  log(`CSV-to-file match rate (by Filename column): ${fnMatchCount} matched, ${fnLookupFailures} looked up but not found in ZIP`);
+  log(`File ID samples from ZIP: ${fileIdKeys.slice(0, 5).join(", ")}`);
 
   // ── 3. Correlate and parse ──────────────────────────────
   const activities: StravaExportActivity[] = [];
@@ -180,7 +197,17 @@ export async function parseStravaExportZip(
     let fileActivity: ParsedFileActivity | null = null;
 
     try {
-      const fileMatch = filesById.get(csvRow.externalId);
+      // Use the Filename column from CSV (e.g. "activities/20345958602.fit.gz")
+      // to derive the file ID, since the CSV Activity ID often differs from
+      // the file's numeric ID in the Strava export.
+      let fileId: string | null = null;
+      if (csvRow.filename) {
+        // Extract numeric ID from "activities/20345958602.fit.gz"
+        const fnMatch = csvRow.filename.match(/(\d{4,})\./);
+        if (fnMatch) fileId = fnMatch[1];
+      }
+      // Fall back to the CSV Activity ID if no filename column matched
+      const fileMatch = filesById.get(fileId || csvRow.externalId);
 
       if (fileMatch) {
         const lower = fileMatch.name.toLowerCase();
@@ -240,7 +267,11 @@ export async function parseStravaExportZip(
         activity.type = fileActivity.type;
       }
 
-      activities.push(activity);
+      if (onActivity) {
+        await onActivity(activity);
+      } else {
+        activities.push(activity);
+      }
 
       if (hasRichData) {
         withRichData++;
@@ -251,12 +282,17 @@ export async function parseStravaExportZip(
       const msg = `Unexpected error processing activity ${csvRow.externalId} ("${csvRow.name}"): ${(err as Error).message}`;
       errors.push(msg);
       console.error(`[import:parse] ${msg}`);
-      activities.push({
+      const fallback: StravaExportActivity = {
         ...csvRow,
         rawJson: null,
         hasRichData: false,
         normalizedPower: null,
-      });
+      };
+      if (onActivity) {
+        await onActivity(fallback);
+      } else {
+        activities.push(fallback);
+      }
       csvOnly++;
     }
 
