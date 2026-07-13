@@ -116,6 +116,8 @@ export async function POST(req: Request) {
             activity.subType,
             activity.startDate,
             activity.trackPoints,
+            undefined, // no timezone preference — uses FIT local_timestamp if available
+            activity.localTimestamp ?? undefined,
           );
         } catch {
           // If geocoding fails, keep the parser-generated name

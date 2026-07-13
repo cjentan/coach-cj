@@ -128,9 +128,9 @@ export default function DashboardPage() {
   const [coachNotesAt, setCoachNotesAt] = useState<string | null>(null);
   const [pmc, setPmc] = useState<PmcData | null>(null);
   const [pmcHistory, setPmcHistory] = useState<PmcHistoryPoint[]>([]);
-  const [pmcDays, setPmcDays] = useState(90);
-  const [pmcMetrics, setPmcMetrics] = useState<Set<string>>(new Set(["tss", "ctl"]));
-  const [trendMetrics, setTrendMetrics] = useState<Set<string>>(new Set(["readinessScore", "weeklyVolumeMeters"]));
+  const [pmcDays, setPmcDays] = useState(30);
+  const [pmcMetrics, setPmcMetrics] = useState<Set<string>>(new Set(["ctl", "atl", "tsb"]));
+  const [trendMetrics, setTrendMetrics] = useState<Set<string>>(new Set(["readinessScore", "weeklyVolumeMeters", "weeklyTss", "activityCount"]));
 
   const PMC_METRICS = [
     { key: "tss", label: "Daily TSS Load", color: "#a855f7", unit: "", format: (v: number) => String(Math.round(v)) },
@@ -140,7 +140,7 @@ export default function DashboardPage() {
   ] as const;
 
   const TREND_METRICS = [
-    { key: "readinessScore", label: "Readiness Score", color: "#3b82f6", unit: "", format: (v: number) => String(Math.round(v)), yAxisId: "left", orientation: "left" as const,
+    { key: "readinessScore", label: "Readiness Score", color: "#ef4444", unit: "", format: (v: number) => String(Math.round(v)), yAxisId: "left", orientation: "left" as const,
       tickFormatter: (v: number) => String(Math.round(v)) },
     { key: "weeklyVolumeMeters", label: "Weekly Volume", color: "#3b82f6", unit: "km", format: (v: number) => `${(v / 1000).toFixed(1)}`, yAxisId: "right1", orientation: "right" as const,
       tickFormatter: (v: number) => `${(v / 1000).toFixed(0)}k` },
@@ -151,7 +151,7 @@ export default function DashboardPage() {
   ] as const;
   const [trackpointInsights, setTrackpointInsights] = useState<TrackpointInsights | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
-  const [trendWeeks, setTrendWeeks] = useState(52);
+  const [trendWeeks, setTrendWeeks] = useState(4);
   const [trendGrouping, setTrendGrouping] = useState<"week" | "month">("week");
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);

@@ -59,6 +59,8 @@ export async function POST(req: Request) {
               activity.subType,
               activity.startDate,
               activity.trackPoints,
+              undefined,
+              activity.localTimestamp ?? undefined,
             );
           } catch {
             // Keep parser-generated name if geocoding fails

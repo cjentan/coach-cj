@@ -166,6 +166,8 @@ export async function POST(req: Request) {
                       activity.subType,
                       activity.startDate,
                       points,
+                      undefined, // no timezone preference
+                      undefined, // no localTimestamp from Strava data
                     );
                   } catch {
                     // Keep existing name if area lookup fails

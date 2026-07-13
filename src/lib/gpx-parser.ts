@@ -71,6 +71,9 @@ export interface ParsedFileActivity {
   description: string | null;
   trackPoints: TrackPoint[];
   laps: LapData[];
+  /** Device-local timestamp from the source file (e.g. Garmin FIT local_timestamp).
+   *  Provides the correct time-of-day regardless of server timezone. */
+  localTimestamp?: Date | null;
 }
 
 // Simple XML tag content extraction (avoids dependency on xml2js)

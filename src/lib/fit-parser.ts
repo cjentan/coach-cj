@@ -53,6 +53,7 @@ interface FitData {
   activity?: {
     sessions?: FitSession[];
     records?: FitRecord[];
+    local_timestamp?: string | Date;
   };
   /** Some FIT parsers place records at the top level instead of under activity */
   records?: FitRecord[];
@@ -147,6 +148,12 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
         // Some FIT parsers (fit-file-parser v2+) store records at the top level
         const records = data?.records || data?.activity?.records || [];
 
+        // Extract the Garmin device-local timestamp (reflects the watch's timezone).
+        // When available, use it for time-of-day naming instead of UTC start_time.
+        const localTimestamp: Date | undefined = data?.activity?.local_timestamp
+          ? new Date(data.activity.local_timestamp as string)
+          : undefined;
+
         for (const session of sessions) {
           const sportType = mapFitSport(session.sport, session.sub_sport);
           const subType = mapFitSubSport(session.sub_sport);
@@ -211,7 +218,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           }));
 
           activities.push({
-            name: generateBaseName(sportType, subType, startTime),
+            name: generateBaseName(sportType, subType, startTime, undefined, localTimestamp),
             type: sportType,
             subType,
             startDate: startTime,
@@ -229,6 +236,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
             tss,
             description: `Imported from FIT file. Sport: ${session.sport || "unknown"}${session.sub_sport ? ` (${session.sub_sport})` : ""}`,
             trackPoints,
+            localTimestamp,
             laps: [],
           });
         }
@@ -237,7 +245,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
         if (activities.length === 0) {
           const fallbackRecords = data?.records || data?.activity?.records || [];
           if (fallbackRecords.length >= 2) {
-            const activity = computeFromFitRecords(fallbackRecords);
+            const activity = computeFromFitRecords(fallbackRecords, localTimestamp);
             if (activity) activities.push(activity);
           }
         }
@@ -250,7 +258,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
   });
 }
 
-function computeFromFitRecords(records: FitRecord[]): ParsedFileActivity | null {
+function computeFromFitRecords(records: FitRecord[], localTimestamp?: Date): ParsedFileActivity | null {
   if (records.length < 2) return null;
 
   const first = records[0];
@@ -312,7 +320,7 @@ function computeFromFitRecords(records: FitRecord[]): ParsedFileActivity | null 
   const tss = Math.round(hours * 50);
 
   return {
-    name: generateBaseName("other", null, startTime),
+    name: generateBaseName("other", null, startTime, undefined, localTimestamp),
     type: "other",
     subType: null,
     startDate: startTime,
@@ -330,6 +338,7 @@ function computeFromFitRecords(records: FitRecord[]): ParsedFileActivity | null 
     tss,
     description: "Computed from record-level FIT data (no session summary available)",
     trackPoints,
+    localTimestamp,
     laps: [],
   };
 }

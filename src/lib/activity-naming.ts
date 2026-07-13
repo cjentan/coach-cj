@@ -48,8 +48,31 @@ let lastNominatimRequest = 0;
 
 // ─── Time of day ──────────────────────────────────────────────
 
-export function getTimeOfDay(date: Date): string {
-  const h = date.getHours();
+/**
+ * Determine the time-of-day bucket for an activity.
+ *
+ * @param date  The activity start time (typically UTC from the device).
+ * @param timezone  IANA timezone name (e.g. "Asia/Kuala_Lumpur").
+ *                  When omitted, uses the server's local timezone (UTC in Docker).
+ * @param localTimestamp  Device-local timestamp (e.g. from Garmin FIT local_timestamp).
+ *                        When provided, its UTC-hours component reflects the device's
+ *                        local time-of-day (Garmin stores it as epoch seconds), so
+ *                        this takes precedence over `timezone`.
+ */
+export function getTimeOfDay(date: Date, timezone?: string, localTimestamp?: Date): string {
+  let h: number;
+  if (localTimestamp) {
+    // localTimestamp is a device-local time serialised as FIT epoch seconds.
+    // Its getUTCHours() gives the correct local hour.
+    h = localTimestamp.getUTCHours();
+  } else if (timezone) {
+    h = parseInt(
+      date.toLocaleString("en-US", { timeZone: timezone, hour: "numeric", hour12: false }),
+      10,
+    );
+  } else {
+    h = date.getHours();
+  }
   if (h >= 5 && h < 12) return "Morning";
   if (h >= 12 && h < 17) return "Afternoon";
   if (h >= 17 && h < 21) return "Evening";
@@ -195,12 +218,14 @@ export async function enrichNameWithArea(
   subType: ActivitySubType | null,
   startDate: Date,
   points?: TrackPoint[],
+  timezone?: string,
+  localTimestamp?: Date,
 ): Promise<string> {
   const label = getActivityTypeLabel(type, subType);
   // Preserve the time-of-day from the existing name (user's local timezone)
   // rather than recomputing from UTC timestamp
   const tod = name === "Untitled"
-    ? getTimeOfDay(startDate)
+    ? getTimeOfDay(startDate, timezone, localTimestamp)
     : name.slice(0, -label.length - 1); // e.g. "Evening Run" → "Evening"
 
   const coord = getFirstTrackPoint(points);
@@ -362,8 +387,10 @@ export async function generateActivityName(
   subType: ActivitySubType | null,
   startDate: Date,
   trackPoints?: TrackPoint[],
+  timezone?: string,
+  localTimestamp?: Date,
 ): Promise<string> {
-  const tod = getTimeOfDay(startDate);
+  const tod = getTimeOfDay(startDate, timezone, localTimestamp);
   const label = getActivityTypeLabel(type, subType);
 
   // Best-effort: resolve area from the first GPS point
@@ -385,8 +412,10 @@ export function generateBaseName(
   type: ActivityType,
   subType: ActivitySubType | null,
   startDate: Date,
+  timezone?: string,
+  localTimestamp?: Date,
 ): string {
-  const tod = getTimeOfDay(startDate);
+  const tod = getTimeOfDay(startDate, timezone, localTimestamp);
   const label = getActivityTypeLabel(type, subType);
   return `${tod} ${label}`;
 }
