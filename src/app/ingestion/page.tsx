@@ -40,6 +40,53 @@ const ACTIVITY_TYPES = [
   { value: "other", label: "Other", icon: Activity },
 ];
 
+const SUB_TYPE_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  run: [
+    { value: "trail_running", label: "Trail Running" },
+    { value: "treadmill", label: "Treadmill" },
+    { value: "virtual_run", label: "Virtual Run" },
+  ],
+  ride: [
+    { value: "mountain_biking", label: "Mountain Biking" },
+    { value: "gravel_cycling", label: "Gravel Cycling" },
+    { value: "road_cycling", label: "Road Cycling" },
+    { value: "indoor_cycling", label: "Indoor Cycling" },
+    { value: "virtual_ride", label: "Virtual Ride" },
+    { value: "handcycle", label: "Handcycle" },
+  ],
+  swim: [
+    { value: "open_water", label: "Open Water" },
+    { value: "lap_swimming", label: "Lap Swimming" },
+  ],
+  workout: [
+    { value: "strength_training", label: "Strength Training" },
+    { value: "crossfit", label: "CrossFit" },
+    { value: "yoga", label: "Yoga" },
+    { value: "elliptical", label: "Elliptical" },
+    { value: "stair_stepper", label: "Stair Stepper" },
+    { value: "pilates", label: "Pilates" },
+  ],
+  other: [
+    { value: "rock_climbing", label: "Rock Climbing" },
+    { value: "surfing", label: "Surfing" },
+    { value: "stand_up_paddling", label: "Stand Up Paddling" },
+    { value: "kayaking", label: "Kayaking" },
+    { value: "canoeing", label: "Canoeing" },
+    { value: "rowing", label: "Rowing" },
+    { value: "ice_skating", label: "Ice Skating" },
+    { value: "inline_skating", label: "Inline Skating" },
+    { value: "nordic_skiing", label: "Nordic Skiing" },
+    { value: "alpine_skiing", label: "Alpine Skiing" },
+    { value: "backcountry_skiing", label: "Backcountry Skiing" },
+    { value: "snowboarding", label: "Snowboarding" },
+    { value: "snowshoeing", label: "Snowshoeing" },
+    { value: "soccer", label: "Soccer" },
+    { value: "tennis", label: "Tennis" },
+    { value: "golf", label: "Golf" },
+    { value: "wheelchair", label: "Wheelchair" },
+  ],
+};
+
 const TYPE_ICON: Record<string, string> = {
   run: "🏃", ride: "🚴", swim: "🏊", hike: "🥾", walk: "🚶", workout: "🏋️", other: "📋",
 };
@@ -84,7 +131,7 @@ export default function IngestionPage() {
 
   // Manual form
   const [manualForm, setManualForm] = useState({
-    name: "", type: "run", date: new Date().toISOString().slice(0, 16),
+    name: "", type: "run", subType: "", date: new Date().toISOString().slice(0, 16),
     durationMinutes: "", durationSeconds: "", distance: "", elevation: "",
     avgHr: "", maxHr: "", calories: "", description: "",
   });
@@ -328,9 +375,10 @@ export default function IngestionPage() {
       return;
     }
 
-    const body = {
+    const body: Record<string, unknown> = {
       name: manualForm.name,
       type: manualForm.type,
+      subType: manualForm.subType || null,
       startDate: new Date(manualForm.date).toISOString(),
       durationSeconds: durationSec,
       distanceMeters: manualForm.distance ? parseFloat(manualForm.distance) : null,
@@ -350,7 +398,7 @@ export default function IngestionPage() {
     if (res.ok) {
       setManualResult("Activity created successfully!");
       setManualForm({
-        name: "", type: "run", date: new Date().toISOString().slice(0, 16),
+        name: "", type: "run", subType: "", date: new Date().toISOString().slice(0, 16),
         durationMinutes: "", durationSeconds: "", distance: "", elevation: "",
         avgHr: "", maxHr: "", calories: "", description: "",
       });
@@ -403,6 +451,7 @@ export default function IngestionPage() {
                          stravaExportPhase === "parsing" ? "Extracting and parsing activities…" :
                          stravaExportPhase === "importing" ? "Importing activities to database…" :
                          stravaExportPhase === "snapshotting" ? "Updating weekly snapshots…" :
+                         stravaExportPhase === "cancelled" ? "Cancelled" :
                          "Processing ZIP…"}
                       </span>
                     </div>
@@ -622,7 +671,7 @@ export default function IngestionPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Type *</Label>
-                    <Select value={manualForm.type} onValueChange={(v) => setManualForm({ ...manualForm, type: v })}>
+                    <Select value={manualForm.type} onValueChange={(v) => { setManualForm({ ...manualForm, type: v, subType: "" }); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ACTIVITY_TYPES.map((t) => (
@@ -633,6 +682,20 @@ export default function IngestionPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {SUB_TYPE_OPTIONS[manualForm.type] && SUB_TYPE_OPTIONS[manualForm.type].length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Sub-Type</Label>
+                      <Select value={manualForm.subType} onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}>
+                        <SelectTrigger><SelectValue placeholder="None (generic)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">None (generic)</SelectItem>
+                          {SUB_TYPE_OPTIONS[manualForm.type].map((st) => (
+                            <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Date & Time *</Label>
                     <Input type="datetime-local" value={manualForm.date}

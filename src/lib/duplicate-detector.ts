@@ -69,7 +69,7 @@ async function fetchActivitiesForDetection(
     FROM training_logs
     WHERE user_id = ${userId}
       AND merged_into_id IS NULL
-      AND (duplicate_group_id IS NULL OR duplicate_status::text IS DISTINCT FROM 'pending')
+      AND (duplicate_group_id IS NULL OR duplicate_status IS DISTINCT FROM CAST('pending' AS "DuplicateStatus"))
     ORDER BY start_date DESC
     LIMIT ${limit}
   `;

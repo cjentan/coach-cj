@@ -23,7 +23,8 @@
  *     </Trackpoint></Track>
  *   </Lap></Activity></Activities></TrainingCenterDatabase>
  */
-import { ActivityType, ActivitySource } from "@prisma/client";
+import { ActivityType, ActivitySubType, ActivitySource } from "@prisma/client";
+import { generateBaseName } from "./activity-naming";
 
 export interface TrackPoint {
   lat: number | null;
@@ -53,6 +54,7 @@ export interface LapData {
 export interface ParsedFileActivity {
   name: string;
   type: ActivityType;
+  subType: ActivitySubType | null;
   startDate: Date;
   durationSeconds: number;
   distanceMeters: number | null;
@@ -151,7 +153,7 @@ function parseLap(lapXml: string): LapData {
 // ─── Main parsing functions ─────────────────────────────────
 
 function parseGpx(xml: string): ParsedFileActivity | null {
-  const name = getTagContent(xml, "name") || "GPX Import";
+  const nameFromXml = getTagContent(xml, "name");
   const trkContent = getTagContent(xml, "trk") || xml;
 
   // Extract all trackpoints
@@ -179,7 +181,15 @@ function parseGpx(xml: string): ParsedFileActivity | null {
     });
   }
 
-  return computeFromPoints(points, name, []);
+  const base = computeFromPoints(points, nameFromXml || "GPX Import", []);
+  if (!base) return null;
+
+  // If no <name> was in the XML, generate a descriptive name from available data
+  if (!nameFromXml) {
+    base.name = generateBaseName(base.type, base.subType, base.startDate);
+  }
+
+  return base;
 }
 
 function parseTcx(xml: string): ParsedFileActivity | null {
@@ -189,7 +199,8 @@ function parseTcx(xml: string): ParsedFileActivity | null {
   const activityXml = getTagContent(xml, "Activity") || xml;
   const nameFromNotes = getTagContent(activityXml, "Notes");
   const nameFromId = getTagContent(activityXml, "Id");
-  const name = nameFromNotes || `${sport} — TCX Import`;
+  const hasXmlName = !!(nameFromNotes || nameFromId);
+  const name = nameFromNotes || nameFromId || `${sport} — TCX Import`;
 
   // Parse laps
   const lapContents = getTagContentAll(xml, "Lap");
@@ -312,6 +323,11 @@ function parseTcx(xml: string): ParsedFileActivity | null {
     base.averageCadence = Math.round(avgCad);
   }
 
+  // If no <Notes> or <Id> was in the TCX, generate a descriptive name from available data
+  if (!hasXmlName) {
+    base.name = generateBaseName(base.type, base.subType, base.startDate);
+  }
+
   base.laps = laps;
 
   return base;
@@ -403,9 +419,12 @@ function computeFromPoints(points: TrackPoint[], name: string, laps: LapData[]):
 
   const sportType = mapGpxType(name);
 
+  const sportSubType = mapGpxSubType(name);
+
   return {
     name,
     type: sportType,
+    subType: sportSubType,
     startDate: firstTime || new Date(),
     durationSeconds,
     distanceMeters: totalDistance > 0 ? Math.round(totalDistance) : null,
@@ -433,6 +452,33 @@ function mapGpxType(name: string): ActivityType {
   if (lower.includes("walk")) return "walk";
   if (lower.includes("workout") || lower.includes("strength") || lower.includes("gym")) return "workout";
   return "run"; // default
+}
+
+function mapGpxSubType(name: string): ActivitySubType | null {
+  const lower = name.toLowerCase();
+  if (lower.includes("trail")) return "trail_running";
+  if (lower.includes("treadmill")) return "treadmill";
+  if (lower.includes("track")) return "trail_running";
+  if (lower.includes("virtual") && (lower.includes("run") || lower.includes("race"))) return "virtual_run";
+  if (lower.includes("mountain") || lower.includes("mtb")) return "mountain_biking";
+  if (lower.includes("gravel")) return "gravel_cycling";
+  if (lower.includes("road")) return "road_cycling";
+  if (lower.includes("indoor") || lower.includes("trainer")) return "indoor_cycling";
+  if (lower.includes("virtual") && lower.includes("ride")) return "virtual_ride";
+  if (lower.includes("open water")) return "open_water";
+  if (lower.includes("pool") || lower.includes("lap")) return "lap_swimming";
+  if (lower.includes("strength") || lower.includes("weight") || lower.includes("gym")) return "strength_training";
+  if (lower.includes("yoga")) return "yoga";
+  if (lower.includes("crossfit")) return "crossfit";
+  if (lower.includes("elliptical")) return "elliptical";
+  if (lower.includes("stair")) return "stair_stepper";
+  if (lower.includes("pilates")) return "pilates";
+  if (lower.includes("row")) return "rowing";
+  if (lower.includes("rock climb")) return "rock_climbing";
+  if (lower.includes("surf")) return "surfing";
+  if (lower.includes("kayak")) return "kayaking";
+  if (lower.includes("canoe")) return "canoeing";
+  return null;
 }
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -480,9 +526,10 @@ export function parseActivityFile(content: string, filename: string): ParsedFile
  * Build the rawJson payload for DB storage from parsed activity.
  */
 export function buildRawJson(activity: ParsedFileActivity, sourceFile: string): Record<string, unknown> {
-  const fileType = sourceFile.toLowerCase().endsWith(".tcx") ? "tcx"
-    : sourceFile.toLowerCase().endsWith(".gpx") ? "gpx"
-    : sourceFile.toLowerCase().endsWith(".fit") ? "fit"
+  const lower = sourceFile.toLowerCase();
+  const fileType = lower.endsWith(".tcx") ? "tcx"
+    : lower.endsWith(".gpx") ? "gpx"
+    : (lower.endsWith(".fit") || lower.endsWith(".fit.gz")) ? "fit"
     : "unknown";
 
   // Keep trackpoints with data — strip completely null entries at the tail

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatDistance, formatDuration } from "@/lib/utils";
 
 type ActivityLog = {
-  id: string; type: string; name: string; startDate: string;
+  id: string; type: string; subType: string | null; name: string; startDate: string;
   distanceMeters: number | null; elevationGainMeters: number | null;
   durationSeconds: number; averageHr: number | null; tss: number | null;
   remarks?: string | null; source: string;
@@ -49,6 +49,16 @@ const TYPE_BADGE_VARIANTS: Record<string, "default" | "secondary" | "outline"> =
   run: "default", ride: "secondary", swim: "outline", hike: "outline",
 };
 
+const SUB_TYPE_LABELS: Record<string, string> = {
+  trail_running: "Trail", treadmill: "Treadmill", virtual_run: "Virtual Run",
+  mountain_biking: "MTB", gravel_cycling: "Gravel", road_cycling: "Road", indoor_cycling: "Indoor", virtual_ride: "Virtual Ride", handcycle: "Handcycle",
+  open_water: "Open Water", lap_swimming: "Lap Swim",
+  strength_training: "Strength", crossfit: "CrossFit", yoga: "Yoga", elliptical: "Elliptical", stair_stepper: "Stair Stepper", pilates: "Pilates",
+  rock_climbing: "Rock Climb", surfing: "Surfing", stand_up_paddling: "SUP", kayaking: "Kayaking", canoeing: "Canoeing", rowing: "Rowing",
+  ice_skating: "Ice Skate", inline_skating: "Inline Skate", nordic_skiing: "Nordic Ski", alpine_skiing: "Alpine Ski", backcountry_skiing: "Backcountry", snowboarding: "Snowboard", snowshoeing: "Snowshoe",
+  soccer: "Soccer", tennis: "Tennis", golf: "Golf", wheelchair: "Wheelchair",
+};
+
 const SOURCE_LABELS: Record<string, string> = {
   strava: "Strava", garmin: "Garmin", watch_push: "Watch", manual: "Manual",
 };
@@ -83,6 +93,7 @@ export default function TrainingLogsPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [activityFilter, setActivityFilter] = useState<ActivityType>("all");
+  const [subTypeFilter, setSubTypeFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<ActivitySource>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -106,6 +117,7 @@ export default function TrainingLogsPage() {
   function buildFilterParams(offsetVal: number) {
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetVal) });
     if (activityFilter !== "all") params.set("type", activityFilter);
+    if (subTypeFilter !== "all") params.set("subType", subTypeFilter);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (dateFrom) params.set("from", dateFrom);
     if (dateTo) params.set("to", dateTo);
@@ -141,7 +153,7 @@ export default function TrainingLogsPage() {
     }
   }
 
-  useEffect(() => { loadLogs(); }, [activityFilter, sourceFilter, dateFrom, dateTo]);
+  useEffect(() => { loadLogs(); }, [activityFilter, subTypeFilter, sourceFilter, dateFrom, dateTo]);
 
   const weeklyStats = useMemo(() => {
     const weekStart = getWeekStart(new Date());
@@ -186,11 +198,11 @@ export default function TrainingLogsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle>
-            {(activityFilter !== "all" || sourceFilter !== "all" || dateFrom || dateTo) && (
+            {(activityFilter !== "all" || subTypeFilter !== "all" || sourceFilter !== "all" || dateFrom || dateTo) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setActivityFilter("all"); setSourceFilter("all"); setDateFrom(""); setDateTo(""); }}
+                onClick={() => { setActivityFilter("all"); setSubTypeFilter("all"); setSourceFilter("all"); setDateFrom(""); setDateTo(""); }}
               >
                 Clear Filters
               </Button>
@@ -198,12 +210,24 @@ export default function TrainingLogsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid sm:grid-cols-4 gap-4">
+            <div className="grid sm:grid-cols-5 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Activity Type</Label>
               <Select value={activityFilter} onValueChange={(v) => setActivityFilter(v as ActivityType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ACTIVITY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Sub-Type</Label>
+              <Select value={subTypeFilter} onValueChange={setSubTypeFilter}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sub-Types</SelectItem>
+                  {Object.entries(SUB_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
@@ -239,6 +263,9 @@ export default function TrainingLogsPage() {
                           <span className="text-muted-foreground">{TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}</span>
                           <span className="font-semibold truncate">{log.name}</span>
                           <Badge variant={TYPE_BADGE_VARIANTS[log.type] || "outline"} className="shrink-0 capitalize">{log.type}</Badge>
+                          {log.subType && SUB_TYPE_LABELS[log.subType] && (
+                            <Badge variant="secondary" className="shrink-0 text-[10px]">{SUB_TYPE_LABELS[log.subType]}</Badge>
+                          )}
                           <SourceBadge source={log.source} />
                         </div>
                         <p className="text-sm text-muted-foreground">{new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</p>

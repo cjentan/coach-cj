@@ -33,7 +33,7 @@ interface RouteMatch {
 }
 
 interface TrainingLog {
-  id: string; type: string; name: string; description: string | null; remarks: string | null;
+  id: string; type: string; subType: string | null; name: string; description: string | null; remarks: string | null;
   startDate: string; durationSeconds: number; distanceMeters: number | null;
   elevationGainMeters: number | null; averageHr: number | null; maxHr: number | null;
   averagePower: number | null; normalizedPower: number | null; calories: number | null; tss: number | null;
@@ -188,6 +188,7 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
       <CardHeader>
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Badge>{log.type}</Badge>
+          {log.subType && <Badge variant="secondary">{log.subType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</Badge>}
           <SourceBadge source={log.source} />
           {log.tss && <Badge variant="outline">TSS {Math.round(log.tss)}</Badge>}
           {log.remarks && <Badge variant="secondary" className="gap-1"><MessageSquare className="h-3 w-3" /> Remarks</Badge>}

@@ -29,6 +29,7 @@ import { verifyApiKey } from "@/lib/api-keys";
 import { prisma } from "@/lib/prisma";
 import { parseActivityFile, buildRawJson, ParsedFileActivity } from "@/lib/gpx-parser";
 import { parseFitFile } from "@/lib/fit-parser";
+import { generateActivityName } from "@/lib/activity-naming";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 import { ActivityType } from "@prisma/client";
@@ -107,7 +108,21 @@ export async function POST(req: Request) {
     const affectedWeeks = new Set<string>();
 
     for (const activity of activities) {
-      // Apply overrides
+      // Enrich name with area from reverse-geocode cache (best-effort)
+      if (!nameOverride) {
+        try {
+          activity.name = await generateActivityName(
+            activity.type,
+            activity.subType,
+            activity.startDate,
+            activity.trackPoints,
+          );
+        } catch {
+          // If geocoding fails, keep the parser-generated name
+        }
+      }
+
+      // Apply overrides (takes precedence over auto-generated name)
       if (nameOverride) activity.name = nameOverride;
       if (typeOverride) activity.type = typeOverride as ActivityType;
 

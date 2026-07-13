@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { ActivitySubType } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
@@ -8,6 +9,7 @@ import { getWeekStart } from "@/lib/utils";
 const manualSchema = z.object({
   name: z.string().min(1, "Activity name is required"),
   type: z.enum(["run", "ride", "swim", "hike", "walk", "workout", "other"]),
+  subType: z.string().nullable().optional(),
   startDate: z.string().transform((s) => new Date(s)),
   durationSeconds: z.number().int().positive(),
   distanceMeters: z.number().positive().nullable().optional(),
@@ -44,6 +46,7 @@ export async function POST(req: Request) {
         externalId: `manual-${Date.now()}`,
         source: "manual",
         type: data.type,
+        subType: (data.subType as ActivitySubType) || null,
         name: data.name,
         description: data.description || null,
         startDate: data.startDate,

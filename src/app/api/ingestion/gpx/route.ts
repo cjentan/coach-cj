@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseActivityFile, buildRawJson, ParsedFileActivity } from "@/lib/gpx-parser";
 import { parseFitFile } from "@/lib/fit-parser";
+import { generateActivityName } from "@/lib/activity-naming";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 
@@ -51,6 +52,18 @@ export async function POST(req: Request) {
 
         // Upsert all parsed activities
         for (const activity of activities) {
+          // Enrich name with area from reverse-geocode cache when GPS data is available
+          try {
+            activity.name = await generateActivityName(
+              activity.type,
+              activity.subType,
+              activity.startDate,
+              activity.trackPoints,
+            );
+          } catch {
+            // Keep parser-generated name if geocoding fails
+          }
+
           const externalId = `${lower.endsWith(".fit") ? "fit" : "gpx"}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
           const rawJson = buildRawJson(activity, file.name);
@@ -66,6 +79,7 @@ export async function POST(req: Request) {
             create: {
               name: activity.name,
               type: activity.type,
+              subType: activity.subType,
               startDate: activity.startDate,
               durationSeconds: activity.durationSeconds,
               distanceMeters: activity.distanceMeters,
@@ -85,6 +99,7 @@ export async function POST(req: Request) {
             update: {
               name: activity.name,
               type: activity.type,
+              subType: activity.subType,
               startDate: activity.startDate,
               durationSeconds: activity.durationSeconds,
               distanceMeters: activity.distanceMeters,

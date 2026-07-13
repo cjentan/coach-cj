@@ -18,6 +18,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseStravaExportZip } from "@/lib/strava-export-parser";
+import { generateActivityName, generateBaseName } from "@/lib/activity-naming";
+import { TrackPoint } from "@/lib/gpx-parser";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 
@@ -149,6 +151,27 @@ export async function POST(req: Request) {
                 return;
               }
 
+              // Enrich default-named activities with area from GPS data.
+              // If the activity name matches the default pattern (<TimeOfDay> <Type>)
+              // or is "Untitled", prepend the area name just like all other ingestion modes
+              // (gpx/route.ts, etc.) so the name reads "<Area> <TimeOfDay> <Type>".
+              if (activity.hasRichData && activity.rawJson) {
+                const defaultName = generateBaseName(activity.type, activity.subType, activity.startDate);
+                if (activity.name === "Untitled" || activity.name === defaultName) {
+                  try {
+                    const points = (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined;
+                    activity.name = await generateActivityName(
+                      activity.type,
+                      activity.subType,
+                      activity.startDate,
+                      points,
+                    );
+                  } catch {
+                    // Keep existing name if area lookup fails
+                  }
+                }
+              }
+
               try {
                 const existing = await prisma.trainingLog.findFirst({
                   where: { userId, externalId: activity.externalId },
@@ -165,6 +188,7 @@ export async function POST(req: Request) {
                     data: {
                       source: "strava",
                       type: activity.type,
+                      subType: activity.subType,
                       name: activity.name,
                       description: activity.description,
                       startDate: activity.startDate,
@@ -191,6 +215,7 @@ export async function POST(req: Request) {
                       externalId: activity.externalId,
                       source: "strava",
                       type: activity.type,
+                      subType: activity.subType,
                       name: activity.name,
                       description: activity.description,
                       startDate: activity.startDate,

@@ -49,6 +49,52 @@ enum ActivityType {
   other
 }
 
+enum ActivitySubType {
+  // Running
+  trail_running
+  treadmill
+  virtual_run
+
+  // Cycling
+  mountain_biking
+  gravel_cycling
+  road_cycling
+  indoor_cycling
+  virtual_ride
+  handcycle
+
+  // Swimming
+  open_water
+  lap_swimming
+
+  // Workout
+  strength_training
+  crossfit
+  yoga
+  elliptical
+  stair_stepper
+  pilates
+
+  // Other specific activities
+  rock_climbing
+  surfing
+  stand_up_paddling
+  kayaking
+  canoeing
+  rowing
+  ice_skating
+  inline_skating
+  nordic_skiing
+  alpine_skiing
+  backcountry_skiing
+  snowboarding
+  snowshoeing
+  soccer
+  tennis
+  golf
+  wheelchair
+}
+
 enum ActivitySource {
   strava
   garmin
@@ -68,6 +114,7 @@ model TrainingLog {
   externalId          String?          @map("external_id")
   source              ActivitySource   @default(strava)
   type                ActivityType
+  subType             ActivitySubType?
   name                String
   description         String?
   remarks             String?

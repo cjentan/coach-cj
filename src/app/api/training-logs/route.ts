@@ -8,6 +8,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const type = url.searchParams.get("type");
+  const subType = url.searchParams.get("subType");
   const source = url.searchParams.get("source");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
@@ -20,6 +21,7 @@ export async function GET(req: Request) {
     mergedIntoId: null,
   };
   if (type && type !== "all") where.type = type;
+  if (subType && subType !== "all") where.subType = subType;
   if (source && source !== "all") where.source = source;
   if (from) where.startDate = { ...(where.startDate as object || {}), gte: new Date(from) };
   if (to) where.startDate = { ...(where.startDate as object || {}), lte: new Date(to) };
@@ -33,6 +35,7 @@ export async function GET(req: Request) {
       select: {
         id: true,
         type: true,
+        subType: true,
         name: true,
         startDate: true,
         distanceMeters: true,

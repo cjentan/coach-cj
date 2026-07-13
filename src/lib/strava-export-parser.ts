@@ -274,9 +274,13 @@ export async function parseStravaExportZip(
         maxHr: fileActivity?.maxHr ?? csvRow.maxHr ?? null,
       };
 
-      // Override type with file-detected type if CSV type is generic
+      // Override type/subType with file-detected data if CSV type is generic
       if (fileActivity && csvRow.type === "other") {
         activity.type = fileActivity.type;
+        activity.subType = fileActivity.subType;
+      } else if (fileActivity && fileActivity.subType != null) {
+        // If the file has a more specific sub-type, prefer it over the CSV-derived one
+        activity.subType = fileActivity.subType;
       }
 
       if (onActivity) {

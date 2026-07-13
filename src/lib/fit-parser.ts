@@ -7,8 +7,9 @@
  * We extract session-level summaries (sport, duration, distance, elevation, HR)
  * and optionally per-record time-series for more granular analysis.
  */
-import { ActivityType } from "@prisma/client";
+import { ActivityType, ActivitySubType } from "@prisma/client";
 import { ParsedFileActivity, TrackPoint } from "./gpx-parser";
+import { generateBaseName } from "./activity-naming";
 
 // fit-file-parser has no TypeScript types, so we use require-style import
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -71,11 +72,56 @@ const SPORT_MAP: Record<string, ActivityType> = {
   all: "other",
 };
 
+const SUB_SPORT_MAP: Record<string, ActivitySubType | null> = {
+  running: null,
+  trail: "trail_running",
+  trail_running: "trail_running",
+  cycling: null,
+  mountain_biking: "mountain_biking",
+  gravel_cycling: "gravel_cycling",
+  road_cycling: "road_cycling",
+  indoor_cycling: "indoor_cycling",
+  swimming: null,
+  hiking: null,
+  walking: null,
+  training: null,
+  strength_training: "strength_training",
+  yoga: "yoga",
+  elliptical: "elliptical",
+  stair_stepper: "stair_stepper",
+  pilates: "pilates",
+  crossfit: "crossfit",
+  rowing: "rowing",
+  rock_climbing: "rock_climbing",
+  surfing: "surfing",
+  stand_up_paddling: "stand_up_paddling",
+  kayaking: "kayaking",
+  canoeing: "canoeing",
+  ice_skating: "ice_skating",
+  inline_skating: "inline_skating",
+  nordic_skiing: "nordic_skiing",
+  alpine_skiing: "alpine_skiing",
+  backcountry_skiing: "backcountry_skiing",
+  snowboarding: "snowboarding",
+  snowshoeing: "snowshoeing",
+  soccer: "soccer",
+  tennis: "tennis",
+  golf: "golf",
+  wheelchair: "wheelchair",
+  generic: null,
+  all: null,
+};
+
 function mapFitSport(sport?: string, subSport?: string): ActivityType {
   const sportKey = (sport || "").toLowerCase();
   const subKey = (subSport || "").toLowerCase();
   // Use the sport first; only override with subSport if it's a known mapped value
   return SPORT_MAP[subKey] || SPORT_MAP[sportKey] || "other";
+}
+
+function mapFitSubSport(subSport?: string): ActivitySubType | null {
+  const subKey = (subSport || "").toLowerCase();
+  return SUB_SPORT_MAP[subKey] ?? null;
 }
 
 export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
@@ -103,6 +149,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
 
         for (const session of sessions) {
           const sportType = mapFitSport(session.sport, session.sub_sport);
+          const subType = mapFitSubSport(session.sub_sport);
           const startTime = session.start_time
             ? new Date(session.start_time)
             : new Date();
@@ -164,8 +211,9 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           }));
 
           activities.push({
-            name: `${sportName} — FIT Import`,
+            name: generateBaseName(sportType, subType, startTime),
             type: sportType,
+            subType,
             startDate: startTime,
             durationSeconds: Math.round(duration),
             distanceMeters: distance ? Math.round(distance) : null,
@@ -264,8 +312,9 @@ function computeFromFitRecords(records: FitRecord[]): ParsedFileActivity | null 
   const tss = Math.round(hours * 50);
 
   return {
-    name: "Activity — FIT Import",
+    name: generateBaseName("other", null, startTime),
     type: "other",
+    subType: null,
     startDate: startTime,
     durationSeconds: duration > 0 ? duration : 3600,
     distanceMeters: distance ? Math.round(distance) : null,

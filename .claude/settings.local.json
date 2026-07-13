@@ -19,7 +19,13 @@
       "mcp__plugin_playwright_playwright__browser_take_screenshot",
       "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\")",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/ingestion/gpx)",
+      "Bash(npx prisma *)",
+      "Bash(PGPASSWORD=coach psql -h localhost -p 5433 -U coach -d coach -c \"SELECT id, type, \\\\\"subType\\\\\", name, source, start_date, duration_seconds, distance_meters, elevation_gain_meters, average_hr, max_hr, average_power, normalized_power, calories, tss, external_id, description, remarks, duplicate_status, merged_into_id FROM training_logs WHERE id = '918e886e-356b-4028-a622-8df7ae438a79';\")",
+      "mcp__context-mode__ctx_execute",
+      "Bash(npx tsx -e ' *)",
+      "Bash(node -e ' *)"
     ]
   }
 }

@@ -46,6 +46,7 @@ export async function POST(req: Request) {
           create: { ...activity, userId: session.user.id },
           update: {
             type: activity.type,
+            subType: activity.subType,
             name: activity.name,
             startDate: activity.startDate,
             durationSeconds: activity.durationSeconds,
