@@ -47,6 +47,9 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
+# Ensure the data directory is writable for the geocode cache
+RUN mkdir -p /app/data && chmod 777 /app/data
+
 USER node
 EXPOSE 3000
 ENV PORT=3000

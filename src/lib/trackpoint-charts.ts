@@ -420,6 +420,22 @@ export function extractRoutePoints(trackPoints: TrackPoint[]): RoutePoint[] {
   }));
 }
 
+/**
+ * Extract lat/lon pairs from trackpoints for heatmap rendering.
+ * Returns raw [lat, lon] arrays (no 0-100 screen-coordinate normalization).
+ */
+export function extractHeatmapPoints(
+  trackPoints: TrackPoint[],
+  maxPoints = 200
+): [number, number][] {
+  const valid = trackPoints.filter(
+    (tp): tp is TrackPoint & { lat: number; lon: number } =>
+      tp.lat != null && tp.lon != null
+  );
+  if (valid.length < 3) return [];
+  return downsample(valid, maxPoints).map((tp) => [tp.lat, tp.lon]);
+}
+
 // ─── HR Zone Breakdown ───────────────────────────────────────
 
 export interface HrZoneBreakdown {

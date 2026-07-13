@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, ArrowLeft, Copy, Trash2, Key, Plus, Eye, EyeOff, Terminal, Brain } from "lucide-react";
-import Link from "next/link";
+import {
+  Check, Copy, Trash2, Key, Plus, Eye, EyeOff, Terminal, Brain,
+  Zap, Clock, CheckCircle2, XCircle, Loader2, Send, Server,
+} from "lucide-react";
 
 interface ApiKeyInfo {
   id: string;
@@ -17,6 +19,14 @@ interface ApiKeyInfo {
   keyPrefix: string;
   lastUsedAt: string | null;
   createdAt: string;
+}
+
+interface TestResult {
+  success: boolean;
+  response?: string;
+  error?: string;
+  durationMs: number;
+  tokenEstimate?: number;
 }
 
 // Provider → default base URL
@@ -35,6 +45,12 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
 };
 
+const QUICK_PROMPTS = [
+  { label: "Training week", prompt: "Summarize a training week: 62km running, 1800m elevation, 5h 23min across 6 sessions. The athlete has a 100km trail race in 12 weeks. What should they focus on?" },
+  { label: "Fatigue check", prompt: "An athlete reports feeling tired, with resting HR 5 bpm above baseline, and training monotony at 0.82. Their TSB is -15. What's your assessment and recommendation?" },
+  { label: "Simple test", prompt: "In one sentence, what is the most important principle of endurance training?" },
+];
+
 export default function CredentialsPage() {
   const { status } = useSession();
   const router = useRouter();
@@ -50,6 +66,12 @@ export default function CredentialsPage() {
   const [llmSaved, setLlmSaved] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
   const [showLlmKey, setShowLlmKey] = useState(false);
+
+  // LLM test
+  const [prompt, setPrompt] = useState("");
+  const [result, setResult] = useState<TestResult | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
 
   // API keys
   const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
@@ -126,18 +148,35 @@ export default function CredentialsPage() {
     setTimeout(() => setCopied(false), 3000);
   }
 
-  if (loading) return <div className="container mx-auto px-4 py-8 max-w-2xl">Loading...</div>;
+  async function runTest(testPrompt?: string) {
+    const p = testPrompt || prompt;
+    if (!p.trim()) return;
+    setTesting(true);
+    setResult(null);
+    setTestError(null);
+    try {
+      const res = await fetch("/api/llm-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: p }),
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch {
+      setTestError("Network error — is the server running?");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (loading) return <div>Loading...</div>;
 
   const baseUrl = publicUrl || (typeof window !== "undefined" ? window.location.origin : "");
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-primary mb-4">
-        <ArrowLeft className="h-3 w-3" /> Back to Settings
-      </Link>
-
-      <h1 className="text-3xl font-bold mb-2">API Credentials</h1>
-      <p className="text-muted-foreground mb-8">Manage your API keys and public URL for remote access.</p>
+    <div>
+      <h1 className="text-2xl font-bold mb-2">API &amp; Credentials</h1>
+      <p className="text-sm text-muted-foreground mb-8">Manage your API keys, AI provider, and public URL.</p>
 
       {/* ── Public URL ──────────────────────────────────── */}
       <Card className="mb-6">
@@ -153,10 +192,10 @@ export default function CredentialsPage() {
             <Input
               value={publicUrl}
               onChange={(e) => setPublicUrl(e.target.value)}
-              placeholder="https://coach.oryx-everest.ts.net"
+              placeholder="https://coach.example.com"
             />
             <p className="text-xs text-muted-foreground">
-              Set this to your Tailscale domain or public IP so the push API example commands show the correct URL.
+              Set this to your domain or Tailscale URL so push API examples show the correct endpoint.
             </p>
           </div>
           <Button onClick={savePublicUrl}>
@@ -165,15 +204,15 @@ export default function CredentialsPage() {
         </CardContent>
       </Card>
 
-      {/* ── AI Provider ──────────────────────────────────── */}
+      {/* ── AI Provider + LLM Test ──────────────────────── */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" /> AI Provider
           </CardTitle>
           <CardDescription>
-            Choose your preferred AI provider and enter your own API key.
-            All AI coaching features use <strong>your</strong> key — no server key is shared.
+            Choose your preferred AI provider, configure your key, and test the connection — all in one place.
+            All AI coaching features use <strong>your</strong> key.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -193,9 +232,7 @@ export default function CredentialsPage() {
               onChange={(e) => {
                 const provider = e.target.value;
                 setLlmProvider(provider);
-                // Reset model when provider changes
                 setLlmModel("");
-                // Auto-populate base URL
                 setLlmBaseUrl(PROVIDER_BASE_URLS[provider] || "");
               }}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -208,7 +245,7 @@ export default function CredentialsPage() {
             </select>
           </div>
 
-          {/* Model (populated based on provider) */}
+          {/* Model */}
           {llmProvider && (
             <div className="space-y-2">
               <Label htmlFor="llm-model">Model</Label>
@@ -252,7 +289,7 @@ export default function CredentialsPage() {
             </p>
           </div>
 
-          {/* Auto-generated base URL (read-only) */}
+          {/* Endpoint display */}
           {llmProvider && llmBaseUrl && (
             <div className="p-3 rounded-md bg-muted/50 text-xs text-muted-foreground">
               <span className="font-medium">Endpoint: </span>
@@ -280,6 +317,99 @@ export default function CredentialsPage() {
           >
             {llmSaved ? <><Check className="h-4 w-4 mr-2" /> Saved</> : "Save AI Settings"}
           </Button>
+
+          {/* ── Test Connection ──────────────────────────────── */}
+          <div className="border-t pt-6 mt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Server className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-medium">Test Connection</h3>
+            </div>
+
+            {/* Quick prompts */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {QUICK_PROMPTS.map((qp, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  size="sm"
+                  disabled={testing}
+                  onClick={() => {
+                    setPrompt(qp.prompt);
+                    runTest(qp.prompt);
+                  }}
+                >
+                  <Zap className="h-3 w-3 mr-1" /> {qp.label}
+                </Button>
+              ))}
+            </div>
+
+            {/* Custom prompt */}
+            <div className="flex gap-2 mb-4">
+              <Input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Or type a custom prompt..."
+                onKeyDown={(e) => e.key === "Enter" && runTest()}
+                disabled={testing}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => runTest()}
+                disabled={testing || !prompt.trim()}
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* Result */}
+            {(testing || result || testError) && (
+              <div className="rounded-md border">
+                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    {testing ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Testing...</>
+                    ) : result?.success ? (
+                      <><CheckCircle2 className="h-4 w-4 text-green-500" /> Response</>
+                    ) : (
+                      <><XCircle className="h-4 w-4 text-destructive" /> Failed</>
+                    )}
+                  </div>
+                  {result && !testing && (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {result.durationMs}ms</span>
+                      {result.tokenEstimate && (
+                        <span>~{result.tokenEstimate} tokens</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="p-4">
+                  {testing ? (
+                    <div className="flex items-center gap-3 justify-center text-muted-foreground py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Waiting for LLM response...</span>
+                    </div>
+                  ) : testError ? (
+                    <div className="text-sm text-destructive">{testError}</div>
+                  ) : result?.error ? (
+                    <div className="text-sm">
+                      <p className="text-destructive font-medium mb-1">Error</p>
+                      <p className="text-muted-foreground">{result.error}</p>
+                      {llmProvider === "ollama" && (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          <strong>Troubleshooting:</strong><br />
+                          • Is Ollama running? <code className="bg-muted px-1 rounded">docker ps | grep ollama</code><br />
+                          • Is the model pulled? <code className="bg-muted px-1 rounded">docker compose exec ollama ollama list</code>
+                        </p>
+                      )}
+                    </div>
+                  ) : result?.response ? (
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed">{result.response}</div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

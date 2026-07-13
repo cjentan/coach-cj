@@ -25,7 +25,14 @@
       "Bash(PGPASSWORD=coach psql -h localhost -p 5433 -U coach -d coach -c \"SELECT id, type, \\\\\"subType\\\\\", name, source, start_date, duration_seconds, distance_meters, elevation_gain_meters, average_hr, max_hr, average_power, normalized_power, calories, tss, external_id, description, remarks, duplicate_status, merged_into_id FROM training_logs WHERE id = '918e886e-356b-4028-a622-8df7ae438a79';\")",
       "mcp__context-mode__ctx_execute",
       "Bash(npx tsx -e ' *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(curl -s 'https://nominatim.openstreetmap.org/reverse?lat=1.461&lon=103.649&format=json&zoom=16&addressdetails=1' -H 'User-Agent: CoachCJ/1.0 \\(debug\\)')",
+      "Bash(python3 -m json.tool)",
+      "Bash(ls -la ~/Downloads/strava*zip 2>/dev/null || ls -la *.zip 2>/dev/null || echo \"No zip found locally\")",
+      "Read(//home/cjentan/Downloads/**)",
+      "Bash(docker exec *)",
+      "Bash(find /home/cjentan -name \"strava_export\" -type d 2>/dev/null | head -5)",
+      "Read(//home/cjentan/**)"
     ]
   }
 }

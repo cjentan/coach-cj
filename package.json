@@ -32,6 +32,7 @@
     "fit-file-parser": "^1.0.8",
     "ioredis": "^5.4.1",
     "leaflet": "^1.9.4",
+    "leaflet.heat": "^0.2.0",
     "lucide-react": "^0.428.0",
     "next": "^14.2.5",
     "next-auth": "^5.0.0-beta.20",

@@ -18,7 +18,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseStravaExportZip } from "@/lib/strava-export-parser";
-import { generateActivityName, generateBaseName } from "@/lib/activity-naming";
+import { enrichNameWithArea, isDefaultPattern } from "@/lib/activity-naming";
 import { TrackPoint } from "@/lib/gpx-parser";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
@@ -152,15 +152,16 @@ export async function POST(req: Request) {
               }
 
               // Enrich default-named activities with area from GPS data.
-              // If the activity name matches the default pattern (<TimeOfDay> <Type>)
-              // or is "Untitled", prepend the area name just like all other ingestion modes
-              // (gpx/route.ts, etc.) so the name reads "<Area> <TimeOfDay> <Type>".
+              // Uses isDefaultPattern (timezone-agnostic pattern match) so it works
+              // regardless of server timezone — Strava CSV dates are UTC but names
+              // use the user's local timezone. enrichNameWithArea preserves the
+              // time-of-day from the original name rather than recomputing from UTC.
               if (activity.hasRichData && activity.rawJson) {
-                const defaultName = generateBaseName(activity.type, activity.subType, activity.startDate);
-                if (activity.name === "Untitled" || activity.name === defaultName) {
+                if (activity.name === "Untitled" || isDefaultPattern(activity.name, activity.type, activity.subType)) {
                   try {
                     const points = (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined;
-                    activity.name = await generateActivityName(
+                    activity.name = await enrichNameWithArea(
+                      activity.name,
                       activity.type,
                       activity.subType,
                       activity.startDate,
@@ -179,6 +180,14 @@ export async function POST(req: Request) {
 
                 if (existing) {
                   if (existing.rawJson != null) {
+                    // Still update the name if enrichment produced something different,
+                    // so re-imports also benefit from area-based naming.
+                    if (activity.name !== existing.name) {
+                      await prisma.trainingLog.update({
+                        where: { id: existing.id },
+                        data: { name: activity.name },
+                      });
+                    }
                     skipped++;
                     return;
                   }

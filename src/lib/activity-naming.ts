@@ -27,6 +27,8 @@ import path from "path";
 
 // ─── Cache paths ──────────────────────────────────────────────
 
+const TIMES_OF_DAY = ["Morning", "Afternoon", "Evening", "Night"] as const;
+
 const CACHE_FILE = path.join(process.cwd(), "data", "geocode-cache.json");
 
 // ─── In-memory caches ─────────────────────────────────────────
@@ -155,6 +157,60 @@ export function getActivityTypeLabel(
   }
 }
 
+/**
+ * Check whether a name matches the default pattern `<TimeOfDay> <ActivityLabel>`
+ * (e.g. "Morning Run", "Evening Trail Run"), without depending on server timezone.
+ *
+ * This is used by the Strava bulk import to detect default-named activities
+ * that should be enriched with an area prefix. Since Strava CSV dates are UTC
+ * but their names use the user's local timezone, comparing against a computed
+ * default would fail on servers in a different timezone.
+ */
+export function isDefaultPattern(
+  name: string,
+  type: ActivityType,
+  subType: ActivitySubType | null,
+): boolean {
+  const label = getActivityTypeLabel(type, subType);
+  return TIMES_OF_DAY.some((tod) => name === `${tod} ${label}`);
+}
+
+/**
+ * Enrich a default-pattern Strava name with the area from GPS data.
+ *
+ * Strava names use the user's local timezone (e.g. "Evening Run" for a 7 PM run),
+ * but the CSV/FIT timestamps are UTC. This function preserves the time-of-day
+ * from the existing name (which is what the user would expect) while prepending
+ * the area resolved from the first GPS coordinate.
+ *
+ * If the name is "Untitled", the time-of-day is computed from the server date
+ * (which may be UTC).
+ *
+ * Returns the enriched name `"<Area> <TimeOfDay> <ActivityLabel>"` when area is
+ * resolved, or the original name when it isn't.
+ */
+export async function enrichNameWithArea(
+  name: string,
+  type: ActivityType,
+  subType: ActivitySubType | null,
+  startDate: Date,
+  points?: TrackPoint[],
+): Promise<string> {
+  const label = getActivityTypeLabel(type, subType);
+  // Preserve the time-of-day from the existing name (user's local timezone)
+  // rather than recomputing from UTC timestamp
+  const tod = name === "Untitled"
+    ? getTimeOfDay(startDate)
+    : name.slice(0, -label.length - 1); // e.g. "Evening Run" → "Evening"
+
+  const coord = getFirstTrackPoint(points);
+  if (coord) {
+    const area = await resolveAreaName(coord.lat, coord.lon);
+    if (area) return `${area} ${tod} ${label}`;
+  }
+  return `${tod} ${label}`;
+}
+
 // ─── Coordinate helpers ───────────────────────────────────────
 
 /**
@@ -275,13 +331,11 @@ export async function resolveAreaName(
       const data = await res.json();
       const addr = data?.address;
       area =
-        addr?.neighbourhood ||
         addr?.suburb ||
-        addr?.hamlet ||
-        addr?.village ||
+        addr?.quarter ||
         addr?.town ||
         addr?.city ||
-        addr?.county ||
+        addr?.district ||
         null;
     }
   } catch (err) {
