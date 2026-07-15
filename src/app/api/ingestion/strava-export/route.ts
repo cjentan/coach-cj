@@ -22,6 +22,8 @@ import { enrichNameWithArea, isDefaultPattern } from "@/lib/activity-naming";
 import { TrackPoint } from "@/lib/gpx-parser";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
+import { classifyWorkoutType } from "@/lib/workout-classifier";
+import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
 
 const HEARTBEAT_MS = 3000; // ping every 3 seconds to keep proxies alive
 
@@ -59,7 +61,15 @@ export async function POST(req: Request) {
     );
   }
 
-  console.log(`[import] Starting import: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+  // Parse optional date range filter
+  const fromDateStr = formData.get("fromDate") as string | null;
+  const toDateStr = formData.get("toDate") as string | null;
+  const fromDate = fromDateStr ? new Date(fromDateStr + "T00:00:00Z") : null;
+  const toDate = toDateStr ? new Date(toDateStr + "T23:59:59Z") : null;
+
+  console.log(`[import] Starting import: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` +
+    (fromDate ? ` from ${fromDate.toISOString().slice(0, 10)}` : "") +
+    (toDate ? ` to ${toDate.toISOString().slice(0, 10)}` : ""));
 
   const encoder = new TextEncoder();
   const send = (controller: ReadableStreamDefaultController, data: Record<string, unknown>) => {
@@ -99,7 +109,11 @@ export async function POST(req: Request) {
       try {
         // ── Phase 1: Read & parse the ZIP ──────────────
         log("Phase 1: Reading ZIP file");
-        s({ type: "progress", phase: "reading", message: "Reading ZIP file…" });
+        const filterMsg =
+          fromDate && toDate ? ` (${fromDate.toISOString().slice(0, 10)} → ${toDate.toISOString().slice(0, 10)})` :
+          fromDate ? ` (from ${fromDate.toISOString().slice(0, 10)})` :
+          toDate ? ` (until ${toDate.toISOString().slice(0, 10)})` : "";
+        s({ type: "progress", phase: "reading", message: "Reading ZIP file…" + filterMsg });
 
         let arrayBuffer: ArrayBuffer;
         try {
@@ -151,6 +165,10 @@ export async function POST(req: Request) {
                 return;
               }
 
+              // Apply date range filter (fromDate / toDate)
+              if (fromDate && activity.startDate < fromDate) return;
+              if (toDate && activity.startDate > toDate) return;
+
               // Enrich default-named activities with area from GPS data.
               // Uses isDefaultPattern (timezone-agnostic pattern match) so it works
               // regardless of server timezone — Strava CSV dates are UTC but names
@@ -179,6 +197,29 @@ export async function POST(req: Request) {
                 const existing = await prisma.trainingLog.findFirst({
                   where: { userId, externalId: activity.externalId },
                 });
+
+                // Classify workout type from available data
+                const workoutType = classifyWorkoutType({
+                  type: activity.type,
+                  subType: activity.subType,
+                  durationSeconds: activity.durationSeconds,
+                  distanceMeters: activity.distanceMeters,
+                  averageHr: activity.averageHr,
+                  maxHr: activity.maxHr,
+                  averagePower: activity.averagePower,
+                  normalizedPower: activity.normalizedPower,
+                  trackPoints: activity.rawJson
+                    ? ((activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined)
+                    : undefined,
+                });
+
+                // Compute simplified trackpoints for heatmap (when GPS data available)
+                const simplified = activity.hasRichData && activity.rawJson
+                  ? simplifyTrackPoints(
+                      (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined,
+                      500,
+                    )
+                  : { coords: [], bbox: null };
 
                 if (existing) {
                   if (existing.rawJson != null) {
@@ -213,6 +254,12 @@ export async function POST(req: Request) {
                       calories: activity.calories,
                       tss: activity.tss,
                       rawJson: activity.rawJson as any,
+                      simplifiedTrackPoints: simplified.coords as any,
+                      trackMinLat: simplified.bbox?.minLat ?? null,
+                      trackMaxLat: simplified.bbox?.maxLat ?? null,
+                      trackMinLng: simplified.bbox?.minLng ?? null,
+                      trackMaxLng: simplified.bbox?.maxLng ?? null,
+                      workoutType: workoutType || undefined,
                     },
                   });
 
@@ -240,6 +287,12 @@ export async function POST(req: Request) {
                       calories: activity.calories,
                       tss: activity.tss,
                       rawJson: activity.rawJson as any,
+                      simplifiedTrackPoints: simplified.coords as any,
+                      trackMinLat: simplified.bbox?.minLat ?? null,
+                      trackMaxLat: simplified.bbox?.maxLat ?? null,
+                      trackMinLng: simplified.bbox?.minLng ?? null,
+                      trackMaxLng: simplified.bbox?.maxLng ?? null,
+                      workoutType: workoutType || undefined,
                     },
                   });
                   affectedWeeks.add(getWeekStart(activity.startDate).toISOString());

@@ -116,8 +116,10 @@ const SUB_SPORT_MAP: Record<string, ActivitySubType | null> = {
 function mapFitSport(sport?: string, subSport?: string): ActivityType {
   const sportKey = (sport || "").toLowerCase();
   const subKey = (subSport || "").toLowerCase();
-  // Use the sport first; only override with subSport if it's a known mapped value
-  return SPORT_MAP[subKey] || SPORT_MAP[sportKey] || "other";
+  // Use the sport as the primary determinant; fall back to sub_sport
+  // only when the sport isn't recognized (e.g. sport="generic", sub_sport="walking").
+  // This prevents sub_sport="generic" wiping out a valid sport like "cycling".
+  return SPORT_MAP[sportKey] || SPORT_MAP[subKey] || "other";
 }
 
 function mapFitSubSport(subSport?: string): ActivitySubType | null {

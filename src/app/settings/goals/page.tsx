@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ interface RaceGoal {
   id: string; name: string; raceType: string; targetDate: string;
   distanceMeters: number; elevationGainMeters: number | null;
   targetTimeSeconds: number | null; priority: "A" | "B" | "C"; status: string; notes: string | null;
+  goalStatement: string | null;
 }
 
 export default function SettingsGoalsPage() {
@@ -25,7 +27,7 @@ export default function SettingsGoalsPage() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     name: "", raceType: "trail_run", targetDate: "", distanceMeters: "",
-    elevationGainMeters: "", priority: "B", notes: "",
+    elevationGainMeters: "", priority: "B", notes: "", goalStatement: "",
   });
 
   const fetchGoals = useCallback(async () => {
@@ -37,7 +39,7 @@ export default function SettingsGoalsPage() {
   useEffect(() => { fetchGoals(); }, [fetchGoals]);
 
   function resetForm() {
-    setForm({ name: "", raceType: "trail_run", targetDate: "", distanceMeters: "", elevationGainMeters: "", priority: "B", notes: "" });
+    setForm({ name: "", raceType: "trail_run", targetDate: "", distanceMeters: "", elevationGainMeters: "", priority: "B", notes: "", goalStatement: "" });
     setShowForm(false); setEditingId(null);
   }
 
@@ -48,7 +50,7 @@ export default function SettingsGoalsPage() {
       targetDate: new Date(form.targetDate).toISOString(),
       distanceMeters: Number(form.distanceMeters),
       elevationGainMeters: form.elevationGainMeters ? Number(form.elevationGainMeters) : null,
-      priority: form.priority, notes: form.notes || null,
+      priority: form.priority, notes: form.notes || null, goalStatement: form.goalStatement || null,
     };
     if (editingId) {
       await fetch(`/api/goals/${editingId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -63,7 +65,7 @@ export default function SettingsGoalsPage() {
       name: goal.name, raceType: goal.raceType, targetDate: goal.targetDate.split("T")[0],
       distanceMeters: String(goal.distanceMeters),
       elevationGainMeters: goal.elevationGainMeters ? String(goal.elevationGainMeters) : "",
-      priority: goal.priority, notes: goal.notes || "",
+      priority: goal.priority, notes: goal.notes || "", goalStatement: goal.goalStatement || "",
     });
     setEditingId(goal.id); setShowForm(true);
   }
@@ -118,6 +120,7 @@ export default function SettingsGoalsPage() {
                 <div className="space-y-2"><Label>Distance (meters)</Label><Input type="number" value={form.distanceMeters} onChange={(e) => setForm({ ...form, distanceMeters: e.target.value })} placeholder="100000" required /></div>
                 <div className="space-y-2"><Label>Elevation Gain (m, optional)</Label><Input type="number" value={form.elevationGainMeters} onChange={(e) => setForm({ ...form, elevationGainMeters: e.target.value })} placeholder="6000" /></div>
                 <div className="space-y-2"><Label>Notes</Label><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Race notes..." /></div>
+                <div className="space-y-2 md:col-span-2"><Label>Goal Statement</Label><Textarea value={form.goalStatement} onChange={(e) => setForm({ ...form, goalStatement: e.target.value })} placeholder="What do you want to accomplish? e.g. &quot;Finish under 12 hours&quot;, &quot;Top 10 in age group&quot;" rows={2} /></div>
               </div>
               <div className="flex gap-2"><Button type="submit">{editingId ? "Update" : "Create"}</Button><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></div>
             </form>
@@ -151,6 +154,7 @@ export default function SettingsGoalsPage() {
                       <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(new Date(goal.targetDate), "MMM d, yyyy")}</span>
                       <span className={daysUntil < 30 ? "text-destructive font-medium" : ""}>{daysUntil > 0 ? `${daysUntil} days` : "Past due"}</span>
                     </div>
+                    {goal.goalStatement && <p className="text-sm text-muted-foreground italic mt-1">&ldquo;{goal.goalStatement}&rdquo;</p>}
                   </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" onClick={() => startEdit(goal)}><Pencil className="h-4 w-4" /></Button>

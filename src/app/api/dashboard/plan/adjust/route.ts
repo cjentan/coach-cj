@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { adjustPlan } from "@/lib/plan-adjuster";
 import { getWeekStart } from "@/lib/utils";
+import { resolveUserLlmConfig } from "@/lib/llm";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -86,11 +87,8 @@ export async function POST(request: Request) {
     summary: string;
   }> | null) || [];
 
-  // Load user's LLM config for per-user API key support
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
-  });
+  // Load user's LLM config (falls back to server-default DeepSeek key)
+  const llmCfg = await resolveUserLlmConfig(session.user.id);
 
   const result = await adjustPlan(
     currentPlan,
@@ -120,10 +118,10 @@ export async function POST(request: Request) {
       adjustmentHistory,
     },
     {
-      apiKey: user?.llmApiKey ?? undefined,
-      baseUrl: user?.llmBaseUrl ?? undefined,
-      model: user?.llmModel ?? undefined,
-      provider: user?.llmProvider ?? undefined,
+      apiKey: llmCfg.apiKey,
+      baseUrl: llmCfg.baseUrl,
+      model: llmCfg.model,
+      provider: llmCfg.provider,
     }
   );
 

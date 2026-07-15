@@ -5,6 +5,8 @@
  * Starts the BullMQ workers that process:
  * 1. fatigue-monitor — runs daily fatigue detection for all users
  * 2. sunday-review — runs the weekly review + plan generator
+ * 3. garmin-sync — syncs activities + health from Garmin Connect
+ * 4. coros-sync — syncs activities from COROS Training Hub
  */
 import { Queue, Worker, Job } from "bullmq";
 import { getRedisConnection } from "../lib/redis";
@@ -15,12 +17,17 @@ import { generateWeeklyPlan } from "../lib/plan-generator";
 import { getWeekStart, formatDistance, formatDuration } from "../lib/utils";
 import { generateCoachNotes } from "../lib/coach-notes";
 import { snapshotWeek } from "../lib/metrics-snapshot";
+import { getDefaultLlmConfig } from "../lib/llm";
+import { getGarminClient, syncGarminActivities, syncGarminHealthData } from "../lib/garmin";
+import { getCorosClient, syncCorosActivities } from "../lib/coros";
 
 const connection = getRedisConnection();
 
 // ─── Queues ─────────────────────────────────────────────
 const fatigueQueue = new Queue("fatigue-monitor", { connection });
 const sundayQueue = new Queue("sunday-review", { connection });
+const garminQueue = new Queue("garmin-sync", { connection });
+const corosQueue = new Queue("coros-sync", { connection });
 
 // ─── Fatigue Monitor Worker ─────────────────────────────
 const fatigueWorker = new Worker(
@@ -176,6 +183,30 @@ const sundayWorker = new Worker(
       const pmcResults = computePMC(pmcInput);
       const latestPmc = pmcResults[pmcResults.length - 1] || { ctl: 30, atl: 30, tsb: 0 };
 
+      // Fetch daily health metrics for this user
+      const dailyHealthData = await prisma.dailyHealth.findMany({
+        where: { userId: user.id, date: { gte: new Date(now - 7 * 86400000) } },
+        select: { sleepSeconds: true, sleepScore: true, overnightHrv: true, hrvStatus: true, bodyBatteryMin: true, bodyBatteryMax: true, avgStress: true, restingHeartRate: true },
+      });
+      const healthMetrics = dailyHealthData.length > 0 ? {
+        sleepAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.sleepSeconds || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.sleepSeconds).length) / 60),
+        hrvAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.overnightHrv || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.overnightHrv).length)),
+        bodyBatteryAvg: Math.round(dailyHealthData.reduce((s, d) => s + ((d.bodyBatteryMin || 0) + (d.bodyBatteryMax || 0)) / 2, 0) / dailyHealthData.length),
+        stressAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.avgStress || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.avgStress).length)),
+        restingHrAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.restingHeartRate || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.restingHeartRate).length)),
+        sleepScoreAvg: dailyHealthData.length > 0 ? Math.round(dailyHealthData.reduce((s, d) => s + (d.sleepScore || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.sleepScore).length)) : null,
+        hrvStatus: dailyHealthData.find(d => d.hrvStatus)?.hrvStatus || null,
+      } : undefined;
+
+      // Resolve LLM config — user key takes priority, fall back to server-default DeepSeek
+      const serverDefault = getDefaultLlmConfig();
+      const llmConfig = {
+        apiKey: user.llmApiKey || serverDefault?.apiKey || undefined,
+        provider: user.llmProvider || serverDefault?.provider || undefined,
+        baseUrl: user.llmBaseUrl || serverDefault?.baseUrl || undefined,
+        model: user.llmModel || serverDefault?.model || undefined,
+      };
+
       const coachNotes = await generateCoachNotes(
         {
           athleteName: user.name || "Athlete",
@@ -185,7 +216,9 @@ const sundayWorker = new Worker(
             distanceMeters: g.distanceMeters,
             elevationGainMeters: g.elevationGainMeters,
             priority: g.priority,
+            goalStatement: g.goalStatement,
           })),
+          dailyHealth: healthMetrics,
           recentWeeks: weekLabels.map((label, i) => ({
             label,
             volumeMeters: weeklyVolumes[i] || 0,
@@ -240,12 +273,7 @@ const sundayWorker = new Worker(
           notes: f.notes,
         })),
       },
-      {
-        apiKey: user.llmApiKey ?? undefined,
-        baseUrl: user.llmBaseUrl ?? undefined,
-        model: user.llmModel ?? undefined,
-        provider: user.llmProvider ?? undefined,
-      }
+      llmConfig
     );
 
       await prisma.weeklyPlan.upsert({
@@ -273,10 +301,125 @@ const sundayWorker = new Worker(
         },
       });
 
+      // Save analysis report for this scheduled review
+      if (coachNotes) {
+        await prisma.analysisReport.create({
+          data: {
+            userId: user.id,
+            reportType: "coach_notes",
+            triggeredBy: "scheduled",
+            inputSnapshot: { goals: user.raceGoals.length, dailyHealthAvailable: !!healthMetrics, pmcSnapshot: { ctl: latestPmc.ctl, atl: latestPmc.atl, tsb: latestPmc.tsb } },
+            outputContent: coachNotes,
+            reasoning: {
+              dataDrivers: [
+                `CTL: ${Math.round(latestPmc.ctl)}`,
+                `TSB: ${Math.round(latestPmc.tsb)}`,
+                `Plan volume: ${Math.round(plan.targetVolumeMeters / 1000)}km`,
+                ...(healthMetrics ? [`Sleep: ${healthMetrics.sleepAvg}min`, `HRV: ${healthMetrics.hrvAvg}ms`] : []),
+              ],
+              strengths: [],
+              concerns: [],
+              keyDecisions: plan.adjustments,
+            },
+            metrics: {
+              ctl: Math.round(latestPmc.ctl),
+              atl: Math.round(latestPmc.atl),
+              tsb: Math.round(latestPmc.tsb),
+              volumeAdherence: plan.targetVolumeMeters > 0 ? Math.round((weeklyVolumes[3] / plan.targetVolumeMeters) * 100) : 0,
+              ...(healthMetrics ? { sleepAvg: healthMetrics.sleepAvg, hrvAvg: healthMetrics.hrvAvg, restingHrAvg: healthMetrics.restingHrAvg } : {}),
+            },
+          },
+        }).catch(() => {});
+      }
+
       plansCreated++;
     }
 
     return { usersChecked: users.length, plansCreated };
+  },
+  { connection }
+);
+
+// ─── Garmin Sync Worker ─────────────────────────────────
+const garminWorker = new Worker(
+  "garmin-sync",
+  async () => {
+    const users = await prisma.garminSession.findMany({
+      select: { userId: true },
+    });
+
+    let activitiesImported = 0;
+    let healthDaysSynced = 0;
+    let errors = 0;
+
+    for (const { userId } of users) {
+      try {
+        const client = await getGarminClient(userId);
+        if (!client) {
+          console.log(`[garmin-sync] User ${userId}: no valid session, skipping`);
+          continue;
+        }
+
+        const [a, h] = await Promise.all([
+          syncGarminActivities(client, userId, false, 90).catch((e) => {
+            console.error(`[garmin-sync] activities error for ${userId}:`, e.message);
+            return 0;
+          }),
+          syncGarminHealthData(client, userId).catch((e) => {
+            console.error(`[garmin-sync] health error for ${userId}:`, e.message);
+            return 0;
+          }),
+        ]);
+
+        activitiesImported += a;
+        healthDaysSynced += h;
+        console.log(`[garmin-sync] User ${userId}: ${a} activities, ${h} health days`);
+      } catch (err) {
+        errors++;
+        console.error(`[garmin-sync] User ${userId}:`, (err as Error).message);
+      }
+    }
+
+    return { usersChecked: users.length, activitiesImported, healthDaysSynced, errors };
+  },
+  { connection }
+);
+
+// ─── COROS Sync Worker ─────────────────────────────────
+const corosWorker = new Worker(
+  "coros-sync",
+  async () => {
+    const users = await prisma.corosSession.findMany({
+      select: { userId: true },
+    });
+
+    let activitiesImported = 0;
+    let errors = 0;
+
+    for (const { userId } of users) {
+      try {
+        const client = await getCorosClient(userId);
+        if (!client) {
+          console.log(`[coros-sync] User ${userId}: no valid session, skipping`);
+          continue;
+        }
+
+        const a = await syncCorosActivities(client, userId, false).catch(
+          (e) => {
+            console.error(`[coros-sync] activities error for ${userId}:`, e.message);
+            return 0;
+          }
+        );
+
+        activitiesImported += a;
+        console.log(`[coros-sync] User ${userId}: ${a} activities`);
+      } catch (err) {
+        errors++;
+        console.error(`[coros-sync] User ${userId}:`, (err as Error).message);
+      }
+    }
+
+    return { usersChecked: users.length, activitiesImported, errors };
   },
   { connection }
 );
@@ -299,17 +442,35 @@ async function scheduleRecurring() {
 
       const users = await prisma.user.findMany({
         where: { raceGoals: { some: { status: "active" } } },
-        select: { id: true, reviewDayOfWeek: true, reviewTime: true },
+        select: { id: true, reviewDayOfWeek: true, reviewTime: true, analysisTrigger: true },
       });
 
       for (const user of users) {
-        if (user.reviewDayOfWeek !== dayOfWeek) continue;
+        const trigger = user.analysisTrigger || "weekly";
 
-        // Check if current time is within 10 min after the user's review time
-        const [h, m] = user.reviewTime.split(":").map(Number);
-        const reviewMinutes = h * 60 + m;
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
+        // Weekly: check review day and time (existing behavior)
+        if (trigger === "weekly") {
+          if (user.reviewDayOfWeek !== dayOfWeek) continue;
+          const [h, m] = user.reviewTime.split(":").map(Number);
+          const reviewMinutes = h * 60 + m;
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
+        }
+        // Daily: run every day at the user's review time
+        else if (trigger === "daily") {
+          const [h, m] = user.reviewTime.split(":").map(Number);
+          const reviewMinutes = h * 60 + m;
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
+        }
+        // Monthly: run on the 1st of the month
+        else if (trigger === "monthly") {
+          if (now.getDate() !== 1) continue;
+        }
+        // activity_count: skip — handled at activity creation time
+        else if (trigger === "activity_count") {
+          continue;
+        }
 
         // Prevent duplicate runs this week
         const weekStart = getWeekStart(now);
@@ -330,9 +491,21 @@ async function scheduleRecurring() {
     }
   }, 10 * 60 * 1000);
 
-  console.log("⚡ Workers started: fatigue-monitor, sunday-review");
+  // Garmin sync every 4 hours
+  setInterval(async () => {
+    await garminQueue.add("sync", {});
+  }, 4 * 60 * 60 * 1000);
+
+  // COROS sync every 4 hours
+  setInterval(async () => {
+    await corosQueue.add("sync", {});
+  }, 4 * 60 * 60 * 1000);
+
+  console.log("⚡ Workers started: fatigue-monitor, sunday-review, garmin-sync, coros-sync");
   console.log("   Fatigue check: daily at 6am");
   console.log("   Weekly review: per-user schedule, checked every 10min");
+  console.log("   Garmin sync: every 4 hours");
+  console.log("   COROS sync: every 4 hours");
 }
 
 scheduleRecurring().catch(console.error);

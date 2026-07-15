@@ -9,10 +9,8 @@ import { Activity, Shield, Menu, X } from "lucide-react";
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/training-logs", label: "Training" },
-  { href: "/heatmap", label: "Map" },
   { href: "/duplicates", label: "Duplicates" },
   { href: "/ingestion", label: "Import" },
-  { href: "/llm-test", label: "LLM Test" },
   { href: "/settings", label: "Settings" },
 ];
 

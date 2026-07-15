@@ -5,6 +5,7 @@ import { getWeekStart } from "@/lib/utils";
 import { generateCoachNotes } from "@/lib/coach-notes";
 import { computePMC } from "@/lib/pmc";
 import { computeReadiness } from "@/lib/metrics-snapshot";
+import { resolveUserLlmConfig } from "@/lib/llm";
 
 export async function GET() {
   const session = await auth();
@@ -35,7 +36,7 @@ export async function POST() {
   const weekStart = getWeekStart(now);
 
   // Collect data for coach notes
-  const [logs, goals, bodyMetrics, facilities, availabilityCount] = await Promise.all([
+  const [logs, goals, bodyMetrics, facilities, availabilityCount, dailyHealth] = await Promise.all([
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 90 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
@@ -45,6 +46,11 @@ export async function POST() {
     prisma.bodyMetric.findMany({ where: { userId: session.user.id }, orderBy: { recordedAt: "desc" }, take: 7 }),
     prisma.trainingFacility.findMany({ where: { userId: session.user.id } }),
     prisma.trainingAvailability.count({ where: { userId: session.user.id } }),
+    prisma.dailyHealth.findMany({
+      where: { userId: session.user.id, date: { gte: new Date(now.getTime() - 7 * 86400000) } },
+      orderBy: { date: "desc" },
+      select: { sleepSeconds: true, sleepScore: true, overnightHrv: true, hrvStatus: true, bodyBatteryMin: true, bodyBatteryMax: true, avgStress: true, restingHeartRate: true },
+    }),
   ]);
 
   // PMC computation
@@ -100,6 +106,17 @@ export async function POST() {
     weekLabels.push(start.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   }
 
+  // Compute health metrics averages
+  const healthMetrics = dailyHealth.length > 0 ? {
+    sleepAvg: Math.round(dailyHealth.reduce((s, d) => s + (d.sleepSeconds || 0), 0) / Math.max(1, dailyHealth.filter(d => d.sleepSeconds).length) / 60),
+    hrvAvg: Math.round(dailyHealth.reduce((s, d) => s + (d.overnightHrv || 0), 0) / Math.max(1, dailyHealth.filter(d => d.overnightHrv).length)),
+    bodyBatteryAvg: Math.round(dailyHealth.reduce((s, d) => s + ((d.bodyBatteryMin || 0) + (d.bodyBatteryMax || 0)) / 2, 0) / dailyHealth.length),
+    stressAvg: Math.round(dailyHealth.reduce((s, d) => s + (d.avgStress || 0), 0) / Math.max(1, dailyHealth.filter(d => d.avgStress).length)),
+    restingHrAvg: Math.round(dailyHealth.reduce((s, d) => s + (d.restingHeartRate || 0), 0) / Math.max(1, dailyHealth.filter(d => d.restingHeartRate).length)),
+    sleepScoreAvg: dailyHealth.length > 0 ? Math.round(dailyHealth.reduce((s, d) => s + (d.sleepScore || 0), 0) / Math.max(1, dailyHealth.filter(d => d.sleepScore).length)) : null,
+    hrvStatus: dailyHealth.find(d => d.hrvStatus)?.hrvStatus || null,
+  } : undefined;
+
   const recentRemarks = logs
     .filter((log) => log.remarks)
     .slice(-10)
@@ -109,11 +126,8 @@ export async function POST() {
       remarks: log.remarks!,
     }));
 
-  // Load user's LLM config for per-user API key support
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
-  });
+  // Load user's LLM config (falls back to server-default DeepSeek key)
+  const llmCfg = await resolveUserLlmConfig(session.user.id);
 
   const coachNotes = await generateCoachNotes(
     {
@@ -124,7 +138,9 @@ export async function POST() {
         distanceMeters: goal.distanceMeters,
         elevationGainMeters: goal.elevationGainMeters,
         priority: goal.priority,
+        goalStatement: goal.goalStatement,
       })),
+      dailyHealth: healthMetrics,
       recentWeeks: weekLabels.map((label, idx) => ({
         label,
         volumeMeters: weeklyVolumes[idx] || 0,
@@ -160,14 +176,15 @@ export async function POST() {
       })),
     },
     {
-      apiKey: user?.llmApiKey ?? undefined,
-      baseUrl: user?.llmBaseUrl ?? undefined,
-      model: user?.llmModel ?? undefined,
-      provider: user?.llmProvider ?? undefined,
+      apiKey: llmCfg.apiKey,
+      baseUrl: llmCfg.baseUrl,
+      model: llmCfg.model,
+      provider: llmCfg.provider,
     }
   );
 
   // Save to the current week's WeeklyPlan so it persists across page loads
+  let analysisReportId: string | null = null;
   if (coachNotes) {
     await prisma.weeklyPlan.upsert({
       where: { userId_weekStartDate: { userId: session.user.id, weekStartDate: weekStart } },
@@ -183,10 +200,58 @@ export async function POST() {
         generatedAt: now,
       },
     });
+
+    // Persist analysis report with structured reasoning and metrics snapshot
+    const report = await prisma.analysisReport.create({
+      data: {
+        userId: session.user.id,
+        reportType: "coach_notes",
+        triggeredBy: "manual",
+        inputSnapshot: {
+          goals: goals.length,
+          dailyHealthAvailable: !!healthMetrics,
+          pmcSnapshot: { ctl: latestPmc.ctl, atl: latestPmc.atl, tsb: latestPmc.tsb },
+          weekVolume: weeklyVolume,
+        },
+        outputContent: coachNotes,
+        reasoning: {
+          dataDrivers: [
+            `CTL: ${Math.round(latestPmc.ctl)}`,
+            `TSB: ${Math.round(latestPmc.tsb)}`,
+            `Readiness: ${readinessResult.readinessScore}/100`,
+            ...(healthMetrics ? [
+              `Sleep: ${healthMetrics.sleepAvg}min`,
+              `HRV: ${healthMetrics.hrvAvg}ms`,
+              `Resting HR: ${healthMetrics.restingHrAvg} bpm`,
+            ] : []),
+          ],
+          strengths: [],
+          concerns: [],
+          keyDecisions: [],
+        },
+        metrics: {
+          ctl: Math.round(latestPmc.ctl),
+          atl: Math.round(latestPmc.atl),
+          tsb: Math.round(latestPmc.tsb),
+          readinessScore: readinessResult.readinessScore,
+          volumeAdherence: readinessResult.volumeAdherence,
+          consistency: readinessResult.consistency,
+          ...(healthMetrics ? {
+            sleepAvg: healthMetrics.sleepAvg,
+            hrvAvg: healthMetrics.hrvAvg,
+            restingHrAvg: healthMetrics.restingHrAvg,
+            stressAvg: healthMetrics.stressAvg,
+            bodyBatteryAvg: healthMetrics.bodyBatteryAvg,
+          } : {}),
+        },
+      },
+    });
+    analysisReportId = report.id;
   }
 
   return NextResponse.json({
     coachNotes: coachNotes || "LLM returned no response. Check that the model is running.",
     generatedAt: coachNotes ? now.toISOString() : null,
+    analysisReportId,
   });
 }

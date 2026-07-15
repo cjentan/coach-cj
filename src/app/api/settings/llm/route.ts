@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isLlmConfigured, PROVIDER_BASE_URLS } from "@/lib/llm";
+import { isLlmConfigured, hasServerDefaultKey, PROVIDER_BASE_URLS } from "@/lib/llm";
 
 export async function GET() {
   const session = await auth();
@@ -12,12 +12,19 @@ export async function GET() {
     select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
   });
 
+  const hasUserKey = !!user?.llmApiKey;
+  const hasDefault = hasServerDefaultKey();
+
+  // Determine effective configuration state
+  const effectiveConfigured = hasUserKey || hasDefault;
+
   return NextResponse.json({
-    hasUserKey: !!user?.llmApiKey,
+    hasUserKey,
+    hasServerDefault: hasDefault,
     llmProvider: user?.llmProvider || "",
     llmBaseUrl: user?.llmBaseUrl || "",
     llmModel: user?.llmModel || "",
-    configured: isLlmConfigured(user?.llmApiKey ?? undefined, user?.llmProvider ?? undefined),
+    configured: effectiveConfigured,
   });
 }
 

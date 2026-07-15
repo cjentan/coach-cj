@@ -5,7 +5,7 @@
  * To use weight in training metrics (w/kg, calorie estimates, etc.), we need
  * the best available weight for any given date. This module provides that lookup.
  */
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./prisma";
 
 export interface WeightResult {
   weightKg: number;

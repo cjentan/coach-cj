@@ -16,12 +16,15 @@ model User {
   role             String  @default("user")
   resetToken       String? @map("reset_token")
   resetTokenExpiry DateTime? @map("reset_token_expiry")
-  reviewDayOfWeek  Int     @default(0) @map("review_day_of_week")
-  reviewTime       String  @default("18:00") @map("review_time")
-  llmProvider      String? @map("llm_provider")
-  llmBaseUrl       String? @map("llm_base_url")
-  llmModel         String? @map("llm_model")
-  llmApiKey        String? @map("llm_api_key")
+  reviewDayOfWeek         Int      @default(0) @map("review_day_of_week")
+  reviewTime              String   @default("18:00") @map("review_time")
+  analysisTrigger         String   @default("weekly") @map("analysis_trigger")
+  analysisTriggerValue    Int      @default(1) @map("analysis_trigger_value")
+  onboardingCompleted Boolean @default(false) @map("onboarding_completed")
+  llmProvider             String?  @map("llm_provider")
+  llmBaseUrl              String?  @map("llm_base_url")
+  llmModel                String?  @map("llm_model")
+  llmApiKey               String?  @map("llm_api_key")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -35,6 +38,10 @@ model User {
   weeklyPlans          WeeklyPlan[]
   fatigueAlerts        FatigueAlert[]
   apiKeys              ApiKey[]
+  garminSession        GarminSession?
+  corosSession         CorosSession?
+  dailyHealth          DailyHealth[]
+  analysisReports      AnalysisReport[]
 
   @@map("users")
 }
@@ -98,6 +105,7 @@ enum ActivitySubType {
 enum ActivitySource {
   strava
   garmin
+  coros
   watch_push
   manual
 }
@@ -128,7 +136,13 @@ model TrainingLog {
   normalizedPower     Float?           @map("normalized_power")
   calories            Float?
   tss                 Float?
+  workoutType         String?  @map("workout_type")
   rawJson             Json?            @map("raw_json")
+  simplifiedTrackPoints Json?          @map("simplified_track_points")
+  trackMinLat         Float?           @map("track_min_lat")
+  trackMaxLat         Float?           @map("track_max_lat")
+  trackMinLng         Float?           @map("track_min_lng")
+  trackMaxLng         Float?           @map("track_max_lng")
 
   duplicateGroupId    String?          @map("duplicate_group_id")
   duplicateGroup      DuplicateGroup?  @relation(fields: [duplicateGroupId], references: [id])
@@ -146,6 +160,8 @@ model TrainingLog {
   @@index([userId, startDate])
   @@index([duplicateGroupId])
   @@index([mergedIntoId])
+  @@index([userId, trackMinLat, trackMaxLat])
+  @@index([userId, trackMinLng, trackMaxLng])
   @@map("training_logs")
 }
 
@@ -201,6 +217,7 @@ model RaceGoal {
   priority            GoalPriority @default(B)
   status              GoalStatus  @default(active)
   notes               String?
+  goalStatement       String?  @map("goal_statement")
   createdAt           DateTime    @default(now()) @map("created_at")
   updatedAt           DateTime    @updatedAt @map("updated_at")
 
@@ -354,6 +371,89 @@ model FatigueAlert {
   @@map("fatigue_alerts")
 }
 
+model GarminSession {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  oauth1Token      Json     @map("oauth1_token")
+  oauth2Token      Json     @map("oauth2_token")
+  displayName      String?  @map("display_name")
+  garminUserId     Int?     @map("garmin_user_id")
+  lastSyncAt       DateTime? @map("last_sync_at")
+  lastHealthSyncAt DateTime? @map("last_health_sync_at")
+  connectedAt      DateTime @default(now()) @map("connected_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("garmin_sessions")
+}
+
+model CorosSession {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  accessToken      String   @map("access_token")
+  corosUserId      String?  @map("coros_user_id")
+  displayName      String?  @map("display_name")
+  lastSyncAt       DateTime? @map("last_sync_at")
+  connectedAt      DateTime @default(now()) @map("connected_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("coros_sessions")
+}
+
+model DailyHealth {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  date              DateTime @map("date")
+
+  // Heart rate
+  restingHeartRate  Int?     @map("resting_heart_rate")
+  minHeartRate      Int?     @map("min_heart_rate")
+  maxHeartRate      Int?     @map("max_heart_rate")
+
+  // Sleep
+  sleepSeconds      Int?     @map("sleep_seconds")
+  deepSleepSeconds  Int?     @map("deep_sleep_seconds")
+  lightSleepSeconds Int?     @map("light_sleep_seconds")
+  remSleepSeconds   Int?     @map("rem_sleep_seconds")
+  awakeSeconds      Int?     @map("awake_seconds")
+  sleepScore        Int?     @map("sleep_score")
+  sleepStartLocal   String?  @map("sleep_start_local")
+  sleepEndLocal     String?  @map("sleep_end_local")
+
+  // Body Battery
+  bodyBatteryMin    Int?     @map("body_battery_min")
+  bodyBatteryMax    Int?     @map("body_battery_max")
+
+  // Stress
+  avgStress         Int?     @map("avg_stress")
+  maxStress         Int?     @map("max_stress")
+
+  // HRV
+  hrvBalance        Int?     @map("hrv_balance")
+  hrvStatus         String?  @map("hrv_status")
+  overnightHrv      Int?     @map("overnight_hrv")
+
+  // Activity
+  steps             Int?
+  stepGoal          Int?     @map("step_goal")
+
+  // Metadata
+  rawData           Json?    @map("raw_data")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_health")
+}
+
 model ApiKey {
   id         String    @id @default(uuid())
   userId     String    @map("user_id")
@@ -376,4 +476,21 @@ model AppSetting {
   updatedAt DateTime @default(now()) @map("updated_at")
 
   @@map("app_settings")
+}
+
+model AnalysisReport {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  reportType    String   @map("report_type")
+  triggeredBy   String   @map("triggered_by")
+  inputSnapshot Json?    @map("input_snapshot")
+  outputContent String?  @map("output_content")
+  reasoning     Json?
+  metrics       Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("analysis_reports")
 }

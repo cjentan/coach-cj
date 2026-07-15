@@ -64,6 +64,7 @@ export async function GET() {
     fatigueOlderLogs,
     latestPlan,
     maxHrLog,
+    latestAnalysisReport,
   ] = await Promise.all([
     // Recent logs (for display)
     prisma.trainingLog.findMany({
@@ -73,7 +74,7 @@ export async function GET() {
         id: true, name: true, type: true, startDate: true,
         distanceMeters: true, durationSeconds: true,
         elevationGainMeters: true, averageHr: true,
-        tss: true, remarks: true,
+        tss: true, remarks: true, workoutType: true,
       },
     }),
     // Stats — this week
@@ -143,6 +144,12 @@ export async function GET() {
       },
       orderBy: { maxHr: "desc" },
       select: { maxHr: true },
+    }),
+    // Latest analysis report for reasoning/metadata display
+    prisma.analysisReport.findFirst({
+      where: { userId: session.user.id, reportType: "coach_notes" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, reasoning: true, metrics: true, createdAt: true },
     }),
   ]);
 
@@ -226,7 +233,7 @@ export async function GET() {
     return {
       id: goal.id, name: goal.name, targetDate: goal.targetDate,
       distanceMeters: goal.distanceMeters, elevationGainMeters: goal.elevationGainMeters,
-      priority: goal.priority, progress, daysUntil,
+      priority: goal.priority, progress, daysUntil, goalStatement: goal.goalStatement,
     };
   });
 
@@ -406,6 +413,12 @@ export async function GET() {
     pmc,
     coachNotes: latestPlan?.coachNotes || null,
     coachNotesAt: latestPlan?.generatedAt?.toISOString() || null,
+    analysisReport: latestAnalysisReport ? {
+      id: latestAnalysisReport.id,
+      reasoning: latestAnalysisReport.reasoning,
+      metrics: latestAnalysisReport.metrics,
+      createdAt: latestAnalysisReport.createdAt.toISOString(),
+    } : null,
   });
 }
 

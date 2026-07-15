@@ -14,6 +14,7 @@ export interface CoachNotesInput {
     distanceMeters: number;
     elevationGainMeters: number | null;
     priority: string;
+    goalStatement?: string | null;
   }>;
   recentWeeks: Array<{
     label: string;
@@ -56,6 +57,15 @@ export interface CoachNotesInput {
   } | null;
   recentRemarks?: Array<{ date: string; activity: string; remarks: string }>;
   facilities?: Array<{ name: string; type: string; distanceMeters: number | null; elevationGainMeters: number | null; notes: string | null }>;
+  dailyHealth?: {
+    sleepAvg: number;
+    hrvAvg: number;
+    bodyBatteryAvg: number;
+    stressAvg: number;
+    restingHrAvg: number;
+    sleepScoreAvg: number | null;
+    hrvStatus: string | null;
+  };
 }
 
 const SYSTEM_PROMPT = `You are an expert endurance sports coach with deep knowledge of:
@@ -76,6 +86,7 @@ Rules:
 - Mention the race goal by name when relevant
 - If fatigue is elevated, make rest/recovery the primary message
 - If the athlete's remarks mention tiredness, poor sleep, pain, or how they felt during specific portions of a session, reference those observations and connect them to the data
+- Consider recovery quality indicated by HRV, sleep duration, body battery, and stress levels alongside training data — poor recovery metrics may warrant lighter training even if TSB looks fine
 - When recommending sessions at specific facilities, incorporate the facility's characteristics (distance, elevation, surface type, any notes about the venue). For example, if Gunung Pulai is noted as a 4.5km tarmac climb with 550m gain, recommend it specifically for hill repeat workouts.
 
 Structure your response:
@@ -92,7 +103,9 @@ function buildUserMessage(input: CoachNotesInput): string {
   // Goals
   msg += "### Race Goals\n";
   for (const g of input.goals) {
-    msg += `- ${g.name}: ${formatDistance(g.distanceMeters)}, ${g.elevationGainMeters ? formatDistance(g.elevationGainMeters) + " D+" : "flat"}, target ${g.targetDate}, priority ${g.priority}\n`;
+    msg += `- ${g.name}: ${formatDistance(g.distanceMeters)}, ${g.elevationGainMeters ? formatDistance(g.elevationGainMeters) + " D+" : "flat"}, target ${g.targetDate}, priority ${g.priority}`;
+    if (g.goalStatement) msg += `\n  Goal statement: "${g.goalStatement}"`;
+    msg += "\n";
   }
 
   // Facilities
@@ -136,6 +149,16 @@ function buildUserMessage(input: CoachNotesInput): string {
     }
   } else {
     msg += `\n### Fatigue Status: LOW (no signals)\n`;
+  }
+
+  // Health metrics
+  if (input.dailyHealth) {
+    msg += `\n### Recent Health Metrics (7-day avg)\n`;
+    msg += `- Sleep: ${input.dailyHealth.sleepScoreAvg != null ? `${input.dailyHealth.sleepScoreAvg}/100` : "N/A"} (${formatDuration(Math.round(input.dailyHealth.sleepAvg * 60))})\n`;
+    msg += `- HRV: ${input.dailyHealth.hrvAvg}ms${input.dailyHealth.hrvStatus ? ` (${input.dailyHealth.hrvStatus})` : ""}\n`;
+    msg += `- Body Battery: ${input.dailyHealth.bodyBatteryAvg}\n`;
+    msg += `- Stress: ${input.dailyHealth.stressAvg}\n`;
+    msg += `- Resting HR: ${input.dailyHealth.restingHrAvg} bpm\n`;
   }
 
   // Weekly plan

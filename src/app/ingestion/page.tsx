@@ -120,6 +120,8 @@ export default function IngestionPage() {
   const [stravaExportProgress, setStravaExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [stravaExportPhase, setStravaExportPhase] = useState<string>("");
   const [logExpanded, setLogExpanded] = useState(false);
+  const [stravaFrom, setStravaFrom] = useState("");
+  const [stravaTo, setStravaTo] = useState("");
 
   // CSV
   const [csvResult, setCsvResult] = useState<ImportResult | null>(null);
@@ -174,6 +176,8 @@ export default function IngestionPage() {
     abortControllerRef.current = controller;
     const form = new FormData();
     form.append("file", file);
+    if (stravaFrom) form.append("fromDate", stravaFrom);
+    if (stravaTo) form.append("toDate", stravaTo);
     try {
       const res = await fetch("/api/ingestion/strava-export", { method: "POST", body: form, signal: controller.signal });
 
@@ -431,6 +435,35 @@ export default function IngestionPage() {
               <CardDescription>Upload your complete Strava data export ZIP — matches activities.csv with GPX/TCX/FIT files for full trackpoint data</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* ── Date Range Filter ──────────────────── */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="strava-from">From</Label>
+                  <Input
+                    id="strava-from"
+                    type="date"
+                    value={stravaFrom}
+                    onChange={(e) => setStravaFrom(e.target.value)}
+                    disabled={stravaExportLoading}
+                    className="w-44"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="strava-to">To</Label>
+                  <Input
+                    id="strava-to"
+                    type="date"
+                    value={stravaTo}
+                    onChange={(e) => setStravaTo(e.target.value)}
+                    disabled={stravaExportLoading}
+                    className="w-44"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground pb-1">
+                  Leave blank to import everything
+                </p>
+              </div>
+
               <div className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => stravaExportInputRef.current?.click()}>
                 <Archive className="h-10 w-10 mx-auto text-muted-foreground mb-3" />

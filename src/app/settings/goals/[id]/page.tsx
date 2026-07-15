@@ -13,6 +13,7 @@ interface RaceGoal {
   id: string; name: string; raceType: string; targetDate: string;
   distanceMeters: number; elevationGainMeters: number | null;
   targetTimeSeconds: number | null; priority: "A" | "B" | "C"; status: string; notes: string | null;
+  goalStatement: string | null;
 }
 
 export default function SettingsGoalDetailPage() {
@@ -46,6 +47,9 @@ export default function SettingsGoalDetailPage() {
             <Badge variant={goal.status === "active" ? "success" : "secondary"}>{goal.status}</Badge>
           </div>
           <CardTitle className="text-2xl">{goal.name}</CardTitle>
+          {goal.goalStatement && (
+            <p className="text-sm text-muted-foreground italic mt-1">&ldquo;{goal.goalStatement}&rdquo;</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid md:grid-cols-3 gap-4">

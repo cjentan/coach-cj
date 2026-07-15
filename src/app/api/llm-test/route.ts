@@ -1,28 +1,19 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { chat, isLlmConfigured } from "@/lib/llm";
-
-async function getUserLlmConfig(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { llmApiKey: true, llmBaseUrl: true, llmModel: true, llmProvider: true },
-  });
-  return user;
-}
+import { chat, isLlmConfigured, getDefaultLlmConfig, resolveUserLlmConfig } from "@/lib/llm";
 
 export async function GET() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userConfig = await getUserLlmConfig(session.user.id);
+  const config = await resolveUserLlmConfig(session.user.id);
 
   return NextResponse.json({
-    configured: isLlmConfigured(userConfig?.llmApiKey ?? undefined, userConfig?.llmProvider ?? undefined),
-    provider: userConfig?.llmProvider || "",
-    model: userConfig?.llmModel || "",
-    baseUrl: userConfig?.llmBaseUrl || "",
-    hasUserKey: !!userConfig?.llmApiKey,
+    configured: isLlmConfigured(config.apiKey, config.provider),
+    provider: config.provider || "",
+    model: config.model || "",
+    baseUrl: config.baseUrl || "",
+    hasUserKey: !!config.apiKey,
   });
 }
 
@@ -35,12 +26,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
   }
 
-  const userConfig = await getUserLlmConfig(session.user.id);
+  const config = await resolveUserLlmConfig(session.user.id);
 
-  if (!isLlmConfigured(userConfig?.llmApiKey ?? undefined, userConfig?.llmProvider ?? undefined)) {
+  if (!isLlmConfigured(config.apiKey, config.provider)) {
+    const msg = getDefaultLlmConfig()
+      ? "Server default DeepSeek key is set but appears invalid. Check the DEEPSEEK_API_KEY environment variable."
+      : "No API key configured. Go to Settings → API Credentials to set up your AI provider.";
     return NextResponse.json({
       success: false,
-      error: "No API key configured. Go to Settings → API Credentials to set up your AI provider.",
+      error: msg,
       durationMs: 0,
     });
   }
@@ -59,9 +53,9 @@ export async function POST(req: Request) {
     {
       temperature: 0.3,
       maxTokens: 512,
-      apiKey: userConfig?.llmApiKey ?? undefined,
-      baseUrl: userConfig?.llmBaseUrl ?? undefined,
-      model: userConfig?.llmModel ?? undefined,
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+      model: config.model,
     }
   );
 

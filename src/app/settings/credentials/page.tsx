@@ -65,6 +65,7 @@ export default function CredentialsPage() {
   const [llmProvider, setLlmProvider] = useState("");
   const [llmSaved, setLlmSaved] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
+  const [hasServerDefault, setHasServerDefault] = useState(false);
   const [showLlmKey, setShowLlmKey] = useState(false);
 
   // LLM test
@@ -93,6 +94,7 @@ export default function CredentialsPage() {
         setPublicUrl(credData.public_url || "");
         setApiKeys(keyData.keys || []);
         setHasStoredKey(llmData.hasUserKey);
+        setHasServerDefault(llmData.hasServerDefault);
         setLlmApiKey("");
         setLlmBaseUrl(llmData.llmBaseUrl || "");
         setLlmModel(llmData.llmModel || "");
@@ -212,10 +214,16 @@ export default function CredentialsPage() {
           </CardTitle>
           <CardDescription>
             Choose your preferred AI provider, configure your key, and test the connection — all in one place.
-            All AI coaching features use <strong>your</strong> key.
+            All AI coaching features use <strong>your</strong> key, or a server-default DeepSeek key when set.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {hasServerDefault && !hasStoredKey && !llmApiKey && !llmProvider && (
+            <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-sm flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0" />
+              <span><strong>Server default:</strong> DeepSeek (deepseek-chat) is configured. AI features work out of the box. Set your own key below to override.</span>
+            </div>
+          )}
           {hasStoredKey && !llmApiKey && !llmProvider && (
             <div className="p-3 rounded-md bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200 text-sm flex items-center gap-2">
               <Check className="h-4 w-4 shrink-0" />

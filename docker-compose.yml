@@ -20,6 +20,7 @@ services:
         condition: service_healthy
     volumes:
       - ./data/uploads:/app/data/uploads
+      - ./data/backups:/app/data/backups
 
   worker:
     build:

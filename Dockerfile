@@ -7,7 +7,11 @@ RUN npm ci --ignore-scripts
 # Stage 2: Build
 FROM node:20-slim AS builder
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev \
+    build-essential pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 # Layer 1: Copy deps (only invalidated when package.json/lock changes)
 COPY --from=deps /app/node_modules ./node_modules
@@ -15,6 +19,9 @@ COPY --from=deps /app/node_modules ./node_modules
 # Layer 2: Copy Prisma schema & generate client (only invalidated when schema changes)
 COPY prisma ./prisma
 RUN npx prisma generate
+
+# Rebuild native modules (canvas was skipped by --ignore-scripts in deps stage)
+RUN npm rebuild canvas
 
 # Layer 3: Copy source & build (invalidated on any source change)
 COPY . .
@@ -26,7 +33,10 @@ RUN npx tsc -p tsconfig.worker.json
 FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgif7 librsvg2-2 libjpeg62-turbo \
+    && rm -rf /var/lib/apt/lists/*
 
 # Next.js standalone output
 COPY --from=builder /app/public ./public

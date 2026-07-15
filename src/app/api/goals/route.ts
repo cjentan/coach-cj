@@ -12,6 +12,7 @@ const goalSchema = z.object({
   targetTimeSeconds: z.number().int().positive().nullable().optional(),
   priority: z.enum(["A", "B", "C"]).optional(),
   notes: z.string().nullable().optional(),
+  goalStatement: z.string().nullable().optional(),
 });
 
 export async function GET() {

@@ -9,7 +9,10 @@ import {
   Target,
   Scale,
   CalendarDays,
+  Brain,
   Key,
+  Plug,
+  Shield,
   AlertTriangle,
 } from "lucide-react";
 
@@ -19,7 +22,10 @@ const SIDEBAR_ITEMS = [
   { href: "/settings/goals", label: "Goals", icon: Target },
   { href: "/settings/body-metrics", label: "Body Metrics", icon: Scale },
   { href: "/settings/availability", label: "Schedule", icon: CalendarDays },
+  { href: "/settings/analysis", label: "Analysis", icon: Brain },
   { href: "/settings/credentials", label: "API & Credentials", icon: Key },
+  { href: "/settings/integrations", label: "Integrations", icon: Plug },
+  { href: "/settings/backup-restore", label: "Backup & Restore", icon: Shield },
   { href: "/settings/danger-zone", label: "Danger Zone", icon: AlertTriangle },
 ];
 

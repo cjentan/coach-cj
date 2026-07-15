@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
+import { classifyWorkoutType } from "@/lib/workout-classifier";
 
 const manualSchema = z.object({
   name: z.string().min(1, "Activity name is required"),
@@ -59,6 +60,22 @@ export async function POST(req: Request) {
         tss,
       },
     });
+
+    // Classify workout type from available data
+    const workoutType = classifyWorkoutType({
+      type: data.type,
+      subType: data.subType,
+      durationSeconds: data.durationSeconds,
+      distanceMeters: data.distanceMeters,
+      averageHr: data.averageHr,
+      maxHr: data.maxHr,
+    });
+    if (workoutType) {
+      await prisma.trainingLog.update({
+        where: { id: activity.id },
+        data: { workoutType },
+      }).catch(() => {});
+    }
 
     // Snapshot the affected week so trends stay current
     await snapshotWeek(session.user.id, getWeekStart(data.startDate)).catch(() => {});

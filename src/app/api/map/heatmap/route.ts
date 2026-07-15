@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { downsample } from "@/lib/trackpoint-charts";
 
+export const dynamic = "force-dynamic";
+
+/**
+ * Heatmap metadata endpoint.
+ *
+ * Counts only activities with the pre-computed simplifiedTrackPoints column
+ * (those that have been "backfilled"). Returns the number of unprocessed
+ * GPS activities so the UI can prompt the user to build their heatmap.
+ */
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -12,70 +20,51 @@ export async function GET(req: Request) {
   const type = url.searchParams.get("type");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
-  const limit = parseInt(url.searchParams.get("limit") || "300");
 
-  const where: Record<string, unknown> = {
+  const baseWhere: Record<string, unknown> = {
     userId: session.user.id,
     mergedIntoId: null,
-    rawJson: { not: Prisma.DbNull },
   };
-  if (type && type !== "all") where.type = type;
-  if (from) where.startDate = { ...(where.startDate as object || {}), gte: new Date(from) };
-  if (to) where.startDate = { ...(where.startDate as object || {}), lte: new Date(to) };
+  if (type && type !== "all") baseWhere.type = type;
+  if (from) baseWhere.startDate = { ...(baseWhere.startDate as object || {}), gte: new Date(from) };
+  if (to) baseWhere.startDate = { ...(baseWhere.startDate as object || {}), lte: new Date(to) };
 
-  const logs = await prisma.trainingLog.findMany({
-    where,
-    orderBy: { startDate: "desc" },
-    take: limit,
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      subType: true,
-      startDate: true,
-      rawJson: true,
-      distanceMeters: true,
-    },
-  });
+  // Count all with GPS data and those already processed (has simplifiedTrackPoints)
+  const allGpsWhere = { ...baseWhere, rawJson: { not: Prisma.DbNull } };
+  const processedWhere = { ...baseWhere, simplifiedTrackPoints: { not: Prisma.DbNull } };
 
-  const activities = logs
-    .map((log) => {
-      const data = log.rawJson as { trackPoints?: Array<{ lat: number | null; lon: number | null }> } | null;
-      const trackPoints = data?.trackPoints;
-      if (!Array.isArray(trackPoints) || trackPoints.length < 3) return null;
+  const [totalWithGps, totalProcessed, bboxBounds] = await Promise.all([
+    prisma.trainingLog.count({ where: allGpsWhere }),
+    prisma.trainingLog.count({ where: processedWhere }),
+    prisma.trainingLog.aggregate({
+      where: processedWhere as any,
+      _min: { trackMinLat: true, trackMinLng: true },
+      _max: { trackMaxLat: true, trackMaxLng: true },
+    }),
+  ]);
 
-      const valid = trackPoints.filter(
-        (tp): tp is { lat: number; lon: number } => tp.lat != null && tp.lon != null
-      );
-      if (valid.length < 3) return null;
-
-      const downsampled = downsample(valid, 200);
-
-      return {
-        id: log.id,
-        name: log.name,
-        type: log.type,
-        startDate: log.startDate.toISOString(),
-        coordinates: downsampled.map((tp) => [tp.lat, tp.lon] as [number, number]),
-        distanceMeters: log.distanceMeters,
-      };
-    })
-    .filter(Boolean);
-
-  // Compute overall bounds for initial map view
   let bounds: {
     minLat: number; maxLat: number;
     minLng: number; maxLng: number;
   } | null = null;
-  if (activities.length > 0) {
-    const allCoords = activities.flatMap((a) => a!.coordinates);
+
+  if (
+    bboxBounds._min.trackMinLat != null &&
+    bboxBounds._max.trackMaxLat != null &&
+    bboxBounds._min.trackMinLng != null &&
+    bboxBounds._max.trackMaxLng != null
+  ) {
     bounds = {
-      minLat: Math.min(...allCoords.map((c) => c[0])),
-      maxLat: Math.max(...allCoords.map((c) => c[0])),
-      minLng: Math.min(...allCoords.map((c) => c[1])),
-      maxLng: Math.max(...allCoords.map((c) => c[1])),
+      minLat: bboxBounds._min.trackMinLat,
+      maxLat: bboxBounds._max.trackMaxLat,
+      minLng: bboxBounds._min.trackMinLng,
+      maxLng: bboxBounds._max.trackMaxLng,
     };
   }
 
-  return NextResponse.json({ activities, bounds });
+  return NextResponse.json({
+    totalCount: totalProcessed,
+    needsBackfill: Math.max(0, totalWithGps - totalProcessed),
+    bounds,
+  });
 }

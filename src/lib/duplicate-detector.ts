@@ -11,7 +11,7 @@
  *   3. Group strongly matching pairs into duplicate groups.
  */
 
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./prisma";
 import type { Prisma } from "@prisma/client";
 
 // ─── Helpers for the lightweight fetch ────────────────────────

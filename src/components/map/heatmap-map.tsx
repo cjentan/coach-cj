@@ -1,17 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import L from "leaflet";
-import "leaflet.heat";
-
-export interface HeatmapActivity {
-  id: string;
-  name: string;
-  type: string;
-  startDate: string;
-  coordinates: [number, number][];
-  distanceMeters: number | null;
-}
 
 interface MapBounds {
   minLat: number;
@@ -20,11 +10,21 @@ interface MapBounds {
   maxLng: number;
 }
 
+interface HoverHit {
+  id: string;
+  name: string;
+  type: string;
+  startDate: string;
+  distanceMeters: number | null;
+}
+
 interface HeatmapMapProps {
-  activities: HeatmapActivity[];
+  /** Tile URL template with query params, e.g. "/api/map/tiles/{z}/{x}/{y}.png?type=run" */
+  tileUrl: string;
+  /** Aggregate bounds of all matching activities (for initial fit). */
   bounds: MapBounds | null;
-  showHeatmap: boolean;
-  showRoutes: boolean;
+  /** Query string for hover endpoint: "type=run&from=2024-01-01" */
+  hoverQuery: string;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -36,39 +36,38 @@ const TYPE_COLORS: Record<string, string> = {
   other: "#6b7280",
 };
 
-const HEAT_GRADIENT: Record<number, string> = {
-  0.4: "#3b82f6",
-  0.6: "#22c55e",
-  0.7: "#facc15",
-  0.8: "#f97316",
-  1.0: "#ef4444",
-};
-
 /**
- * Full-viewport Leaflet map with an optional heat layer (via leaflet.heat)
- * and optional per-activity route polylines.
+ * Full-viewport Leaflet map displaying server-rendered heatmap tiles.
  *
- * The map instance is created once on mount and held in a ref — data/layer
- * changes flow through effects, never through re-mounting the map.
+ * All route rendering happens on the server via /api/map/tiles/{z}/{x}/{y}.png.
+ * The client only loads a tile layer (standard PNG images) for maximum
+ * performance, even with thousands of activities.
+ *
+ * Hover interaction: mousemove events are debounced and sent to
+ * POST /api/map/hover for server-side hit-testing. Matching activities
+ * are shown in a floating tooltip.
  */
 export default function HeatmapMap({
-  activities,
+  tileUrl,
   bounds,
-  showHeatmap,
-  showRoutes,
+  hoverQuery,
 }: HeatmapMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const heatLayerRef = useRef<L.HeatLayer | null>(null);
-  const polylineGroupRef = useRef<L.LayerGroup | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const hoverDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchRef = useRef<string>(""); // avoid duplicate hover fetches
 
-  // ── Mount: create map + tile layer + empty overlay layers ────
+  // ── Mount: create map ───────────────────────────────────
   useEffect(() => {
     if (mapInstanceRef.current || !mapContainerRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
       zoomControl: true,
       attributionControl: true,
+      center: [20, 0],
+      zoom: 2,
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -77,77 +76,41 @@ export default function HeatmapMap({
       maxZoom: 19,
     }).addTo(map);
 
-    const heatLayer = L.heatLayer([], {
-      radius: 18,
-      blur: 22,
-      maxZoom: 17,
-      max: 0.5,
-      gradient: HEAT_GRADIENT,
-    }).addTo(map);
-
-    const polylineGroup = L.layerGroup().addTo(map);
-
     mapInstanceRef.current = map;
-    heatLayerRef.current = heatLayer;
-    polylineGroupRef.current = polylineGroup;
 
     return () => {
       map.remove();
       mapInstanceRef.current = null;
-      heatLayerRef.current = null;
-      polylineGroupRef.current = null;
+      tileLayerRef.current = null;
     };
   }, []);
 
-  // ── Data effect: update heat layer + polylines ───────────────
+  // ── Tile layer: replace when URL changes ────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map) return;
+    if (!map || !tileUrl) return;
 
-    // Heat layer
-    const heatLayer = heatLayerRef.current;
-    if (heatLayer) {
-      if (showHeatmap && activities.length > 0) {
-        const allCoords: [number, number][] = activities.flatMap(
-          (a) => a.coordinates
-        );
-        heatLayer.setLatLngs(allCoords);
-        if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
-      } else {
-        if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
-      }
+    // Remove old tile layer
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
     }
 
-    // Polyline layer
-    const polylineGroup = polylineGroupRef.current;
-    if (polylineGroup) {
-      polylineGroup.clearLayers();
-      if (showRoutes && activities.length > 0) {
-        activities.forEach((activity) => {
-          if (activity.coordinates.length < 3) return;
-          const polyline = L.polyline(activity.coordinates, {
-            color: TYPE_COLORS[activity.type] || TYPE_COLORS.other,
-            weight: 2,
-            opacity: 0.6,
-          });
-          polyline.bindTooltip(activity.name, { sticky: true });
-          polylineGroup.addLayer(polyline);
-        });
-        if (!map.hasLayer(polylineGroup)) map.addLayer(polylineGroup);
-      } else {
-        if (map.hasLayer(polylineGroup)) map.removeLayer(polylineGroup);
-      }
-    }
-  }, [activities, showHeatmap, showRoutes]);
+    const newLayer = L.tileLayer(tileUrl, {
+      maxZoom: 19,
+      opacity: 1,
+    }).addTo(map);
 
-  // ── Bounds effect: fit map to data bounds ────────────────────
+    tileLayerRef.current = newLayer;
+  }, [tileUrl]);
+
+  // ── Fit bounds when data loads ──────────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !bounds) return;
 
     const leafletBounds = L.latLngBounds(
       [bounds.minLat, bounds.minLng],
-      [bounds.maxLat, bounds.maxLng]
+      [bounds.maxLat, bounds.maxLng],
     );
 
     if (leafletBounds.isValid()) {
@@ -155,11 +118,108 @@ export default function HeatmapMap({
     }
   }, [bounds]);
 
-  return (
-    <div
-      ref={mapContainerRef}
-      className="absolute inset-0 z-0"
-      style={{ minHeight: "100%" }}
-    />
+  // ── Hover handler ───────────────────────────────────────
+  const doHover = useCallback(
+    async (lat: number, lng: number) => {
+      const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+      if (key === lastFetchRef.current) return;
+      lastFetchRef.current = key;
+
+      try {
+        const res = await fetch("/api/map/hover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lat,
+            lng,
+            ...(hoverQuery ? Object.fromEntries(new URLSearchParams(hoverQuery)) : {}),
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const activities: HoverHit[] = data.activities || [];
+        showTooltip(activities);
+      } catch {
+        // ignore network errors
+      }
+    },
+    [hoverQuery],
   );
+
+  const showTooltip = useCallback((activities: HoverHit[]) => {
+    const el = tooltipRef.current;
+    if (!el) return;
+
+    if (activities.length === 0) {
+      el.style.display = "none";
+      return;
+    }
+
+    el.innerHTML = activities
+      .slice(0, 5)
+      .map(
+        (a) =>
+          `<div class="flex items-center gap-1.5">
+            <span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:${TYPE_COLORS[a.type] || TYPE_COLORS.other}"></span>
+            <span class="font-medium">${escHtml(a.name)}</span>
+            <span class="text-[10px] text-muted-foreground">${formatDate(a.startDate)}</span>
+          </div>`,
+      )
+      .join("");
+    if (activities.length > 5) {
+      el.innerHTML += `<div class="text-[10px] text-muted-foreground pt-0.5">+ ${activities.length - 5} more</div>`;
+    }
+    el.style.display = "flex";
+    el.style.flexDirection = "column";
+    el.style.gap = "2px";
+  }, []);
+
+  // Debounced mousemove
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const onMouseMove = (e: L.LeafletMouseEvent) => {
+      if (hoverDebounceRef.current) clearTimeout(hoverDebounceRef.current);
+      hoverDebounceRef.current = setTimeout(() => {
+        doHover(e.latlng.lat, e.latlng.lng);
+      }, 150);
+    };
+
+    const onMouseOut = () => {
+      if (hoverDebounceRef.current) clearTimeout(hoverDebounceRef.current);
+      const el = tooltipRef.current;
+      if (el) el.style.display = "none";
+    };
+
+    map.on("mousemove", onMouseMove);
+    map.on("mouseout", onMouseOut);
+
+    return () => {
+      map.off("mousemove", onMouseMove);
+      map.off("mouseout", onMouseOut);
+      if (hoverDebounceRef.current) clearTimeout(hoverDebounceRef.current);
+    };
+  }, [doHover]);
+
+  return (
+    <div className="absolute inset-0 z-0">
+      <div ref={mapContainerRef} className="absolute inset-0" />
+
+      {/* Floating tooltip */}
+      <div
+        ref={tooltipRef}
+        className="pointer-events-none fixed z-[2000] hidden gap-1 rounded-md border bg-background/90 px-2.5 py-1.5 text-xs shadow-lg backdrop-blur-sm"
+      />
+    </div>
+  );
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }

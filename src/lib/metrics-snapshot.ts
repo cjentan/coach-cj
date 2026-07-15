@@ -5,10 +5,10 @@
  * so historical trend charts can query pre-computed data instead of
  * recomputing from raw logs on every page load.
  */
-import { prisma } from "@/lib/prisma";
-import { computePMC } from "@/lib/pmc";
-import { computeBestTss } from "@/lib/trackpoint-metrics";
-import { getWeekStart } from "@/lib/utils";
+import { prisma } from "./prisma";
+import { computePMC } from "./pmc";
+import { computeBestTss } from "./trackpoint-metrics";
+import { getWeekStart } from "./utils";
 
 /** Snapshots the given week's metrics for the user. Idempotent (upsert). */
 export async function snapshotWeek(

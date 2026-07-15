@@ -6,6 +6,8 @@ import { parseFitFile } from "@/lib/fit-parser";
 import { generateActivityName } from "@/lib/activity-naming";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
+import { classifyWorkoutType } from "@/lib/workout-classifier";
+import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -69,8 +71,9 @@ export async function POST(req: Request) {
           const externalId = `${lower.endsWith(".fit") ? "fit" : "gpx"}-${file.name.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
           const rawJson = buildRawJson(activity, file.name);
+          const simplified = simplifyTrackPoints(activity.trackPoints, 500);
 
-          await prisma.trainingLog.upsert({
+          const created = await prisma.trainingLog.upsert({
             where: {
               userId_externalId_source: {
                 userId: session.user.id,
@@ -97,6 +100,11 @@ export async function POST(req: Request) {
               userId: session.user.id,
               source: "manual",
               rawJson: rawJson as any,
+              simplifiedTrackPoints: simplified.coords as any,
+              trackMinLat: simplified.bbox?.minLat ?? null,
+              trackMaxLat: simplified.bbox?.maxLat ?? null,
+              trackMinLng: simplified.bbox?.minLng ?? null,
+              trackMaxLng: simplified.bbox?.maxLng ?? null,
             },
             update: {
               name: activity.name,
@@ -114,8 +122,32 @@ export async function POST(req: Request) {
               tss: activity.tss,
               description: activity.description,
               rawJson: rawJson as any,
+              simplifiedTrackPoints: simplified.coords as any,
+              trackMinLat: simplified.bbox?.minLat ?? null,
+              trackMaxLat: simplified.bbox?.maxLat ?? null,
+              trackMinLng: simplified.bbox?.minLng ?? null,
+              trackMaxLng: simplified.bbox?.maxLng ?? null,
             },
           });
+
+          // Classify workout type from trackpoint data
+          const workoutType = classifyWorkoutType({
+            type: activity.type,
+            subType: activity.subType,
+            durationSeconds: activity.durationSeconds,
+            distanceMeters: activity.distanceMeters,
+            averageHr: activity.averageHr,
+            maxHr: activity.maxHr,
+            averagePower: activity.averagePower,
+            normalizedPower: activity.normalizedPower,
+            trackPoints: activity.trackPoints,
+          });
+          if (workoutType && workoutType !== created.workoutType) {
+            await prisma.trainingLog.update({
+              where: { id: created.id },
+              data: { workoutType },
+            }).catch(() => {});
+          }
         }
 
         for (const a of activities) {
