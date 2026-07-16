@@ -334,36 +334,24 @@ export default function IntegrationsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm break-words">
                 <div>
-                  <span className="text-muted-foreground">
-                    Activities synced:
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {corosStatus.corosActivityCount}
-                  </span>
+                  <span className="text-muted-foreground">Activities synced:</span>
+                  <span className="ml-2 font-medium">{corosStatus.corosActivityCount}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">
-                    Connected since:
-                  </span>
+                  <span className="text-muted-foreground">Connected since:</span>
                   <span className="ml-2 font-medium">
                     {corosStatus.connectedAt
-                      ? new Date(
-                          corosStatus.connectedAt
-                        ).toLocaleDateString()
+                      ? new Date(corosStatus.connectedAt).toLocaleDateString()
                       : "—"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">
-                    Last sync:
-                  </span>
+                  <span className="text-muted-foreground">Last sync:</span>
                   <span className="ml-2 font-medium">
                     {corosStatus.lastSyncAt
-                      ? new Date(
-                          corosStatus.lastSyncAt
-                        ).toLocaleString()
+                      ? new Date(corosStatus.lastSyncAt).toLocaleString()
                       : "Never"}
                   </span>
                 </div>
@@ -398,11 +386,12 @@ export default function IntegrationsPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
                 <Button
                   onClick={handleCorosSync}
                   disabled={corosSyncing}
                   variant="default"
+                  className="w-full sm:w-auto"
                 >
                   {corosSyncing ? (
                     <>
@@ -419,6 +408,7 @@ export default function IntegrationsPage() {
                   onClick={handleCorosDisconnect}
                   variant="destructive"
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   <Unplug className="h-4 w-4 mr-2" /> Disconnect
                 </Button>
@@ -426,6 +416,7 @@ export default function IntegrationsPage() {
                   onClick={handleCorosResetSync}
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   Reset Sync State
                 </Button>
@@ -538,7 +529,7 @@ export default function IntegrationsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm break-words">
                 <div>
                   <span className="text-muted-foreground">
                     Activities synced:
@@ -612,11 +603,12 @@ export default function IntegrationsPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
                 <Button
                   onClick={handleSync}
                   disabled={syncing}
                   variant="default"
+                  className="w-full sm:w-auto"
                 >
                   {syncing ? (
                     <>
@@ -633,6 +625,7 @@ export default function IntegrationsPage() {
                   onClick={handleDisconnect}
                   variant="destructive"
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   <Unplug className="h-4 w-4 mr-2" /> Disconnect
                 </Button>
@@ -640,6 +633,7 @@ export default function IntegrationsPage() {
                   onClick={handleResetSync}
                   variant="outline"
                   size="sm"
+                  className="w-full sm:w-auto"
                 >
                   Reset Sync State
                 </Button>

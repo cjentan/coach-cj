@@ -18,6 +18,7 @@ model User {
   resetTokenExpiry DateTime? @map("reset_token_expiry")
   reviewDayOfWeek         Int      @default(0) @map("review_day_of_week")
   reviewTime              String   @default("18:00") @map("review_time")
+  reviewDayOfMonth        Int?     @default(1) @map("review_day_of_month")
   analysisTrigger         String   @default("weekly") @map("analysis_trigger")
   analysisTriggerValue    Int      @default(1) @map("analysis_trigger_value")
   onboardingCompleted Boolean @default(false) @map("onboarding_completed")
@@ -25,15 +26,14 @@ model User {
   llmBaseUrl              String?  @map("llm_base_url")
   llmModel                String?  @map("llm_model")
   llmApiKey               String?  @map("llm_api_key")
+  trainingContext         String?  @map("training_context")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   trainingLogs         TrainingLog[]
   raceGoals            RaceGoal[]
-  trainingFacilities   TrainingFacility[]
   duplicateGroups      DuplicateGroup[]
   bodyMetrics          BodyMetric[]
-  trainingAvailability TrainingAvailability[]
   weeklyAssessments    WeeklyAssessment[]
   weeklyPlans          WeeklyPlan[]
   fatigueAlerts        FatigueAlert[]
@@ -154,7 +154,6 @@ model TrainingLog {
   createdAt           DateTime         @default(now()) @map("created_at")
 
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  facilities   TrainingLogFacility[]
 
   @@unique([userId, externalId, source])
   @@index([userId, startDate])
@@ -163,18 +162,6 @@ model TrainingLog {
   @@index([userId, trackMinLat, trackMaxLat])
   @@index([userId, trackMinLng, trackMaxLng])
   @@map("training_logs")
-}
-
-model TrainingLogFacility {
-  trainingLogId String         @map("training_log_id")
-  facilityId    String         @map("facility_id")
-  assignedAt    DateTime       @default(now()) @map("assigned_at")
-
-  trainingLog TrainingLog     @relation(fields: [trainingLogId], references: [id], onDelete: Cascade)
-  facility    TrainingFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
-
-  @@id([trainingLogId, facilityId])
-  @@map("training_log_facilities")
 }
 
 model DuplicateGroup {
@@ -227,41 +214,6 @@ model RaceGoal {
   @@map("race_goals")
 }
 
-enum FacilityType {
-  road
-  trail
-  track
-  trainer
-  pool
-  gym
-}
-
-enum SurfaceType {
-  tarmac
-  gravel
-  trail
-  track
-  treadmill
-  trainer
-}
-
-model TrainingFacility {
-  id                  String       @id @default(uuid())
-  userId              String       @map("user_id")
-  name                String
-  type                FacilityType
-  distanceMeters      Float?       @map("distance_meters")
-  elevationGainMeters Float?       @map("elevation_gain_meters")
-  surface             SurfaceType?
-  notes               String?
-  createdAt           DateTime     @default(now()) @map("created_at")
-
-  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  logEntries TrainingLogFacility[]
-
-  @@map("training_facilities")
-}
-
 model BodyMetric {
   id         String   @id @default(uuid())
   userId     String   @map("user_id")
@@ -276,23 +228,6 @@ model BodyMetric {
 
   @@index([userId, recordedAt])
   @@map("body_metrics")
-}
-
-model TrainingAvailability {
-  id            String   @id @default(uuid())
-  userId        String   @map("user_id")
-  dayOfWeek     Int      @map("day_of_week")
-  startTime     String   @map("start_time")
-  endTime       String   @map("end_time")
-  facilityIds   String[] @map("facility_ids")
-  notes         String?
-  effectiveFrom DateTime @default(now()) @map("effective_from")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, dayOfWeek])
-  @@map("training_availability")
 }
 
 // Weekly snapshot of computed training metrics.

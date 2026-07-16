@@ -56,10 +56,8 @@ export async function POST(request: Request) {
   };
 
   // Fetch context
-  const [goals, availability, facilities, trainingLogs, fatigueAlert] = await Promise.all([
+  const [goals, trainingLogs, fatigueAlert, userCtx] = await Promise.all([
     prisma.raceGoal.findMany({ where: { userId: session.user.id, status: "active" } }),
-    prisma.trainingAvailability.findMany({ where: { userId: session.user.id } }),
-    prisma.trainingFacility.findMany({ where: { userId: session.user.id } }),
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
@@ -69,6 +67,7 @@ export async function POST(request: Request) {
       where: { userId: session.user.id, acknowledged: false },
       orderBy: { detectedAt: "desc" },
     }),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { trainingContext: true } }),
   ]);
 
   // Weekly volumes for last 4 weeks
@@ -101,18 +100,7 @@ export async function POST(request: Request) {
         elevationGainMeters: g.elevationGainMeters,
         priority: g.priority,
       })),
-      availability: availability.map((a) => ({
-        dayOfWeek: a.dayOfWeek,
-        startTime: a.startTime,
-        endTime: a.endTime,
-        facilityIds: a.facilityIds,
-      })),
-      facilities: facilities.map((f) => ({
-        name: f.name,
-        type: f.type,
-        distanceMeters: f.distanceMeters,
-        elevationGainMeters: f.elevationGainMeters,
-      })),
+      trainingContext: userCtx?.trainingContext ?? undefined,
       fatigueSeverity: fatigueAlert?.severity || null,
       recentVolumeByWeek: weeklyVolumes,
       adjustmentHistory,

@@ -6,11 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Brain, Save, Loader2 } from "lucide-react";
+import { Brain, Save, Loader2, CalendarDays, Clock } from "lucide-react";
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function SettingsAnalysisPage() {
   const [trigger, setTrigger] = useState("weekly");
   const [triggerValue, setTriggerValue] = useState(3);
+  const [reviewDay, setReviewDay] = useState("0");
+  const [reviewTime, setReviewTime] = useState("18:00");
+  const [reviewDayOfMonth, setReviewDayOfMonth] = useState(1);
   const [lastAnalysisAt, setLastAnalysisAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,6 +28,9 @@ export default function SettingsAnalysisPage() {
       .then((data) => {
         setTrigger(data.analysisTrigger || "weekly");
         setTriggerValue(data.analysisTriggerValue || 3);
+        setReviewDay(String(data.reviewDayOfWeek ?? 0));
+        setReviewTime(data.reviewTime ?? "18:00");
+        setReviewDayOfMonth(data.reviewDayOfMonth ?? 1);
         setLastAnalysisAt(data.lastAnalysisAt);
         setLoading(false);
       })
@@ -34,10 +42,21 @@ export default function SettingsAnalysisPage() {
     setError("");
     setSaved(false);
     try {
+      const body: Record<string, any> = {
+        analysisTrigger: trigger,
+        analysisTriggerValue: triggerValue,
+        reviewTime: reviewTime,
+      };
+      if (trigger === "weekly" || trigger === "daily") {
+        body.reviewDayOfWeek = Number(reviewDay);
+      }
+      if (trigger === "monthly") {
+        body.reviewDayOfMonth = reviewDayOfMonth;
+      }
       const res = await fetch("/api/settings/analysis", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysisTrigger: trigger, analysisTriggerValue: triggerValue }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to save");
       setSaved(true);
@@ -84,6 +103,7 @@ export default function SettingsAnalysisPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="activity_count">After every N activities</SelectItem>
+                <SelectItem value="every_n_days">Review after every N days</SelectItem>
                 <SelectItem value="daily">Daily</SelectItem>
                 <SelectItem value="weekly">Weekly (on review day)</SelectItem>
                 <SelectItem value="monthly">Monthly</SelectItem>
@@ -91,28 +111,89 @@ export default function SettingsAnalysisPage() {
             </Select>
             <p className="text-xs text-muted-foreground mt-1">
               {trigger === "activity_count" && "Analyze after every N new activities are synced or logged."}
+              {trigger === "every_n_days" && "Analyze every N days regardless of activity volume."}
               {trigger === "daily" && "Generate fresh analysis and plan adjustments every day."}
               {trigger === "weekly" && "Analyze each week on your configured review day and time."}
-              {trigger === "monthly" && "Analyze on the 1st of each month."}
+              {trigger === "monthly" && "Analyze on a specific day of each month."}
             </p>
           </div>
 
-          {trigger === "activity_count" && (
-            <div className="space-y-2">
-              <Label>Activities between analyses</Label>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                value={triggerValue}
-                onChange={(e) => setTriggerValue(Math.max(1, Math.min(20, Number(e.target.value))))}
-                className="w-24"
-              />
-              <p className="text-xs text-muted-foreground">
-                Analysis will run after every {triggerValue} new activit{triggerValue === 1 ? "y" : "ies"}.
-              </p>
-            </div>
-          )}
+          {/* Trigger-specific options */}
+          <div className="space-y-4">
+            {trigger === "activity_count" && (
+              <div className="space-y-2">
+                <Label>Activities between analyses</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={triggerValue}
+                  onChange={(e) => setTriggerValue(Math.max(1, Math.min(20, Number(e.target.value))))}
+                  className="w-24"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Analysis will run after every {triggerValue} new activit{triggerValue === 1 ? "y" : "ies"}.
+                </p>
+              </div>
+            )}
+
+            {trigger === "every_n_days" && (
+              <div className="space-y-2">
+                <Label>Days between analyses</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={90}
+                  value={triggerValue}
+                  onChange={(e) => setTriggerValue(Math.max(1, Math.min(90, Number(e.target.value))))}
+                  className="w-24"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Analysis will run every {triggerValue} day{triggerValue === 1 ? "" : "s"}.
+                </p>
+              </div>
+            )}
+
+            {trigger === "weekly" && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Day of Week</Label>
+                <Select value={reviewDay} onValueChange={setReviewDay}>
+                  <SelectTrigger className="w-full max-w-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DAY_NAMES.map((d, i) => (
+                      <SelectItem key={i} value={String(i)}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {trigger === "monthly" && (
+              <div className="space-y-2">
+                <Label>Day of Month</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={reviewDayOfMonth}
+                  onChange={(e) => setReviewDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value))))}
+                  className="w-24"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Analysis will run on the {reviewDayOfMonth}{reviewDayOfMonth === 1 ? "st" : reviewDayOfMonth === 2 ? "nd" : reviewDayOfMonth === 3 ? "rd" : "th"} of each month.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Time — common across all options */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1"><Clock className="h-4 w-4" /> Review Time</Label>
+            <Input type="time" value={reviewTime} onChange={(e) => setReviewTime(e.target.value)} className="w-32" />
+            <p className="text-xs text-muted-foreground">
+              The analysis will run at this time on the scheduled day{trigger === "activity_count" ? ", within an hour of the trigger condition being met" : ""}.
+            </p>
+          </div>
 
           <div className="pt-4 border-t">
             <Label className="text-muted-foreground">Last analysis</Label>

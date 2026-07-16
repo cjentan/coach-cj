@@ -28,7 +28,6 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Dumbbell,
   Target,
   Scale,
   CalendarDays,
@@ -37,11 +36,6 @@ import {
   ChevronRight,
   ChevronLeft,
   SkipForward,
-  Plus,
-  Trash2,
-  Mountain,
-  Route,
-  Heart,
   Check,
 } from "lucide-react";
 
@@ -70,10 +64,8 @@ const RACE_TYPES = [
 const STEPS = [
   { num: 0, label: "Integration", icon: Activity },
   { num: 1, label: "Review & Analysis", icon: Brain },
-  { num: 2, label: "Facilities", icon: Dumbbell },
-  { num: 3, label: "Goals", icon: Target },
-  { num: 4, label: "Body Metrics", icon: Scale },
-  { num: 5, label: "Schedule", icon: CalendarDays },
+  { num: 2, label: "Goals", icon: Target },
+  { num: 3, label: "Body Metrics", icon: Scale },
 ];
 
 // ── Helper Components ────────────────────────────────────────
@@ -223,15 +215,9 @@ export default function OnboardingPage() {
   const [reviewTime, setReviewTime] = useState("18:00");
   const [analysisTrigger, setAnalysisTrigger] = useState("weekly");
   const [analysisTriggerValue, setAnalysisTriggerValue] = useState(3);
+  const [reviewDayOfMonth, setReviewDayOfMonth] = useState(1);
 
-  // Step 3: Facilities
-  const [facilityCount, setFacilityCount] = useState(0);
-  const [showFacilityForm, setShowFacilityForm] = useState(false);
-  const [facilityName, setFacilityName] = useState("");
-  const [facilityType, setFacilityType] = useState("road");
-  const [facilitySaving, setFacilitySaving] = useState(false);
-
-  // Step 4: Goal
+  // Step 3: Goal
   const [goalName, setGoalName] = useState("");
   const [goalRaceType, setGoalRaceType] = useState("road_run");
   const [goalTargetDate, setGoalTargetDate] = useState("");
@@ -250,12 +236,6 @@ export default function OnboardingPage() {
   const [metricRestingHr, setMetricRestingHr] = useState("");
   const [metricSaving, setMetricSaving] = useState(false);
   const [metricSaved, setMetricSaved] = useState(false);
-
-  // Step 6: Schedule
-  const [scheduleSlots, setScheduleSlots] = useState<
-    Array<{ day: number; start: string; end: string }>
-  >([]);
-  const [scheduleSaving, setScheduleSaving] = useState(false);
 
   // ── Auth guard + onboarding check ──────────────────────────
 
@@ -276,19 +256,6 @@ export default function OnboardingPage() {
         .catch(() => setPageLoading(false));
     }
   }, [status, router]);
-
-  // Init schedule slots with default every day at 06:00-07:00
-  useEffect(() => {
-    if (scheduleSlots.length === 0) {
-      setScheduleSlots(
-        Array.from({ length: 7 }, (_, i) => ({
-          day: i,
-          start: "06:00",
-          end: "07:00",
-        }))
-      );
-    }
-  }, [scheduleSlots.length]);
 
   if (pageLoading || status === "loading") {
     return (
@@ -366,50 +333,27 @@ export default function OnboardingPage() {
   const handleSaveReviewAndAnalysis = async () => {
     setSaving(true);
     try {
-      await Promise.all([
-        fetch("/api/settings/review-schedule", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reviewDayOfWeek: Number(reviewDay),
-            reviewTime,
-          }),
-        }),
-        fetch("/api/settings/analysis", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            analysisTrigger,
-            analysisTriggerValue,
-          }),
-        }),
-      ]);
+      const body: Record<string, any> = {
+        analysisTrigger,
+        analysisTriggerValue,
+        reviewTime,
+      };
+      if (analysisTrigger === "weekly" || analysisTrigger === "daily") {
+        body.reviewDayOfWeek = Number(reviewDay);
+      }
+      if (analysisTrigger === "monthly") {
+        body.reviewDayOfMonth = reviewDayOfMonth;
+      }
+      await fetch("/api/settings/analysis", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     } catch {
       // Continue even on error
     }
     setSaving(false);
     setCurrentStep(2);
-  };
-
-  const handleAddFacility = async () => {
-    if (!facilityName.trim()) return;
-    setFacilitySaving(true);
-    try {
-      const res = await fetch("/api/facilities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: facilityName, type: facilityType }),
-      });
-      if (res.ok) {
-        setFacilityCount((c) => c + 1);
-        setFacilityName("");
-        setFacilityType("road");
-        setShowFacilityForm(false);
-      }
-    } catch {
-      // Ignore
-    }
-    setFacilitySaving(false);
   };
 
   const handleSaveGoal = async () => {
@@ -464,37 +408,13 @@ export default function OnboardingPage() {
     setMetricSaving(false);
   };
 
-  const handleSaveSchedule = async () => {
-    setScheduleSaving(true);
-    try {
-      // Save each slot individually
-      await Promise.all(
-        scheduleSlots.map((slot) =>
-          fetch("/api/availability", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dayOfWeek: slot.day,
-              startTime: slot.start,
-              endTime: slot.end,
-            }),
-          })
-        )
-      );
-    } catch {
-      // Continue
-    }
-    setScheduleSaving(false);
-    setCurrentStep(6); // completion
-  };
-
   const handleComplete = async () => {
     setSaving(true);
     try {
       const res = await fetch("/api/settings/onboarding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ createDefaultFacility: true }),
+        body: JSON.stringify({}),
       });
       if (res.ok) {
         router.push("/dashboard");
@@ -512,27 +432,13 @@ export default function OnboardingPage() {
       await fetch("/api/settings/onboarding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ createDefaultFacility: true }),
+        body: JSON.stringify({}),
       });
       router.push("/dashboard");
     } catch {
       // Ignore
     }
     setSaving(false);
-  };
-
-  const updateSlot = (
-    day: number,
-    field: "start" | "end",
-    value: string
-  ) => {
-    setScheduleSlots((prev) =>
-      prev.map((s) => (s.day === day ? { ...s, [field]: value } : s))
-    );
-  };
-
-  const removeSlot = (day: number) => {
-    setScheduleSlots((prev) => prev.filter((s) => s.day !== day));
   };
 
   // ── Render Step Content ────────────────────────────────────
@@ -789,57 +695,17 @@ export default function OnboardingPage() {
             <Card className="mb-4">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <CalendarDays className="h-4 w-4" /> Weekly Review
+                  <Brain className="h-4 w-4" /> Analysis &amp; Review
                   Schedule
                 </CardTitle>
                 <CardDescription>
-                  When the AI analyzes your training and generates next
-                  week&apos;s plan
+                  How often and when the AI Coach generates fresh analysis and
+                  next week&apos;s plan
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Day of Week</Label>
-                    <Select
-                      value={reviewDay}
-                      onValueChange={setReviewDay}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DAY_NAMES.map((d, i) => (
-                          <SelectItem key={i} value={String(i)}>
-                            {d}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Time</Label>
-                    <Input
-                      type="time"
-                      value={reviewTime}
-                      onChange={(e) => setReviewTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="mb-4">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Brain className="h-4 w-4" /> Analysis Frequency
-                </CardTitle>
-                <CardDescription>
-                  How often the AI Coach generates fresh analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label>How often should the AI analyze your training?</Label>
                   <Select
                     value={analysisTrigger}
                     onValueChange={setAnalysisTrigger}
@@ -851,6 +717,9 @@ export default function OnboardingPage() {
                       <SelectItem value="activity_count">
                         After every N activities
                       </SelectItem>
+                      <SelectItem value="every_n_days">
+                        Review after every N days
+                      </SelectItem>
                       <SelectItem value="daily">Daily</SelectItem>
                       <SelectItem value="weekly">
                         Weekly (on review day)
@@ -858,29 +727,118 @@ export default function OnboardingPage() {
                       <SelectItem value="monthly">Monthly</SelectItem>
                     </SelectContent>
                   </Select>
-                  {analysisTrigger === "activity_count" && (
-                    <div className="flex items-center gap-2 pt-2">
-                      <Label>Every</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={analysisTriggerValue}
-                        onChange={(e) =>
-                          setAnalysisTriggerValue(
-                            Math.max(
-                              1,
-                              Math.min(20, Number(e.target.value))
-                            )
+                </div>
+
+                {/* Trigger-specific options */}
+                {analysisTrigger === "activity_count" && (
+                  <div className="flex items-center gap-2">
+                    <Label>Every</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={analysisTriggerValue}
+                      onChange={(e) =>
+                        setAnalysisTriggerValue(
+                          Math.max(
+                            1,
+                            Math.min(20, Number(e.target.value))
                           )
-                        }
-                        className="w-20"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        activit{analysisTriggerValue === 1 ? "y" : "ies"}
-                      </span>
-                    </div>
-                  )}
+                        )
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      activit{analysisTriggerValue === 1 ? "y" : "ies"}
+                    </span>
+                  </div>
+                )}
+
+                {analysisTrigger === "every_n_days" && (
+                  <div className="flex items-center gap-2">
+                    <Label>Every</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={analysisTriggerValue}
+                      onChange={(e) =>
+                        setAnalysisTriggerValue(
+                          Math.max(
+                            1,
+                            Math.min(90, Number(e.target.value))
+                          )
+                        )
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      day{analysisTriggerValue === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                )}
+
+                {analysisTrigger === "weekly" && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1">
+                      <CalendarDays className="h-4 w-4" /> Day of Week
+                    </Label>
+                    <Select
+                      value={reviewDay}
+                      onValueChange={setReviewDay}
+                    >
+                      <SelectTrigger className="max-w-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DAY_NAMES.map((d, i) => (
+                          <SelectItem key={i} value={String(i)}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {analysisTrigger === "monthly" && (
+                  <div className="flex items-center gap-2">
+                    <Label>Day of Month</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={reviewDayOfMonth}
+                      onChange={(e) =>
+                        setReviewDayOfMonth(
+                          Math.max(1, Math.min(31, Number(e.target.value)))
+                        )
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {reviewDayOfMonth === 1
+                        ? "st"
+                        : reviewDayOfMonth === 2
+                          ? "nd"
+                          : reviewDayOfMonth === 3
+                            ? "rd"
+                            : "th"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Time — common across all options */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" /> Review Time
+                  </Label>
+                  <Input
+                    type="time"
+                    value={reviewTime}
+                    onChange={(e) => setReviewTime(e.target.value)}
+                    className="w-32"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -901,137 +859,8 @@ export default function OnboardingPage() {
           </div>
         );
 
-      // ── Step 2: Facilities ──
+      // ── Step 2: Goals ──
       case 2:
-        return (
-          <div>
-            <div className="text-center mb-8">
-              <Dumbbell className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">
-                Set Up Your Training Locations
-              </h1>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Tell the planner what facilities you have access to for
-                better route recommendations.
-              </p>
-            </div>
-
-            <Card className="mb-4 border-primary/50 bg-primary/5">
-              <CardContent className="p-4 flex items-start gap-3">
-                <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">
-                    &ldquo;Road Running&rdquo; facility will be added
-                    automatically
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This gives the planner a default road-running context
-                    for route recommendations.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {showFacilityForm && (
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    Add Another Facility
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid sm:grid-cols-2 gap-3 mb-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="fac-name" className="text-xs">
-                        Name
-                      </Label>
-                      <Input
-                        id="fac-name"
-                        value={facilityName}
-                        onChange={(e) =>
-                          setFacilityName(e.target.value)
-                        }
-                        placeholder="e.g. Riverside Trail"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="fac-type" className="text-xs">
-                        Type
-                      </Label>
-                      <Select
-                        value={facilityType}
-                        onValueChange={setFacilityType}
-                      >
-                        <SelectTrigger id="fac-type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="road">Road</SelectItem>
-                          <SelectItem value="trail">Trail</SelectItem>
-                          <SelectItem value="track">Track</SelectItem>
-                          <SelectItem value="trainer">Trainer</SelectItem>
-                          <SelectItem value="pool">Pool</SelectItem>
-                          <SelectItem value="gym">Gym</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleAddFacility}
-                      disabled={facilitySaving || !facilityName.trim()}
-                    >
-                      {facilitySaving ? "Adding..." : "Add Facility"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowFacilityForm(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {!showFacilityForm && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFacilityForm(true)}
-                className="mb-4"
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add Another Facility
-              </Button>
-            )}
-
-            {facilityCount > 0 && (
-              <p className="text-sm text-muted-foreground mb-4">
-                {facilityCount} additional facilit
-                {facilityCount === 1 ? "y" : "ies"} added.
-              </p>
-            )}
-
-            <ExplanationCard>
-              Facilities help the training planner recommend routes suited
-              to your terrain — road runs, trail runs, track sessions, or
-              pool workouts. The default &ldquo;Road Running&rdquo; facility
-              ensures plan recommendations match your primary training
-              surface.
-            </ExplanationCard>
-
-            <StepFooter
-              onBack={() => setCurrentStep(1)}
-              onNext={() => setCurrentStep(3)}
-              canNext
-            />
-          </div>
-        );
-
-      // ── Step 3: Goals ──
-      case 3:
         return (
           <div>
             <div className="text-center mb-8">
@@ -1165,19 +994,19 @@ export default function OnboardingPage() {
             </ExplanationCard>
 
             <StepFooter
-              onBack={() => setCurrentStep(2)}
-              onNext={() => setCurrentStep(4)}
+              onBack={() => setCurrentStep(1)}
+              onNext={() => setCurrentStep(3)}
               onSkip={() => {
                 setGoalSaved(true);
-                setCurrentStep(4);
+                setCurrentStep(3);
               }}
               canNext
             />
           </div>
         );
 
-      // ── Step 4: Body Metrics ──
-      case 4:
+      // ── Step 3: Body Metrics ──
+      case 3:
         return (
           <div>
             <div className="text-center mb-8">
@@ -1293,96 +1122,19 @@ export default function OnboardingPage() {
             </ExplanationCard>
 
             <StepFooter
-              onBack={() => setCurrentStep(3)}
-              onNext={() => setCurrentStep(5)}
+              onBack={() => setCurrentStep(2)}
+              onNext={() => setCurrentStep(4)}
               onSkip={() => {
                 setMetricSaved(true);
-                setCurrentStep(5);
+                setCurrentStep(4);
               }}
               canNext
             />
           </div>
         );
 
-      // ── Step 5: Schedule ──
-      case 5:
-        return (
-          <div>
-            <div className="text-center mb-8">
-              <CalendarDays className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">
-                Set Your Weekly Schedule
-              </h1>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Tell the planner when you&apos;re available to train.
-                We&apos;ve added a default slot for every day.
-              </p>
-            </div>
-
-            <div className="space-y-3 mb-4">
-              {DAY_NAMES.map((dayName, dayIndex) => {
-                const slot = scheduleSlots.find((s) => s.day === dayIndex);
-                if (!slot) return null;
-                return (
-                  <Card key={dayIndex}>
-                    <CardContent className="p-3 flex items-center gap-3">
-                      <span className="font-medium text-sm w-24 shrink-0">
-                        {dayName.slice(0, 3)}
-                      </span>
-                      <div className="flex items-center gap-2 flex-1">
-                        <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <Input
-                          type="time"
-                          value={slot.start}
-                          onChange={(e) =>
-                            updateSlot(dayIndex, "start", e.target.value)
-                          }
-                          className="w-28"
-                        />
-                        <span className="text-muted-foreground">&ndash;</span>
-                        <Input
-                          type="time"
-                          value={slot.end}
-                          onChange={(e) =>
-                            updateSlot(dayIndex, "end", e.target.value)
-                          }
-                          className="w-28"
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0 text-destructive h-8 w-8"
-                        onClick={() => removeSlot(dayIndex)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Remove {dayName}</span>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            <ExplanationCard>
-              The training planner needs to know when you&apos;re available
-              to schedule workouts. We&apos;ve added a default 6-7 AM slot
-              for every day — adjust to match your real availability. You
-              can add more slots per day from Settings later.
-            </ExplanationCard>
-
-            <StepFooter
-              onBack={() => setCurrentStep(4)}
-              onNext={handleSaveSchedule}
-              canNext={scheduleSlots.length > 0}
-              nextLabel="Save Schedule"
-              saving={scheduleSaving}
-            />
-          </div>
-        );
-
-      // ── Step 6: Completion ──
-      case 6:
+      // ── Step 4: Completion ──
+      case 4:
         return (
           <div className="text-center">
             <div className="mb-6">
@@ -1412,23 +1164,19 @@ export default function OnboardingPage() {
               <SummaryItem
                 icon={Check}
                 label="Review Schedule"
-                detail={`${DAY_NAMES[Number(reviewDay)]} at ${reviewTime}`}
-                done
-              />
-              <SummaryItem
-                icon={Check}
-                label="Analysis Frequency"
                 detail={
-                  analysisTrigger === "activity_count"
-                    ? `Every ${analysisTriggerValue} activities`
-                    : analysisTrigger
+                  analysisTrigger === "weekly"
+                    ? `${DAY_NAMES[Number(reviewDay)]} at ${reviewTime}`
+                    : analysisTrigger === "monthly"
+                      ? `Day ${reviewDayOfMonth} at ${reviewTime}`
+                      : analysisTrigger === "daily"
+                        ? `Daily at ${reviewTime}`
+                        : analysisTrigger === "every_n_days"
+                          ? `Every ${analysisTriggerValue} days at ${reviewTime}`
+                          : analysisTrigger === "activity_count"
+                            ? `After every ${analysisTriggerValue} activities`
+                            : analysisTrigger
                 }
-                done
-              />
-              <SummaryItem
-                icon={Check}
-                label="Facility"
-                detail='Default "Road Running" + yours'
                 done
               />
               <SummaryItem
@@ -1442,12 +1190,6 @@ export default function OnboardingPage() {
                 label="Body Metrics"
                 detail={metricSaved ? "Logged today" : "Skipped"}
                 done={metricSaved}
-              />
-              <SummaryItem
-                icon={Check}
-                label="Training Schedule"
-                detail={`${scheduleSlots.length} day${scheduleSlots.length > 1 ? "s" : ""} configured`}
-                done
               />
             </div>
 
@@ -1476,12 +1218,12 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Progress indicator */}
-        {currentStep < 6 && <StepIndicator current={currentStep} steps={STEPS} />}
+        {currentStep < 4 && <StepIndicator current={currentStep} steps={STEPS} />}
 
         <div className="min-h-[400px]">{renderStep()}</div>
 
         {/* Dismiss link — shown on all wizard steps except completion */}
-        {currentStep < 6 && (
+        {currentStep < 4 && (
           <div className="text-center mt-6">
             <button
               onClick={handleDismiss}

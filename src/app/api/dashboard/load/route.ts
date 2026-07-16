@@ -59,7 +59,6 @@ export async function GET() {
     pmcLogs,
     goals,
     bodyMetrics,
-    availabilityCount,
     fatigueRecentLogs,
     fatigueOlderLogs,
     latestPlan,
@@ -115,8 +114,6 @@ export async function GET() {
       take: 14,
       select: { recordedAt: true, restingHr: true, weightKg: true },
     }),
-    // Availability count
-    prisma.trainingAvailability.count({ where: { userId: session.user.id } }),
     // Fatigue — recent logs (2 weeks)
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: twoWeeksAgo() }, mergedIntoId: null },
@@ -281,11 +278,11 @@ export async function GET() {
 
   // Consistency
   const weekLogsCount = recentLogs.length;
-  const expectedSessions = Math.max(1, availabilityCount);
+  const expectedSessions = 6; // Default expectation without structured availability
   const consistency = Math.round((weekLogsCount / expectedSessions) * 100);
   if (consistency < 50) {
-    signals.push(`Low consistency (${consistency}% of planned sessions)`);
-    recommendations.push(`You've completed ${weekLogsCount} of ~${expectedSessions} planned sessions this week.`);
+    signals.push(`Low consistency (${consistency}% of expected sessions)`);
+    recommendations.push(`You've completed ${weekLogsCount} of ~${expectedSessions} expected sessions this week.`);
   }
 
   // Weight stability

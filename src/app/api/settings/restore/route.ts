@@ -84,9 +84,7 @@ export async function POST(request: NextRequest) {
   const activities = readJson(tmpDir, "activities.json");
   const goals = readJson(tmpDir, "goals.json");
   const duplicateGroups = readJson(tmpDir, "duplicate_groups.json");
-  const facilities = readJson(tmpDir, "facilities.json");
   const bodyMetrics = readJson(tmpDir, "body_metrics.json");
-  const schedule = readJson(tmpDir, "schedule.json");
   const weeklyAssessments = readJson(tmpDir, "weekly_assessments.json");
   const weeklyPlans = readJson(tmpDir, "weekly_plans.json");
   const fatigueAlerts = readJson(tmpDir, "fatigue_alerts.json");
@@ -128,8 +126,10 @@ export async function POST(request: NextRequest) {
           data: {
             reviewDayOfWeek: s.reviewDayOfWeek ?? 0,
             reviewTime: s.reviewTime ?? "18:00",
+            reviewDayOfMonth: s.reviewDayOfMonth ?? 1,
             analysisTrigger: s.analysisTrigger ?? "weekly",
             analysisTriggerValue: s.analysisTriggerValue ?? 1,
+            trainingContext: s.trainingContext ?? null,
             llmProvider: s.llmProvider ?? null,
             llmBaseUrl: s.llmBaseUrl ?? null,
             llmModel: s.llmModel ?? null,
@@ -139,13 +139,10 @@ export async function POST(request: NextRequest) {
       }
 
       // ── 5. Clear existing user data ────────────────────────────────
-      await tx.trainingLogFacility.deleteMany({ where: { trainingLog: { userId } } });
       await tx.trainingLog.deleteMany({ where: { userId } });
       await tx.duplicateGroup.deleteMany({ where: { userId } });
       await tx.raceGoal.deleteMany({ where: { userId } });
-      await tx.trainingFacility.deleteMany({ where: { userId } });
       await tx.bodyMetric.deleteMany({ where: { userId } });
-      await tx.trainingAvailability.deleteMany({ where: { userId } });
       await tx.weeklyAssessment.deleteMany({ where: { userId } });
       await tx.weeklyPlan.deleteMany({ where: { userId } });
       await tx.fatigueAlert.deleteMany({ where: { userId } });
@@ -155,29 +152,10 @@ export async function POST(request: NextRequest) {
       await tx.garminSession.deleteMany({ where: { userId } });
 
       // ── 6. Build ID maps for entities with foreign keys ──────────
-      const facilityIdMap = buildIdMap(facilities.map((f: any) => f.id));
       const duplicateGroupIdMap = buildIdMap(duplicateGroups.map((g: any) => g.id));
       const trainingLogIdMap = buildIdMap(activities.map((l: any) => l.id));
 
-      // ── 7. Import TrainingFacilities ────────────────────────────
-      if (facilities.length > 0) {
-        await tx.trainingFacility.createMany({
-          data: facilities.map((f: any) => ({
-            id: facilityIdMap.get(f.id)!,
-            userId,
-            name: f.name,
-            type: f.type,
-            distanceMeters: f.distanceMeters ?? null,
-            elevationGainMeters: f.elevationGainMeters ?? null,
-            surface: f.surface ?? null,
-            notes: f.notes ?? null,
-            createdAt: new Date(f.createdAt),
-          })),
-        });
-        counts.trainingFacilities = facilities.length;
-      }
-
-      // ── 8. Import DuplicateGroups ───────────────────────────────
+      // ── 7. Import DuplicateGroups ───────────────────────────────
       if (duplicateGroups.length > 0) {
         await tx.duplicateGroup.createMany({
           data: duplicateGroups.map((g: any) => ({
@@ -226,22 +204,7 @@ export async function POST(request: NextRequest) {
         counts.trainingLogs = activities.length;
       }
 
-      // ── 10. Import TrainingLogFacility join records ─────────────
-      const tlfRecords: { trainingLogId: string; facilityId: string; assignedAt: Date }[] = [];
-      for (const l of activities) {
-        const newLogId = trainingLogIdMap.get(l.id);
-        if (!newLogId) continue;
-        for (const oldFacilityId of l.facilityIds ?? []) {
-          const newFacilityId = facilityIdMap.get(oldFacilityId);
-          if (!newFacilityId) continue;
-          tlfRecords.push({ trainingLogId: newLogId, facilityId: newFacilityId, assignedAt: new Date() });
-        }
-      }
-      if (tlfRecords.length > 0) {
-        await tx.trainingLogFacility.createMany({ data: tlfRecords });
-      }
-
-      // ── 11. Import RaceGoals ─────────────────────────────────────
+      // ── 10. Import RaceGoals ─────────────────────────────────────
       if (goals.length > 0) {
         await tx.raceGoal.createMany({
           data: goals.map((g: any) => ({
@@ -271,21 +234,7 @@ export async function POST(request: NextRequest) {
         counts.bodyMetrics = bodyMetrics.length;
       }
 
-      // ── 13. Import TrainingAvailability ──────────────────────────
-      if (schedule.length > 0) {
-        await tx.trainingAvailability.createMany({
-          data: schedule.map((a: any) => ({
-            id: uuid(), userId,
-            dayOfWeek: a.dayOfWeek, startTime: a.startTime, endTime: a.endTime,
-            facilityIds: (a.facilityIds ?? []).map((fid: string) => facilityIdMap.get(fid) ?? fid),
-            notes: a.notes ?? null,
-            effectiveFrom: new Date(a.effectiveFrom), createdAt: new Date(a.createdAt),
-          })),
-        });
-        counts.trainingAvailability = schedule.length;
-      }
-
-      // ── 14. Import WeeklyAssessments ─────────────────────────────
+      // ── 13. Import WeeklyAssessments ─────────────────────────────
       if (weeklyAssessments.length > 0) {
         await tx.weeklyAssessment.createMany({
           data: weeklyAssessments.map((a: any) => ({

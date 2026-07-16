@@ -52,7 +52,7 @@ export default function SettingsGoalDetailPage() {
           )}
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card>
               <CardContent className="py-4 text-center">
                 <Route className="h-5 w-5 mx-auto text-primary mb-1" />

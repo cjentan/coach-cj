@@ -13,19 +13,6 @@ export interface PlanInput {
   recentVolumeByWeek: number[]; // last 4 weeks, meters
   recentElevationByWeek: number[];
   recentDurationByWeek: number[]; // seconds
-  availability: Array<{
-    dayOfWeek: number;
-    startTime: string;
-    endTime: string;
-    facilityIds: string[];
-  }>;
-  facilities: Array<{
-    id: string;
-    name: string;
-    type: string;
-    distanceMeters: number | null;
-    elevationGainMeters: number | null;
-  }>;
   consistencyScore: number; // 0-1
   fatigueSeverity: string | null; // "low" | "medium" | "high" | "critical" | null
 }
@@ -37,7 +24,6 @@ export interface PlannedSession {
   targetDistance: number | null;
   targetElevation: number | null;
   targetDuration: number; // seconds
-  facility: string | null;
 }
 
 export interface PlanOutput {
@@ -95,111 +81,88 @@ export function generateWeeklyPlan(input: PlanInput): PlanOutput {
   const targetVolume = Math.round(requiredWeeklyVolume * recoveryFactor);
   const targetElevation = Math.round(requiredWeeklyElevation * recoveryFactor);
 
-  // Generate sessions based on availability
+  // Generate sessions — 6 training days (Mon–Sat) + 1 rest day (Sun)
   const sessions: PlannedSession[] = [];
-  const sortedAvailability = [...input.availability].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
-
-  // Find long-run day (day with most available time)
-  const longRunDay = [...sortedAvailability].sort((a, b) => {
-    const durA = timeToMinutes(a.endTime) - timeToMinutes(a.startTime);
-    const durB = timeToMinutes(b.endTime) - timeToMinutes(b.startTime);
-    return durB - durA;
-  })[0];
+  const trainingDays = [1, 2, 3, 4, 5, 6];
 
   let remainingVolume = targetVolume;
   let remainingElevation = targetElevation;
+  const baseVolumePerDay = Math.round(targetVolume / trainingDays.length);
 
-  for (const slot of sortedAvailability) {
-    const slotDurationMin = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime);
-    const slotFacilities = input.facilities.filter((f) => slot.facilityIds.includes(f.id));
-
-    const hasTrail = slotFacilities.some((f) => f.type === "trail");
-    const hasTrainer = slotFacilities.some((f) => f.type === "trainer");
-    const hasRoad = slotFacilities.some((f) => f.type === "road");
-    const hasElevation = slotFacilities.some((f) => (f.elevationGainMeters || 0) > 100);
-
-    let sessionType = "rest";
-    let description = "";
-    let targetDist: number | null = null;
-    let targetVert: number | null = null;
-    let facilityName: string | null = null;
-
-    if (isFatigued && sessions.length >= sortedAvailability.length * 0.5) {
-      // Skip second half of available slots if fatigued
+  for (const dayOfWeek of trainingDays) {
+    if (isFatigued && sessions.length >= Math.ceil(trainingDays.length * 0.5)) {
       sessions.push({
-        dayOfWeek: slot.dayOfWeek,
+        dayOfWeek,
         type: "rest",
         description: "Rest / Recovery",
         targetDistance: null,
         targetElevation: null,
         targetDuration: 0,
-        facility: null,
       });
       continue;
     }
 
-    if (slot.dayOfWeek === longRunDay?.dayOfWeek && remainingVolume > 5000) {
-      // Long run day
-      const longRunDist = Math.min(remainingVolume * 0.4, slotDurationMin * 150); // ~150m/min running pace
-      sessionType = "long_run";
-      description = hasTrail ? "Long trail run" : "Long run";
-      targetDist = Math.round(longRunDist);
-      targetVert = hasElevation ? Math.round(remainingElevation * 0.35) : Math.round(remainingElevation * 0.15);
-      facilityName = hasTrail ? slotFacilities.find((f) => f.type === "trail")?.name || null : slotFacilities[0]?.name || null;
-      remainingVolume -= longRunDist;
-      remainingElevation -= targetVert || 0;
-    } else if (hasTrainer && sessions.filter((s) => s.type === "intervals").length < 2) {
-      // Trainer intervals
-      sessionType = "intervals";
-      description = isFatigued ? "Easy spin" : "Power trainer intervals";
-      targetDist = null;
-      targetVert = null;
-      facilityName = slotFacilities.find((f) => f.type === "trainer")?.name || null;
-      remainingVolume -= 5000;
-    } else if (hasElevation && remainingElevation > 200 && !isFatigued) {
-      // Hill repeats
-      sessionType = "hill_repeats";
+    let type: string;
+    let description: string;
+    let targetDist: number;
+    let targetVert: number;
+
+    if (dayOfWeek === 6 && remainingVolume > 5000) {
+      // Long run on Saturday
+      type = "long_run";
+      description = "Long run";
+      targetDist = Math.round(Math.min(remainingVolume * 0.4, 27000));
+      targetVert = Math.round(remainingElevation * 0.35);
+    } else if (!isFatigued && sessions.filter(s => s.type === "intervals").length === 0) {
+      type = "intervals";
+      description = "Speedwork / intervals";
+      targetDist = Math.round(Math.min(baseVolumePerDay, 12000));
+      targetVert = 0;
+    } else if (!isFatigued && remainingElevation > 200 && sessions.filter(s => s.type === "hill_repeats").length === 0) {
+      type = "hill_repeats";
       description = "Hill repeats";
       targetDist = Math.round(Math.min(remainingVolume * 0.2, 15000));
       targetVert = Math.round(Math.min(remainingElevation * 0.25, 800));
-      facilityName = slotFacilities.find((f) => (f.elevationGainMeters || 0) > 100)?.name || null;
-      remainingVolume -= targetDist;
-      remainingElevation -= targetVert;
-    } else if (remainingVolume > 3000) {
-      // Easy/tempo run
-      sessionType = isFatigued ? "easy" : "tempo";
-      description = isFatigued ? "Easy recovery run" : (sessions.filter((s) => s.type === "tempo").length === 0 ? "Tempo run" : "Easy run");
-      targetDist = Math.round(Math.min(remainingVolume * 0.15, 15000));
-      targetVert = hasElevation ? Math.round(remainingElevation * 0.1) : 0;
-      facilityName = slotFacilities[0]?.name || null;
-      remainingVolume -= targetDist;
-      remainingElevation -= targetVert;
+    } else if (!isFatigued && sessions.filter(s => s.type === "tempo").length === 0) {
+      type = "tempo";
+      description = "Tempo run";
+      targetDist = Math.round(Math.min(baseVolumePerDay, 16000));
+      targetVert = Math.round(remainingElevation * 0.1);
+    } else {
+      type = "easy";
+      description = isFatigued ? "Easy recovery run" : "Easy run";
+      targetDist = Math.round(Math.min(baseVolumePerDay, 15000));
+      targetVert = 0;
     }
 
+    remainingVolume -= targetDist;
+    remainingElevation -= targetVert;
+
+    // Estimate duration based on pace (~5:00/km = 200 m/min for runs, fixed for others)
+    const targetDuration = type === "intervals" || type === "hill_repeats"
+      ? 3600
+      : Math.max(1800, Math.round((targetDist / 200) * 60));
+
     sessions.push({
-      dayOfWeek: slot.dayOfWeek,
-      type: sessionType,
+      dayOfWeek,
+      type,
       description,
       targetDistance: targetDist,
       targetElevation: targetVert,
-      targetDuration: Math.round(slotDurationMin * 60),
-      facility: facilityName,
+      targetDuration,
     });
   }
 
-  // Fill rest days
-  for (let day = 0; day <= 6; day++) {
-    if (!sessions.some((s) => s.dayOfWeek === day)) {
-      sessions.push({
-        dayOfWeek: day,
-        type: "rest",
-        description: "Rest",
-        targetDistance: null,
-        targetElevation: null,
-        targetDuration: 0,
-        facility: null,
-      });
-    }
+  // Fill rest day (Sunday)
+  if (!sessions.some((s) => s.dayOfWeek === 0)) {
+    sessions.push({
+      dayOfWeek: 0,
+      type: "rest",
+      description: "Rest",
+      targetDistance: null,
+      targetElevation: null,
+      targetDuration: 0,
+    });
   }
 
   sessions.sort((a, b) => a.dayOfWeek - b.dayOfWeek);
@@ -235,9 +198,4 @@ export function generateWeeklyPlan(input: PlanInput): PlanOutput {
     adjustments,
     trajectoryAssessment,
   };
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
 }

@@ -1,14 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Plus, Activity, Bike, Waves, Mountain, Clock, Heart, Route, Filter, MessageSquare, Trash2 } from "lucide-react";
+import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, Clock, Heart, Route, MessageSquare, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistance, formatDuration } from "@/lib/utils";
 import ImportModal from "@/components/training/import-modal";
 
@@ -24,31 +21,14 @@ type MonthlyStat = {
   activityCount: number; totalDistance: number; totalElevation: number;
 };
 
-type ActivityType = "all" | "run" | "ride" | "swim" | "hike";
-
-const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
-  { value: "all", label: "All Activities" },
-  { value: "run", label: "Run" },
-  { value: "ride", label: "Ride" },
-  { value: "swim", label: "Swim" },
-  { value: "hike", label: "Hike" },
-];
-
-type ActivitySource = "all" | "strava" | "garmin" | "watch_push" | "manual";
-
-const ACTIVITY_SOURCES: { value: ActivitySource; label: string }[] = [
-  { value: "all", label: "All Sources" },
-  { value: "strava", label: "Strava" },
-  { value: "garmin", label: "Garmin" },
-  { value: "watch_push", label: "Watch Push" },
-  { value: "manual", label: "Manual" },
-];
+// ── Constants ──────────────────────────────────────────────────────────
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  run: <Activity className="h-4 w-4" />,
+  run: <SportShoe className="h-4 w-4" />,
   ride: <Bike className="h-4 w-4" />,
   swim: <Waves className="h-4 w-4" />,
   hike: <Mountain className="h-4 w-4" />,
+  walk: <Footprints className="h-4 w-4" />,
 };
 
 const TYPE_BADGE_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
@@ -81,7 +61,16 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-const PAGE_SIZE = 100;
+const TYPE_OPTIONS = ["all", "run", "ride", "swim", "hike", "workout", "walk", "other"] as const;
+const TYPE_LABELS_SHORT: Record<string, string> = {
+  all: "All", run: "Run", ride: "Ride", swim: "Swim", hike: "Hike",
+  workout: "Workout", walk: "Walk", other: "Other",
+};
+
+const SOURCE_OPTIONS = ["all", "strava", "garmin", "watch_push", "manual"] as const;
+const SOURCE_LABELS_SHORT: Record<string, string> = {
+  all: "All", strava: "Strava", garmin: "Garmin", watch_push: "Watch", manual: "Manual",
+};
 
 // ── Month helpers ──────────────────────────────────────────────────────
 
@@ -99,7 +88,48 @@ function getMonthRange(key: string): { from: string; to: string } {
   };
 }
 
-// Determine default month (current)
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  // Days to subtract to get to Monday: Sunday=6, Monday=0, Tuesday=1, ..., Saturday=5
+  const daysToSubtract = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - daysToSubtract);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getWeekLabel(date: Date): string {
+  const start = getWeekStart(date);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function groupLogsByWeek(logs: ActivityLog[]): { weekKey: string; label: string; logs: ActivityLog[] }[] {
+  const groups: Record<string, ActivityLog[]> = {};
+  for (const log of logs) {
+    const weekStart = getWeekStart(new Date(log.startDate));
+    const key = toLocalDateStr(weekStart);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(log);
+  }
+  return Object.entries(groups)
+    .map(([weekKey, weekLogs]) => ({
+      weekKey,
+      label: getWeekLabel(new Date(weekKey + "T00:00:00")),
+      logs: weekLogs.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()),
+    }))
+    .sort((a, b) => new Date(b.weekKey + "T00:00:00").getTime() - new Date(a.weekKey + "T00:00:00").getTime());
+}
+
 const now = new Date();
 const defaultMonthKey = getMonthKey(now);
 const defaultRange = getMonthRange(defaultMonthKey);
@@ -107,140 +137,133 @@ const defaultRange = getMonthRange(defaultMonthKey);
 export default function TrainingLogsPage() {
   const [allLogs, setAllLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [activityFilter, setActivityFilter] = useState<ActivityType>("all");
-  const [subTypeFilter, setSubTypeFilter] = useState<string>("all");
-  const [sourceFilter, setSourceFilter] = useState<ActivitySource>("all");
-  const [dateFrom, setDateFrom] = useState(defaultRange.from);
-  const [dateTo, setDateTo] = useState(defaultRange.to);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [avgTypeFilter, setAvgTypeFilter] = useState("all");
+  const [avgSourceFilter, setAvgSourceFilter] = useState("all");
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
   // Import modal
   const [showImportModal, setShowImportModal] = useState(false);
 
-  function handleImportComplete() {
-    loadLogs();
-    fetch("/api/training-logs/monthly-stats")
-      .then((r) => r.json())
-      .then((data) => { if (data.months) setMonthlyStats(data.months); })
-      .catch(() => {});
-  }
-
   // Monthly stats & selection
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStat[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonthKey);
+  const [dateFrom, setDateFrom] = useState(defaultRange.from);
+  const [dateTo, setDateTo] = useState(defaultRange.to);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [canGoBack, setCanGoBack] = useState(true);
+  const [jumpMonths, setJumpMonths] = useState(6);
 
-  // Load monthly stats on mount
+  // Detect mobile to adjust how many months we jump per arrow click
   useEffect(() => {
-    fetch("/api/training-logs/monthly-stats")
-      .then((r) => r.json())
-      .then((data) => { if (data.months) setMonthlyStats(data.months); })
-      .catch(() => {});
+    const mq = window.matchMedia("(max-width: 767px)");
+    setJumpMonths(mq.matches ? 3 : 6);
+    const handler = (e: MediaQueryListEvent) => setJumpMonths(e.matches ? 3 : 6);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // When dateFrom/dateTo change from user action (not month click),
-  // deselect the month if the range no longer matches.
-  // We track the last month-set range to distinguish user edits.
-  const [lastMonthRange, setLastMonthRange] = useState<{ from: string; to: string } | null>(defaultRange);
+  // ── Filter options from API ──────────────────────────
+  const [filterOptions, setFilterOptions] = useState<{
+    types: string[]; sources: string[]; subTypes: string[];
+  }>({ types: [], sources: [], subTypes: [] });
+
+  function loadAll() {
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/training-logs?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
+      fetch(`/api/training-logs/monthly-stats?offset=${monthOffset}`).then(r => r.json()),
+      fetch("/api/training-logs/filter-options").then(r => r.json()),
+    ]).then(([logsData, stats, opts]) => {
+      if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
+      if (stats.months) { setMonthlyStats(stats.months); setCanGoBack(stats.canGoBack ?? true); }
+      if (opts.types) setFilterOptions(opts);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  const [total, setTotal] = useState(0);
+
+  // Load on mount
+  useEffect(() => { loadAll(); }, []);
+
+  // Reload when filters or month change
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/training-logs?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
+      fetch(`/api/training-logs/monthly-stats?offset=${monthOffset}`).then(r => r.json()),
+    ]).then(([logsData, stats]) => {
+      if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
+      if (stats.months) { setMonthlyStats(stats.months); setCanGoBack(stats.canGoBack ?? true); }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [avgTypeFilter, avgSourceFilter, dateFrom, dateTo, monthOffset]);
+
+  function handleImportComplete() {
+    loadAll();
+  }
 
   function handleMonthClick(key: string) {
     setSelectedMonth(key);
     const range = getMonthRange(key);
-    setLastMonthRange(range);
     setDateFrom(range.from);
     setDateTo(range.to);
+    setExpandedWeeks(new Set());
   }
 
-  // If user manually edits dates, deselect month
-  function handleDateFromChange(value: string) {
-    setDateFrom(value);
-    if (lastMonthRange && value !== lastMonthRange.from) {
-      setSelectedMonth("");
-    }
-  }
-
-  function handleDateToChange(value: string) {
-    setDateTo(value);
-    if (lastMonthRange && value !== lastMonthRange.to) {
-      setSelectedMonth("");
-    }
-  }
-
-  async function handleDelete(id: string, name: string, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm(`Delete "${name}"?\n\nThis cannot be undone.`)) return;
-    setDeleting(id);
-    try {
-      await fetch(`/api/training-logs/${id}`, { method: "DELETE" });
-      setAllLogs((prev) => prev.filter((l) => l.id !== id));
-      setTotal((prev) => prev - 1);
-    } catch {
-      alert("Failed to delete. Please try again.");
-    }
-    setDeleting(null);
-  }
-
-  function buildFilterParams(offsetVal: number) {
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offsetVal) });
-    if (activityFilter !== "all") params.set("type", activityFilter);
-    if (subTypeFilter !== "all") params.set("subType", subTypeFilter);
-    if (sourceFilter !== "all") params.set("source", sourceFilter);
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
-    return params;
-  }
-
-  async function loadLogs() {
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/training-logs?${buildFilterParams(0)}`);
-      const data = await r.json();
-      if (data.logs) {
-        setAllLogs(data.logs);
-        setTotal(data.total);
-        setOffset(data.logs.length);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadMore() {
-    setLoadingMore(true);
-    try {
-      const r = await fetch(`/api/training-logs?${buildFilterParams(offset)}`);
-      const data = await r.json();
-      if (data.logs) {
-        setAllLogs((prev) => [...prev, ...data.logs]);
-        setOffset((prev) => prev + data.logs.length);
-      }
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
-  useEffect(() => { loadLogs(); }, [activityFilter, subTypeFilter, sourceFilter, dateFrom, dateTo]);
-
-  const hasActiveFilters = activityFilter !== "all" || subTypeFilter !== "all" || sourceFilter !== "all";
-
-  function clearFilters() {
-    setActivityFilter("all");
-    setSubTypeFilter("all");
-    setSourceFilter("all");
-    // Reset to current month
-    const range = getMonthRange(defaultMonthKey);
-    setSelectedMonth(defaultMonthKey);
-    setLastMonthRange(range);
+  function goBackMonths() {
+    const newOffset = monthOffset + jumpMonths;
+    setMonthOffset(newOffset);
+    // Auto-select the most recent month in the new window after data loads
+    const latestKey = getMonthKey(new Date(now.getFullYear(), now.getMonth() - newOffset, 1));
+    const range = getMonthRange(latestKey);
+    setSelectedMonth(latestKey);
     setDateFrom(range.from);
     setDateTo(range.to);
+    setExpandedWeeks(new Set());
   }
 
-  // ── Render ──────────────────────────────────────────────────────────
+  function goForwardMonths() {
+    const newOffset = Math.max(0, monthOffset - jumpMonths);
+    setMonthOffset(newOffset);
+    if (newOffset === 0) {
+      const range = getMonthRange(defaultMonthKey);
+      setSelectedMonth(defaultMonthKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    } else {
+      const latestKey = getMonthKey(new Date(now.getFullYear(), now.getMonth() - newOffset, 1));
+      const range = getMonthRange(latestKey);
+      setSelectedMonth(latestKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    }
+    setExpandedWeeks(new Set());
+  }
 
-  if (loading) return (
+  function toggleWeek(key: string) {
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // ── Group logs by week ───────────────────────────────
+  const weekGroups = useMemo(() => groupLogsByWeek(allLogs), [allLogs]);
+
+  // Expand all weeks by default when month changes
+  useEffect(() => {
+    if (weekGroups.length > 0 && expandedWeeks.size === 0) {
+      setExpandedWeeks(new Set(weekGroups.map(w => w.weekKey)));
+    }
+  }, [weekGroups.length]);
+
+  // ── Active month stats ───────────────────────────────
+  const activeMonth = monthlyStats.find((m) => m.key === selectedMonth);
+
+  // ── Render ───────────────────────────────────────────
+
+  if (loading && allLogs.length === 0) return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-2">Training Logs</h1>
       <div className="animate-pulse space-y-3 mt-8">
@@ -258,15 +281,14 @@ export default function TrainingLogsPage() {
             <Activity className="h-7 w-7 text-primary" />
             Training Logs
           </h1>
-          <p className="text-muted-foreground mt-1">
-            {total > 0
-              ? `${total} activit${total !== 1 ? "ies" : "y"}`
-              : "No activities found"}
-            {selectedMonth && monthlyStats.find((m) => m.key === selectedMonth) && (() => {
-              const s = monthlyStats.find((m) => m.key === selectedMonth)!;
-              return ` in ${s.label} — ${formatDistance(s.totalDistance)} · ${Math.round(s.totalElevation).toLocaleString()}m ↑`;
-            })()}
-          </p>
+          {activeMonth && (
+            <p className="text-muted-foreground mt-1">
+              {activeMonth.activityCount} activit{activeMonth.activityCount !== 1 ? "ies" : ""}
+              {activeMonth.activityCount > 0 && (
+                <> — {formatDistance(activeMonth.totalDistance)} · {Math.round(activeMonth.totalElevation).toLocaleString()}m ↑</>
+              )}
+            </p>
+          )}
         </div>
         <Button onClick={() => setShowImportModal(true)} className="shrink-0 mt-1">
           <Plus className="h-4 w-4 mr-2" /> Import
@@ -275,148 +297,202 @@ export default function TrainingLogsPage() {
 
       {/* ═══ MONTH SELECTOR ═══ */}
       {monthlyStats.length > 0 && (
-        <div className="mb-6">
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-            {monthlyStats.map((month) => {
+        <div className="mb-5">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={goBackMonths}
+              className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-border hover:bg-muted transition-colors"
+              title="Older months"
+            >
+              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 flex-1">
+            {monthlyStats.map((month, i) => {
+              // On mobile only show the 3 most recent months (last 3 in the array)
+              const showOnMobile = i >= 3;
               const isActive = selectedMonth === month.key;
               return (
                 <button
                   key={month.key}
+                  ref={(el) => {
+                    if (el && isActive) {
+                      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                    }
+                  }}
                   onClick={() => handleMonthClick(month.key)}
-                  className={`flex flex-col items-center rounded-xl border px-4 py-2.5 text-xs shrink-0 min-w-[120px] transition-all ${
+                  className={`flex flex-col items-center rounded-xl border px-3.5 py-2 text-xs shrink-0 min-w-[105px] transition-all ${showOnMobile ? "" : "hidden md:flex"} ${
                     isActive
                       ? "bg-primary text-primary-foreground border-primary shadow-sm"
                       : "bg-card hover:bg-muted/70 border-border text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <span className={`font-semibold text-sm mb-1.5 ${isActive ? "text-primary-foreground" : "text-foreground"}`}>
+                  <span className={`font-semibold text-sm ${isActive ? "text-primary-foreground" : "text-foreground"}`}>
                     {month.label}
                   </span>
-                  <span className={isActive ? "opacity-90" : ""}>
-                    {month.activityCount} activit{month.activityCount !== 1 ? "ies" : "y"}
-                  </span>
-                  <span className={isActive ? "opacity-90" : ""}>
-                    {formatDistance(month.totalDistance)}
-                  </span>
-                  <span className={isActive ? "opacity-90" : ""}>
-                    {Math.round(month.totalElevation).toLocaleString()}m
-                  </span>
+                  <span className="leading-tight">{month.activityCount} act.</span>
+                  <span className="leading-tight">{formatDistance(month.totalDistance)}</span>
                 </button>
               );
             })}
+            </div>
+            <button
+              onClick={goForwardMonths}
+              disabled={monthOffset === 0}
+              className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              title="Newer months"
+            >
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* ═══ FILTERS ═══ */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</CardTitle>
-            {(hasActiveFilters) && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Clear Filters
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid sm:grid-cols-5 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Activity Type</Label>
-              <Select value={activityFilter} onValueChange={(v) => setActivityFilter(v as ActivityType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ACTIVITY_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Sub-Type</Label>
-              <Select value={subTypeFilter} onValueChange={setSubTypeFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sub-Types</SelectItem>
-                  {Object.entries(SUB_TYPE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Data Source</Label>
-              <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as ActivitySource)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ACTIVITY_SOURCES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">From</Label>
-              <Input type="date" value={dateFrom} onChange={(e) => handleDateFromChange(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">To</Label>
-              <Input type="date" value={dateTo} onChange={(e) => handleDateToChange(e.target.value)} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ═══ FILTER CHIPS ═══ */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1">Type</span>
+        {TYPE_OPTIONS.filter(t => t === "all" || filterOptions.types.includes(t) || filterOptions.types.length === 0).map((t) => (
+          <button
+            key={t}
+            onClick={() => setAvgTypeFilter(t)}
+            className={`text-xs rounded-full px-3 py-1 border transition-all ${
+              avgTypeFilter === t
+                ? "bg-foreground text-background border-foreground font-medium"
+                : "bg-card text-muted-foreground border-border hover:text-foreground hover:border-foreground/30"
+            }`}
+          >
+            {TYPE_LABELS_SHORT[t]}
+          </button>
+        ))}
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1 ml-2">Source</span>
+        {SOURCE_OPTIONS.filter(s => s === "all" || filterOptions.sources.includes(s) || filterOptions.sources.length === 0).map((s) => (
+          <button
+            key={s}
+            onClick={() => setAvgSourceFilter(s)}
+            className={`text-xs rounded-full px-3 py-1 border transition-all ${
+              avgSourceFilter === s
+                ? "bg-foreground text-background border-foreground font-medium"
+                : "bg-card text-muted-foreground border-border hover:text-foreground hover:border-foreground/30"
+            }`}
+          >
+            {SOURCE_LABELS_SHORT[s]}
+          </button>
+        ))}
+        {(avgTypeFilter !== "all" || avgSourceFilter !== "all") && (
+          <button
+            onClick={() => { setAvgTypeFilter("all"); setAvgSourceFilter("all"); }}
+            className="text-xs text-muted-foreground underline hover:text-foreground ml-1"
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
-      {/* ═══ ACTIVITY LIST ═══ */}
+      {/* ═══ WEEK-GROUPED ACTIVITIES ═══ */}
       {allLogs.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
           <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">{loadingMore ? "Loading more activities..." : "No activities match your filters."}</p>
+          <p className="text-muted-foreground">No activities in this period.</p>
         </CardContent></Card>
       ) : (
-        <div className="space-y-2">
-          {allLogs.map((log) => {
-            const dist = log.distanceMeters || 0;
+        <div className="space-y-3">
+          {weekGroups.map((week) => {
+            const isExpanded = expandedWeeks.has(week.weekKey);
+            const weekDist = week.logs.reduce((s, l) => s + (l.distanceMeters || 0), 0);
+            const weekElev = week.logs.reduce((s, l) => s + (l.elevationGainMeters || 0), 0);
+            const weekDur = week.logs.reduce((s, l) => s + (l.durationSeconds || 0), 0);
+
             return (
-              <Link key={log.id} href={`/training-logs/${log.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-muted-foreground">{TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}</span>
-                          <span className="font-semibold truncate">{log.name}</span>
-                          <Badge variant={TYPE_BADGE_VARIANTS[log.type] || "outline"} className="shrink-0 capitalize">{log.type}</Badge>
-                          {log.subType && SUB_TYPE_LABELS[log.subType] && (
-                            <Badge variant="secondary" className="shrink-0 text-[10px]">{SUB_TYPE_LABELS[log.subType]}</Badge>
-                          )}
-                          <SourceBadge source={log.source} />
-                        </div>
-                        <p className="text-sm text-muted-foreground">{new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</p>
-                      </div>
-                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 sm:gap-4 text-sm shrink-0">
-                        {dist > 0 && <div className="flex items-center gap-1.5"><Route className="h-3.5 w-3.5 text-muted-foreground" /><span>{formatDistance(dist)}</span></div>}
-                        <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-muted-foreground" /><span>{formatDuration(log.durationSeconds)}</span></div>
-                        {log.elevationGainMeters != null && <div className="flex items-center gap-1.5"><Mountain className="h-3.5 w-3.5 text-muted-foreground" /><span>{log.elevationGainMeters}m</span></div>}
-                        {log.averageHr != null && <div className="flex items-center gap-1.5"><Heart className="h-3.5 w-3.5 text-muted-foreground" /><span>{Math.round(log.averageHr)} bpm</span></div>}
-                        {log.tss != null && <Badge variant="secondary" className="text-xs">TSS {Math.round(log.tss)}</Badge>}
-                        {log.remarks && <Badge variant="outline" className="text-xs gap-1"><MessageSquare className="h-3 w-3" /></Badge>}
-                        <button
-                          className="ml-2 p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          onClick={(e) => handleDelete(log.id, log.name, e)}
-                          disabled={deleting === log.id}
-                          title="Delete activity"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+              <Card key={week.weekKey} className="rounded-xl border">
+                {/* Week header — clickable to expand/collapse */}
+                <button
+                  onClick={() => toggleWeek(week.weekKey)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors bg-muted/40 hover:bg-muted/70 border-l-[3px] border-l-primary/40 rounded-r-xl"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm tracking-tight">{week.label}</span>
+                      <Badge variant="secondary" className="text-[10px] font-semibold">{week.logs.length} activit{week.logs.length !== 1 ? "ies" : "y"}</Badge>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
+                      {weekDist > 0 && <span className="font-medium">{formatDistance(weekDist)}</span>}
+                      {weekElev > 0 && <span className="font-medium">{Math.round(weekElev)}m ↑</span>}
+                      <span className="font-medium">{formatDuration(weekDur)}</span>
+                    </div>
+                  </div>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />}
+                </button>
+
+                {/* Activity rows */}
+                {isExpanded && (
+                  <div className="divide-y border-t">
+                    {week.logs.map((log) => {
+                      const dist = log.distanceMeters || 0;
+                      const elev = log.elevationGainMeters || 0;
+
+                      return (
+                        <div key={log.id}>
+                          {/* Mobile layout */}
+                          <Link href={`/training-logs/${log.id}`} className="md:hidden block px-4 py-3 hover:bg-muted/30 transition-colors">
+                            <div className="flex items-start">
+                              <div className="flex-1 min-w-0 pr-2">
+                                <div className="text-sm font-medium leading-snug line-clamp-2">{log.name}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                  </span>
+                                  <span className="ml-auto flex items-center gap-1">
+                                    <span className="text-muted-foreground/60">{TYPE_ICONS[log.type] || <Activity className="h-3.5 w-3.5" />}</span>
+                                    <SourceBadge source={log.source} />
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0" style={{ width: "25%" }}>
+                                {dist > 0 && <div className="text-sm font-medium tabular-nums">{formatDistance(dist)}</div>}
+                                {elev > 0 && <div className="text-xs text-muted-foreground tabular-nums">{Math.round(elev)}m</div>}
+                              </div>
+                            </div>
+                          </Link>
+                          {/* Desktop layout (md+) */}
+                          <Link href={`/training-logs/${log.id}`} className="hidden md:block px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                            <div className="flex items-center gap-3">
+                            <span className="text-muted-foreground shrink-0">{TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium truncate">{log.name}</span>
+                                <Badge variant={TYPE_BADGE_VARIANTS[log.type] || "outline"} className="text-[10px] shrink-0 capitalize">{log.type}</Badge>
+                                {log.subType && SUB_TYPE_LABELS[log.subType] && (
+                                  <Badge variant="secondary" className="shrink-0 text-[10px] hidden sm:inline">{SUB_TYPE_LABELS[log.subType]}</Badge>
+                                )}
+                                <SourceBadge source={log.source} />
+                                {log.tss != null && (
+                                  <Badge variant="secondary" className="text-[10px]">TSS {Math.round(log.tss)}</Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs shrink-0">
+                              {dist > 0 && <span className="font-medium tabular-nums">{formatDistance(dist)}</span>}
+                              <span className="text-muted-foreground tabular-nums">{formatDuration(log.durationSeconds)}</span>
+                              {elev > 0 && (
+                                <span className="text-muted-foreground tabular-nums hidden lg:inline">{Math.round(elev)}m</span>
+                              )}
+                              {log.averageHr != null && (
+                                <span className="text-muted-foreground tabular-nums hidden lg:inline">❤️{Math.round(log.averageHr)}</span>
+                              )}
+                              {log.remarks && <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />}
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
             );
           })}
-          {/* Load More */}
-          {allLogs.length < total && (
-            <div className="text-center pt-4">
-              <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? "Loading..." : `Load More (${total - allLogs.length} remaining)`}
-              </Button>
-            </div>
-          )}
         </div>
       )}
 

@@ -18,7 +18,6 @@ export async function GET() {
         select: {
           trainingLogs: true,
           raceGoals: true,
-          trainingFacilities: true,
           bodyMetrics: true,
           fatigueAlerts: true,
         },
@@ -28,24 +27,31 @@ export async function GET() {
     },
   });
 
-  const summary = users.map((u) => ({
-    id: u.id,
-    email: u.email,
-    name: u.name,
-    role: u.role,
-    createdAt: u.createdAt,
-    trainingLogs: u._count.trainingLogs,
-    raceGoals: u._count.raceGoals,
-    facilities: u._count.trainingFacilities,
-    bodyMetrics: u._count.bodyMetrics,
-    fatigueAlerts: u._count.fatigueAlerts,
-    latestWeight: u.bodyMetrics[0]?.weightKg || null,
-    latestWeightDate: u.bodyMetrics[0]?.recordedAt || null,
-    lastActivity: u.trainingLogs[0]?.startDate || null,
-    lastActivityName: u.trainingLogs[0]?.name || null,
-  }));
+  const mapped = users.map((u) => {
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      createdAt: u.createdAt,
+      trainingLogs: u._count.trainingLogs,
+      raceGoals: u._count.raceGoals,
+      bodyMetrics: u._count.bodyMetrics,
+      fatigueAlerts: u._count.fatigueAlerts,
+      latestWeight: u.bodyMetrics[0]?.weightKg || null,
+      latestWeightDate: u.bodyMetrics[0]?.recordedAt || null,
+      lastActivity: u.trainingLogs[0]?.startDate || null,
+      lastActivityName: u.trainingLogs[0]?.name || null,
+    };
+  });
 
-  return NextResponse.json(summary);
+  return NextResponse.json({
+    summary: {
+      totalUsers: users.length,
+      totalActivities: users.reduce((sum, u) => sum + u._count.trainingLogs, 0),
+    },
+    users: mapped,
+  });
 }
 
 export async function PUT(req: Request) {

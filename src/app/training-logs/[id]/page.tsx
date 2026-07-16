@@ -10,7 +10,7 @@ import { format } from "date-fns";
 import {
   Activity, Clock, Mountain, Route, Heart, Zap, ArrowLeft, ArrowRight,
   ChevronLeft, ChevronRight, MessageSquare, Trash2, TrendingUp, BarChart3, Flame,
-  MapPin, Copy, CheckCircle, AlertTriangle,
+  Copy, AlertTriangle,
 } from "lucide-react";
 import { TrackPoint } from "@/lib/gpx-parser";
 import {
@@ -42,10 +42,6 @@ interface TrainingLog {
   duplicateGroupId: string | null;
   duplicateStatus: string | null;
   mergedIntoId: string | null;
-}
-
-interface FacilityInfo {
-  id: string; name: string; type: string; surface: string | null;
 }
 
 interface DuplicateGroupInfo {
@@ -87,57 +83,7 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-function FacilityPicker({ selected, allFacilities, onChange }: {
-  selected: string[];
-  allFacilities: FacilityInfo[];
-  onChange: (ids: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  function toggle(facilityId: string) {
-    const next = selected.includes(facilityId)
-      ? selected.filter((id) => id !== facilityId)
-      : [...selected, facilityId];
-    onChange(next);
-  }
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1 rounded-full border border-dashed border-input px-2.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:border-solid transition-colors"
-      >
-        <MapPin className="h-3 w-3" />
-        {selected.length > 0 ? `Edit (${selected.length})` : "Tag facility"}
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-20 w-56 rounded-md border bg-popover p-2 shadow-md">
-            <p className="text-[10px] font-medium text-muted-foreground px-1 pb-1">Select facilities:</p>
-            {allFacilities.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => toggle(f.id)}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-muted transition-colors text-left"
-              >
-                <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${
-                  selected.includes(f.id) ? "bg-primary border-primary text-primary-foreground" : "border-input"
-                }`}>
-                  {selected.includes(f.id) && <CheckCircle className="h-2.5 w-2.5" />}
-                </div>
-                <span>{f.name}</span>
-                <span className="text-[10px] text-muted-foreground ml-auto">{f.type}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
       <Icon className="h-4 w-4 text-primary shrink-0" />
@@ -149,19 +95,16 @@ function Stat({ icon: Icon, label, value }: { icon: React.ComponentType<{ classN
   );
 }
 
-function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, facilities, duplicateGroup, allFacilities, onRemarksChange, onDelete, onFacilitiesChange }: {
+function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete }: {
   log: TrainingLog;
   remarksText: string;
   remarksDirty: boolean;
   saved: boolean;
   deleting: boolean;
   similarRoutes: RouteMatch[];
-  facilities: FacilityInfo[];
   duplicateGroup: DuplicateGroupInfo | null;
-  allFacilities: FacilityInfo[];
   onRemarksChange: (text: string) => void;
   onDelete: () => void;
-  onFacilitiesChange: (facilityIds: string[]) => void;
 }) {
   const router = useRouter();
   const pace = log.distanceMeters && log.distanceMeters > 0
@@ -192,6 +135,14 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
           <SourceBadge source={log.source} />
           {log.tss && <Badge variant="outline">TSS {Math.round(log.tss)}</Badge>}
           {log.remarks && <Badge variant="secondary" className="gap-1"><MessageSquare className="h-3 w-3" /> Remarks</Badge>}
+          <button
+            onClick={(e) => { e.preventDefault(); onDelete(); }}
+            disabled={deleting}
+            className="ml-auto p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            title="Delete activity"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Duplicate warning banner */}
@@ -209,24 +160,6 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
             </span>
           </div>
         )}
-
-        {/* Facility tags */}
-        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-          {facilities.map((f) => (
-            <Badge key={f.id} variant="outline" className="gap-1 text-[11px]">
-              <MapPin className="h-3 w-3" />
-              {f.name}
-              {f.surface && <span className="text-muted-foreground">({f.surface})</span>}
-            </Badge>
-          ))}
-          {allFacilities.length > 0 && (
-            <FacilityPicker
-              selected={facilities.map((f) => f.id)}
-              allFacilities={allFacilities}
-              onChange={onFacilitiesChange}
-            />
-          )}
-        </div>
 
         <CardTitle className="text-2xl">{log.name}</CardTitle>
         <p className="text-sm text-muted-foreground">
@@ -440,8 +373,6 @@ export default function TrainingLogDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const [similarRoutes, setSimilarRoutes] = useState<RouteMatch[]>([]);
-  const [facilities, setFacilities] = useState<FacilityInfo[]>([]);
-  const [allFacilities, setAllFacilities] = useState<FacilityInfo[]>([]);
   const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroupInfo | null>(null);
   const touchRef = useRef<{ startX: number; startY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -456,30 +387,6 @@ export default function TrainingLogDetailPage() {
     } catch {
       alert("Failed to delete. Please try again.");
       setDeleting(false);
-    }
-  }
-
-  async function handleFacilitiesChange(facilityIds: string[]) {
-    setFacilities((prev) => {
-      // Optimistically update (will be replaced by server response)
-      const selected = allFacilities.filter((f) => facilityIds.includes(f.id));
-      return selected;
-    });
-    try {
-      const res = await fetch(`/api/training-logs/${id}/facilities`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facilityIds }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setFacilities(updated);
-      }
-    } catch {
-      // Revert on error by re-fetching
-      fetch(`/api/training-logs/${id}/facilities`)
-        .then((r) => r.ok ? r.json() : [])
-        .then(setFacilities);
     }
   }
 
@@ -509,21 +416,6 @@ export default function TrainingLogDetailPage() {
       .catch(() => setSimilarRoutes([]));
   }, [id]);
 
-  // Fetch facilities
-  useEffect(() => {
-    if (!id) return;
-    fetch(`/api/training-logs/${id}/facilities`)
-      .then((r) => r.ok ? r.json() : [])
-      .then(setFacilities)
-      .catch(() => setFacilities([]));
-  }, [id]);
-
-  useEffect(() => {
-    fetch("/api/facilities")
-      .then((r) => r.ok ? r.json() : [])
-      .then(setAllFacilities)
-      .catch(() => setAllFacilities([]));
-  }, []);
 
   // Fetch duplicate info
   useEffect(() => {
@@ -659,15 +551,6 @@ export default function TrainingLogDetailPage() {
         <Button variant="ghost" onClick={() => router.push("/training-logs")}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
-        <Button
-          variant="ghost"
-          className="text-muted-foreground hover:text-destructive"
-          onClick={handleDelete}
-          disabled={deleting}
-          title="Delete activity"
-        >
-          <Trash2 className="h-4 w-4 mr-2" /> {deleting ? "Deleting..." : "Delete"}
-        </Button>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost" size="sm"
@@ -699,12 +582,9 @@ export default function TrainingLogDetailPage() {
             saved={saved}
             deleting={deleting}
             similarRoutes={similarRoutes}
-            facilities={facilities}
             duplicateGroup={duplicateGroup}
-            allFacilities={allFacilities}
             onRemarksChange={handleRemarksChange}
             onDelete={handleDelete}
-            onFacilitiesChange={handleFacilitiesChange}
           />
         </div>
 

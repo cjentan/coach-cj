@@ -16,35 +16,15 @@ export async function GET() {
   });
 }
 
-export async function PUT(req: Request) {
+export async function PUT() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const createDefaultFacility = body?.createDefaultFacility === true;
-
-  // Update the user
+  // Mark onboarding as complete
   await prisma.user.update({
     where: { id: session.user.id },
     data: { onboardingCompleted: true },
   });
-
-  // Optionally create a default Road Running facility
-  if (createDefaultFacility) {
-    const existing = await prisma.trainingFacility.findFirst({
-      where: { userId: session.user.id, name: "Road Running" },
-    });
-
-    if (!existing) {
-      await prisma.trainingFacility.create({
-        data: {
-          userId: session.user.id,
-          name: "Road Running",
-          type: "road",
-        },
-      });
-    }
-  }
 
   return NextResponse.json({ success: true });
 }

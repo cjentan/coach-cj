@@ -464,7 +464,7 @@ export default function IngestionPage() {
                 </p>
               </div>
 
-              <div className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+              <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => stravaExportInputRef.current?.click()}>
                 <Archive className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">Click to upload your Strava export ZIP</p>
@@ -606,7 +606,7 @@ export default function IngestionPage() {
               <CardDescription>Upload your activities.csv from a data export</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+              <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}>
                 <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">Click to upload activities.csv</p>
@@ -638,7 +638,7 @@ export default function IngestionPage() {
               <CardDescription>Upload .gpx, .tcx, or .fit files from your devices or other platforms</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+              <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => gpxInputRef.current?.click()}>
                 <FileType className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">Click to upload GPX, TCX, or FIT files</p>
@@ -696,7 +696,7 @@ export default function IngestionPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleManualSubmit} className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Activity Name *</Label>
                     <Input value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}

@@ -20,9 +20,9 @@ export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 hidden md:block">
       <div className="mx-auto flex h-14 items-center justify-between px-4 max-w-6xl">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg shrink-0" onClick={() => setMenuOpen(false)}>
+        <Link href={session?.user ? "/dashboard" : "/"} className="flex items-center gap-2 font-bold text-lg shrink-0" onClick={() => setMenuOpen(false)}>
           <Activity className="h-5 w-5 text-primary" />
           <span>Coach</span>
         </Link>

@@ -1,4 +1,4 @@
-import { PrismaClient, SurfaceType, FacilityType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -19,40 +19,6 @@ async function main() {
 
   console.log(`Created user: ${user.email}`);
 
-  // Create facilities
-  const facilities = [
-    {
-      userId: user.id,
-      name: "Gunung Pulai",
-      type: "trail" as FacilityType,
-      distanceMeters: 4500,
-      elevationGainMeters: 550,
-      surface: "tarmac" as SurfaceType,
-      notes: "4.5km tarmac road with 550m elevation. Main hill repeat venue.",
-    },
-    {
-      userId: user.id,
-      name: "Power Trainer",
-      type: "trainer" as FacilityType,
-      surface: "trainer" as SurfaceType,
-      notes: "Wahoo Kickr indoor trainer",
-    },
-    {
-      userId: user.id,
-      name: "Neighborhood Road Loop",
-      type: "road" as FacilityType,
-      distanceMeters: 5000,
-      elevationGainMeters: 50,
-      surface: "tarmac" as SurfaceType,
-      notes: "Flat road loop for easy runs and tempo work",
-    },
-  ];
-
-  const createdFacilities = await Promise.all(
-    facilities.map((f) => prisma.trainingFacility.create({ data: f }))
-  );
-  console.log(`Created ${createdFacilities.length} facilities`);
-
   // Create a race goal
   await prisma.raceGoal.create({
     data: {
@@ -68,23 +34,6 @@ async function main() {
   });
 
   console.log("Created race goal");
-
-  // Create availability
-  const schedule = [
-    { dayOfWeek: 1, startTime: "06:00", endTime: "07:30", facilityIds: [createdFacilities[2].id] },
-    { dayOfWeek: 2, startTime: "18:00", endTime: "20:00", facilityIds: [createdFacilities[1].id] },
-    { dayOfWeek: 3, startTime: "06:00", endTime: "07:30", facilityIds: [createdFacilities[2].id] },
-    { dayOfWeek: 4, startTime: "18:00", endTime: "20:00", facilityIds: [createdFacilities[1].id] },
-    { dayOfWeek: 5, startTime: "06:00", endTime: "07:30", facilityIds: [createdFacilities[2].id] },
-    { dayOfWeek: 6, startTime: "05:30", endTime: "10:00", facilityIds: [createdFacilities[0].id, createdFacilities[2].id] },
-  ];
-
-  for (const s of schedule) {
-    await prisma.trainingAvailability.create({
-      data: { ...s, userId: user.id },
-    });
-  }
-  console.log("Created training schedule");
 
   // Create body metrics
   const metrics = [

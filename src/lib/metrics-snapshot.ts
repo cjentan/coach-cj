@@ -22,7 +22,7 @@ export async function snapshotWeek(
   // ── Fetch data ──────────────────────────────────────────────
   const ninetyDaysBeforeEnd = new Date(weekEnd.getTime() - 90 * 86400000);
 
-  const [weekLogs, pmcLogs, goals, bodyMetrics, availabilityCount] =
+  const [weekLogs, pmcLogs, goals, bodyMetrics] =
     await Promise.all([
       // This week's logs (exclude merged duplicates)
       prisma.trainingLog.findMany({
@@ -72,8 +72,6 @@ export async function snapshotWeek(
         orderBy: { recordedAt: "desc" },
         take: 30,
       }),
-      // Availability count
-      prisma.trainingAvailability.count({ where: { userId } }),
     ]);
 
   // ── Weekly aggregates ───────────────────────────────────────
@@ -134,7 +132,6 @@ export async function snapshotWeek(
     weekStart,
     weekEnd,
     goals,
-    availabilityCount,
     weeklyVolume,
     weeklyTss,
   });
@@ -148,7 +145,6 @@ export async function snapshotWeek(
       bodyMetrics,
       pmcResults,
       tssByDate,
-      availabilityCount,
       weeklyTss,
       weeklyCount,
     });
@@ -252,11 +248,10 @@ export function computeReadiness(params: {
   weekStart: Date;
   weekEnd: Date;
   goals: any[];
-  availabilityCount: number;
   weeklyVolume: number;
   weeklyTss: number;
 }) {
-  const { weekLogs, weekStart, weekEnd, goals, availabilityCount, weeklyVolume, weeklyTss } = params;
+  const { weekLogs, weekStart, weekEnd, goals, weeklyVolume, weeklyTss } = params;
   const now = new Date();
 
   // Volume adherence
@@ -306,11 +301,10 @@ function computeFatigue(params: {
   bodyMetrics: any[];
   pmcResults: any[];
   tssByDate: Record<string, number>;
-  availabilityCount: number;
   weeklyTss: number;
   weeklyCount: number;
 }) {
-  const { weekLogs, bodyMetrics, weeklyTss, weeklyCount, availabilityCount } = params;
+  const { weekLogs, bodyMetrics, weeklyTss, weeklyCount } = params;
   const signals: string[] = [];
   const recommendations: string[] = [];
 
@@ -335,7 +329,7 @@ function computeFatigue(params: {
   }
 
   // Consistency
-  const expectedSessions = Math.max(1, availabilityCount);
+  const expectedSessions = 5;
   const consistency = Math.round((weeklyCount / expectedSessions) * 100);
   if (consistency < 50) {
     signals.push(`Low consistency (${consistency}% of planned sessions)`);

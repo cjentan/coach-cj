@@ -5,10 +5,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   Settings2,
-  Dumbbell,
   Target,
   Scale,
-  CalendarDays,
   Brain,
   Key,
   Plug,
@@ -18,10 +16,8 @@ import {
 
 const SIDEBAR_ITEMS = [
   { href: "/settings", label: "General", icon: Settings2 },
-  { href: "/settings/facilities", label: "Facilities", icon: Dumbbell },
   { href: "/settings/goals", label: "Goals", icon: Target },
   { href: "/settings/body-metrics", label: "Body Metrics", icon: Scale },
-  { href: "/settings/availability", label: "Schedule", icon: CalendarDays },
   { href: "/settings/analysis", label: "Analysis", icon: Brain },
   { href: "/settings/credentials", label: "API & Credentials", icon: Key },
   { href: "/settings/integrations", label: "Integrations", icon: Plug },
@@ -38,7 +34,7 @@ export default function SettingsLayout({
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="flex gap-8">
+      <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar — hidden on small screens */}
         <aside className="hidden md:block w-52 shrink-0">
           <nav className="space-y-1 sticky top-20">
@@ -67,7 +63,7 @@ export default function SettingsLayout({
         </aside>
 
         {/* Mobile tab bar */}
-        <div className="md:hidden w-full mb-4 overflow-x-auto">
+        <div className="md:hidden w-full mb-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           <nav className="flex gap-1 pb-2 border-b">
             {SIDEBAR_ITEMS.map((item) => {
               const isActive =

@@ -36,7 +36,7 @@ export async function POST() {
   const weekStart = getWeekStart(now);
 
   // Collect data for coach notes
-  const [logs, goals, bodyMetrics, facilities, availabilityCount, dailyHealth] = await Promise.all([
+  const [logs, goals, bodyMetrics, dailyHealth, user] = await Promise.all([
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 90 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
@@ -44,13 +44,12 @@ export async function POST() {
     }),
     prisma.raceGoal.findMany({ where: { userId: session.user.id, status: "active" } }),
     prisma.bodyMetric.findMany({ where: { userId: session.user.id }, orderBy: { recordedAt: "desc" }, take: 7 }),
-    prisma.trainingFacility.findMany({ where: { userId: session.user.id } }),
-    prisma.trainingAvailability.count({ where: { userId: session.user.id } }),
     prisma.dailyHealth.findMany({
       where: { userId: session.user.id, date: { gte: new Date(now.getTime() - 7 * 86400000) } },
       orderBy: { date: "desc" },
       select: { sleepSeconds: true, sleepScore: true, overnightHrv: true, hrvStatus: true, bodyBatteryMin: true, bodyBatteryMax: true, avgStress: true, restingHeartRate: true },
     }),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { trainingContext: true } }),
   ]);
 
   // PMC computation
@@ -86,7 +85,6 @@ export async function POST() {
     weekStart,
     weekEnd,
     goals,
-    availabilityCount,
     weeklyVolume,
     weeklyTss,
   });
@@ -167,13 +165,7 @@ export async function POST() {
       consistencyScore: readinessResult.consistency,
       weeklyPlan: null,
       recentRemarks,
-      facilities: facilities.map((f) => ({
-        name: f.name,
-        type: f.type,
-        distanceMeters: f.distanceMeters,
-        elevationGainMeters: f.elevationGainMeters,
-        notes: f.notes,
-      })),
+      trainingContext: user?.trainingContext ?? undefined,
     },
     {
       apiKey: llmCfg.apiKey,

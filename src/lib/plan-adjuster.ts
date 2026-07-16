@@ -37,18 +37,7 @@ export interface PlanContext {
     elevationGainMeters: number | null;
     priority: string;
   }>;
-  availability: Array<{
-    dayOfWeek: number;
-    startTime: string;
-    endTime: string;
-    facilityIds: string[];
-  }>;
-  facilities: Array<{
-    name: string;
-    type: string;
-    distanceMeters: number | null;
-    elevationGainMeters: number | null;
-  }>;
+  trainingContext?: string;
   fatigueSeverity: string | null;
   recentVolumeByWeek: number[];
   adjustmentHistory?: Array<{
@@ -111,12 +100,12 @@ const SYSTEM_PROMPT = `You are an expert endurance sports coach specializing in:
 Your task: adjust an athlete's existing weekly training plan based on their natural-language request.
 
 Rules:
-1. RESPECT the athlete's training availability — every non-rest session MUST fall on a day where they have a time slot. If they say they're away, those days MUST become rest.
+1. Consider the athlete's training context (where and when they typically train) when making recommendations.
 2. Never eliminate all rest days — at least 1 rest day per week.
 3. Volume increases are capped at +15% of the current plan's target volume. If the current plan has 0 volume (no baseline), use the athlete's recent average weekly volume as the reference instead.
 4. If the athlete mentions illness (flu, sick, fever, unwell, down with), enforce at least 2 consecutive rest days starting from the affected date.
 5. If the athlete mentions a race or event, ensure the day before includes rest or very easy effort.
-6. Reference actual facility names from their list — never invent facilities.
+6. Consider the athlete's training context (where and when they typically train) when making recommendations.
 7. If the athlete wants to push harder, increase intensity/duration within safe limits rather than just piling on volume.
 8. Provide a clear, specific explanation of every change you made.
 9. Return ONLY valid JSON matching the schema. No markdown, no commentary outside the JSON.
@@ -134,7 +123,7 @@ Output schema:
       "targetDistance": number | null,
       "targetElevation": number | null,
       "targetDuration": number (seconds),
-      "facility": "string | null — must be from the athlete's facilities list"
+      "facility": "string | null"
     }
   ],
   "adjustments": ["string array — new adjustment notes"]
@@ -143,11 +132,6 @@ Output schema:
 // ── Prompt Builder ─────────────────────────────────────
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
 
 function buildUserMessage(
   currentPlan: CurrentPlan,
@@ -201,29 +185,9 @@ function buildUserMessage(
     }
   }
 
-  if (context.availability.length > 0) {
-    msg += "\n### Training Availability\n";
-    for (const a of context.availability.sort((x, y) => x.dayOfWeek - y.dayOfWeek)) {
-      const dur = timeToMinutes(a.endTime) - timeToMinutes(a.startTime);
-      msg += `${DAY_NAMES[a.dayOfWeek]}: ${a.startTime}-${a.endTime} (${dur}min)`;
-      if (a.facilityIds.length > 0) {
-        const facilityNames = a.facilityIds
-          .map((id) => context.facilities.find((f) => f.name === id)?.name || id)
-          .join(", ");
-        msg += ` — ${facilityNames}`;
-      }
-      msg += "\n";
-    }
-  }
-
-  if (context.facilities.length > 0) {
-    msg += "\n### Available Facilities\n";
-    for (const f of context.facilities) {
-      msg += `- ${f.name} (${f.type}`;
-      if (f.distanceMeters) msg += `, ${formatDistance(f.distanceMeters)}`;
-      if (f.elevationGainMeters) msg += `, ${formatDistance(f.elevationGainMeters)} D+`;
-      msg += ")\n";
-    }
+  if (context.trainingContext) {
+    msg += "\n### Training Context\n";
+    msg += `${context.trainingContext}\n`;
   }
 
   msg += `\n### Status\n`;
@@ -240,11 +204,6 @@ function buildUserMessage(
 }
 
 // ── Guardrails ─────────────────────────────────────────
-
-function timeStrToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
 
 function applyGuardrails(
   adjusted: AdjustedPlan,
@@ -283,25 +242,7 @@ function applyGuardrails(
     );
   }
 
-  // 4. Availability enforcement: non-rest sessions must have a matching slot
-  const availabilityByDay = new Map<number, { start: string; end: string }[]>();
-  for (const a of context.availability) {
-    const slots = availabilityByDay.get(a.dayOfWeek) || [];
-    slots.push({ start: a.startTime, end: a.endTime });
-    availabilityByDay.set(a.dayOfWeek, slots);
-  }
-
-  for (const session of adjusted.plannedSessions) {
-    if (session.type === "rest") continue;
-    const slots = availabilityByDay.get(session.dayOfWeek);
-    if (!slots || slots.length === 0) {
-      violations.push(
-        `${DAY_NAMES[session.dayOfWeek]}: "${session.description}" has no availability slot`
-      );
-    }
-  }
-
-  // 5. Illness detection: force ≥ 2 consecutive rest days
+  // 4. Illness detection: force ≥ 2 consecutive rest days
   const illnessPattern = /\b(flu|sick|fever|ill|unwell|down with|covid|infection)\b/i;
   if (illnessPattern.test(userPrompt)) {
     // Find the longest run of consecutive rest days

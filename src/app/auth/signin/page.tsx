@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Activity } from "lucide-react";
+import { Activity, Lock, AlertCircle } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -16,6 +16,15 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
+  const [forgotMsg, setForgotMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/auth/email-status")
+      .then((r) => r.json())
+      .then((d) => setEmailConfigured(d.configured))
+      .catch(() => setEmailConfigured(false));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,6 +44,13 @@ export default function SignInPage() {
     } else {
       router.push("/dashboard");
       router.refresh();
+    }
+  }
+
+  function handleForgotClick() {
+    if (!emailConfigured) {
+      setForgotMsg("This feature is not enabled. Please contact your administrator.");
+      setTimeout(() => setForgotMsg(""), 4000);
     }
   }
 
@@ -67,7 +83,22 @@ export default function SignInPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                {emailConfigured !== null && (
+                  <button
+                    type="button"
+                    onClick={handleForgotClick}
+                    className={`text-xs transition-colors ${
+                      emailConfigured
+                        ? "text-primary hover:underline cursor-pointer"
+                        : "text-muted-foreground/50 cursor-not-allowed"
+                    }`}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -76,6 +107,13 @@ export default function SignInPage() {
                 required
               />
             </div>
+
+            {forgotMsg && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded-md">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{forgotMsg}</span>
+              </div>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={loading}>

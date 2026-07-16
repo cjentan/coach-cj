@@ -11,7 +11,7 @@ export async function GET() {
   const weekStart = getWeekStart(now);
   const fourWeeksAgo = new Date(now.getTime() - 28 * 86400000);
 
-  const [weekLogs, recentLogs, goals, availabilitySlots] = await Promise.all([
+  const [weekLogs, recentLogs, goals] = await Promise.all([
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
       select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true, tss: true },
@@ -26,7 +26,6 @@ export async function GET() {
       orderBy: { priority: "asc" },
       select: { distanceMeters: true, targetDate: true },
     }),
-    prisma.trainingAvailability.count({ where: { userId: session.user.id } }),
   ]);
 
   // Weekly totals

@@ -80,13 +80,12 @@ export async function GET() {
   }
 
   // 4. Training consistency
-  const availabilityCount = await prisma.trainingAvailability.count({ where: { userId: session.user.id } });
-  const expectedSessions = Math.max(1, availabilityCount);
+  const expectedSessions = 6; // Default expectation without structured availability
   const consistency = Math.round((weekLogs / expectedSessions) * 100);
 
   if (consistency < 50) {
-    signals.push(`Low consistency (${consistency}% of planned sessions)`);
-    recommendations.push(`You've completed ${weekLogs} of ~${expectedSessions} planned sessions this week. Consistency is the foundation of endurance training.`);
+    signals.push(`Low consistency (${consistency}% of expected sessions)`);
+    recommendations.push(`You've completed ${weekLogs} of ~${expectedSessions} expected sessions this week. Consistency is the foundation of endurance training.`);
   }
 
   // 5. Weight stability

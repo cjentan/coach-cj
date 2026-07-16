@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
@@ -7,17 +8,15 @@ import { Activity, BarChart3, Target, Heart, CalendarDays, TrendingUp } from "lu
 export default async function Home() {
   const session = await auth();
 
-  // Check if the user has completed onboarding
-  let needsOnboarding = false;
+  // Authenticated users go straight to dashboard
   if (session?.user?.id) {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { onboardingCompleted: true },
     });
-    needsOnboarding = user ? !user.onboardingCompleted : false;
+    const needsOnboarding = user ? !user.onboardingCompleted : false;
+    redirect(needsOnboarding ? "/onboarding" : "/dashboard");
   }
-
-  const dashboardHref = needsOnboarding ? "/onboarding" : "/dashboard";
 
   return (
     <div className="flex flex-col">
@@ -32,11 +31,6 @@ export default async function Home() {
           weekly plans for your goal races, detects fatigue before you get injured, and
           keeps you on track every single week.
         </p>
-        {session?.user ? (
-          <Link href={dashboardHref}>
-            <Button size="lg" className="text-lg px-8">{needsOnboarding ? "Complete Setup" : "Go to Dashboard"}</Button>
-          </Link>
-        ) : (
           <div className="flex gap-4 justify-center">
             <Link href="/auth/signup">
               <Button size="lg" className="text-lg px-8">Get Started Free</Button>
@@ -45,7 +39,6 @@ export default async function Home() {
               <Button size="lg" variant="outline" className="text-lg px-8">Sign In</Button>
             </Link>
           </div>
-        )}
       </section>
 
       {/* Features */}
@@ -90,11 +83,9 @@ export default async function Home() {
         <p className="text-muted-foreground mb-8">
           No more guessing. Let data drive your training decisions.
         </p>
-        {!session?.user && (
           <Link href="/auth/signup">
             <Button size="lg" className="text-lg px-8">Start Your Training Journey</Button>
           </Link>
-        )}
       </section>
     </div>
   );

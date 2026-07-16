@@ -49,7 +49,7 @@ export function getDefaultLlmConfig(): { apiKey: string; baseUrl: string; model:
   return {
     apiKey: key,
     baseUrl: PROVIDER_BASE_URLS.deepseek,
-    model: "deepseek-chat",
+    model: "deepseek-v4-flash",
     provider: "deepseek",
   };
 }
@@ -69,7 +69,7 @@ export const PROVIDER_BASE_URLS: Record<string, string> = {
  */
 export const PROVIDER_MODELS: Record<string, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  deepseek: ["deepseek-v4-flash"],
   anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
   ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
 };

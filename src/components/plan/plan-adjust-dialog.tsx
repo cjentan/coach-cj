@@ -23,7 +23,6 @@ interface PlannedSession {
   targetDistance: number | null;
   targetElevation: number | null;
   targetDuration: number;
-  facility: string | null;
 }
 
 interface AdjustResult {
@@ -138,8 +137,7 @@ export default function PlanAdjustDialog({ plan, onApplied }: PlanAdjustDialogPr
       session.type !== original.type ||
       session.description !== original.description ||
       session.targetDistance !== original.targetDistance ||
-      session.targetElevation !== original.targetElevation ||
-      session.facility !== original.facility
+      session.targetElevation !== original.targetElevation
     );
   }
 
@@ -282,12 +280,6 @@ export default function PlanAdjustDialog({ plan, onApplied }: PlanAdjustDialogPr
                               {session.targetElevation}m
                             </span>
                           )}
-                          {session.facility && (
-                            <span className="text-xs text-muted-foreground ml-auto truncate max-w-[100px]">
-                              {session.facility}
-                            </span>
-                          )}
-
                           {changed && (
                             <Badge variant="warning" className="text-xs ml-1 shrink-0">
                               changed

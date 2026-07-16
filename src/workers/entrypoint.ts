@@ -105,8 +105,7 @@ const sundayWorker = new Worker(
         llmModel: true,
         llmProvider: true,
         raceGoals: { where: { status: "active" } },
-        trainingAvailability: true,
-        trainingFacilities: true,
+        trainingContext: true,
         trainingLogs: { orderBy: { startDate: "desc" }, take: 100 },
         fatigueAlerts: { where: { acknowledged: false }, orderBy: { detectedAt: "desc" }, take: 1 },
       },
@@ -146,19 +145,6 @@ const sundayWorker = new Worker(
         recentVolumeByWeek: weeklyVolumes,
         recentElevationByWeek: weeklyElevations,
         recentDurationByWeek: weeklyDurations,
-        availability: user.trainingAvailability.map((a) => ({
-          dayOfWeek: a.dayOfWeek,
-          startTime: a.startTime,
-          endTime: a.endTime,
-          facilityIds: a.facilityIds,
-        })),
-        facilities: user.trainingFacilities.map((f) => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          distanceMeters: f.distanceMeters,
-          elevationGainMeters: f.elevationGainMeters,
-        })),
         consistencyScore: 0.7,
         fatigueSeverity: user.fatigueAlerts[0]?.severity || null,
       });
@@ -265,13 +251,7 @@ const sundayWorker = new Worker(
             activity: entry.name,
             remarks: entry.remarks!,
           })),
-        facilities: user.trainingFacilities.map((f) => ({
-          name: f.name,
-          type: f.type,
-          distanceMeters: f.distanceMeters,
-          elevationGainMeters: f.elevationGainMeters,
-          notes: f.notes,
-        })),
+        trainingContext: user.trainingContext ?? undefined,
       },
       llmConfig
     );
@@ -442,13 +422,13 @@ async function scheduleRecurring() {
 
       const users = await prisma.user.findMany({
         where: { raceGoals: { some: { status: "active" } } },
-        select: { id: true, reviewDayOfWeek: true, reviewTime: true, analysisTrigger: true },
+        select: { id: true, reviewDayOfWeek: true, reviewTime: true, reviewDayOfMonth: true, analysisTrigger: true, analysisTriggerValue: true },
       });
 
       for (const user of users) {
         const trigger = user.analysisTrigger || "weekly";
 
-        // Weekly: check review day and time (existing behavior)
+        // Weekly: check review day and time
         if (trigger === "weekly") {
           if (user.reviewDayOfWeek !== dayOfWeek) continue;
           const [h, m] = user.reviewTime.split(":").map(Number);
@@ -463,12 +443,37 @@ async function scheduleRecurring() {
           const nowMinutes = now.getHours() * 60 + now.getMinutes();
           if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
         }
-        // Monthly: run on the 1st of the month
+        // Monthly: run on the configured day of the month at the user's review time
         else if (trigger === "monthly") {
-          if (now.getDate() !== 1) continue;
+          const dayOfMonth = user.reviewDayOfMonth || 1;
+          if (now.getDate() !== dayOfMonth) continue;
+          const [h, m] = user.reviewTime.split(":").map(Number);
+          const reviewMinutes = h * 60 + m;
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
         }
         // activity_count: skip — handled at activity creation time
         else if (trigger === "activity_count") {
+          continue;
+        }
+        // every_n_days: check if N days have passed since last analysis
+        else if (trigger === "every_n_days") {
+          const key = `${user.id}:every_n_days`;
+          if (processedReviews.has(key)) continue;
+
+          const daysBetween = user.analysisTriggerValue || 7;
+          const lastReport = await prisma.analysisReport.findFirst({
+            where: { userId: user.id, reportType: "coach_notes" },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          });
+          if (lastReport) {
+            const daysSince = (now.getTime() - lastReport.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSince < daysBetween) continue;
+          }
+
+          await sundayQueue.add("review", { userId: user.id });
+          processedReviews.add(key);
           continue;
         }
 

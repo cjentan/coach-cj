@@ -130,9 +130,7 @@ async function performBackup(userId: string, statusFile: string) {
     logs,
     duplicateGroups,
     raceGoals,
-    trainingFacilities,
     bodyMetrics,
-    trainingAvailability,
     weeklyAssessments,
     weeklyPlans,
     fatigueAlerts,
@@ -150,10 +148,12 @@ async function performBackup(userId: string, statusFile: string) {
         reviewTime: true,
         analysisTrigger: true,
         analysisTriggerValue: true,
+        reviewDayOfMonth: true,
         llmProvider: true,
         llmBaseUrl: true,
         llmModel: true,
         llmApiKey: true,
+        trainingContext: true,
       },
     }),
     // Load activities WITHOUT rawJson (GPS trackpoints are handled separately)
@@ -176,9 +176,7 @@ async function performBackup(userId: string, statusFile: string) {
     ),
     prisma.duplicateGroup.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.raceGoal.findMany({ where: { userId }, orderBy: { targetDate: "asc" } }),
-    prisma.trainingFacility.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.bodyMetric.findMany({ where: { userId }, orderBy: { recordedAt: "asc" } }),
-    prisma.trainingAvailability.findMany({ where: { userId }, orderBy: { effectiveFrom: "asc" } }),
     prisma.weeklyAssessment.findMany({ where: { userId }, orderBy: { weekStartDate: "asc" } }),
     prisma.weeklyPlan.findMany({ where: { userId }, orderBy: { weekStartDate: "asc" } }),
     prisma.fatigueAlert.findMany({ where: { userId }, orderBy: { detectedAt: "asc" } }),
@@ -189,22 +187,6 @@ async function performBackup(userId: string, statusFile: string) {
   ]);
 
   if (!user) throw new Error("User not found");
-
-  // ── 2. Load facility associations ─────────────────────────────────────
-  const facilityRows: any[] = await prisma.$queryRawUnsafe(
-    `SELECT training_log_id AS "trainingLogId",
-            facility_id AS "facilityId"
-     FROM training_log_facilities tlf
-     WHERE EXISTS (
-       SELECT 1 FROM training_logs WHERE id = tlf.training_log_id AND user_id = $1
-     )`,
-    userId,
-  );
-  const logFacilities = new Map<string, string[]>();
-  for (const row of facilityRows) {
-    if (!logFacilities.has(row.trainingLogId)) logFacilities.set(row.trainingLogId, []);
-    logFacilities.get(row.trainingLogId)!.push(row.facilityId);
-  }
 
   // ── 3. Write settings.json ────────────────────────────────────────────
   writeJson(tmpDir, "settings.json", {
@@ -218,6 +200,8 @@ async function performBackup(userId: string, statusFile: string) {
         reviewTime: user.reviewTime,
         analysisTrigger: user.analysisTrigger,
         analysisTriggerValue: user.analysisTriggerValue,
+        reviewDayOfMonth: user.reviewDayOfMonth,
+        trainingContext: user.trainingContext,
         llmProvider: user.llmProvider,
         llmBaseUrl: user.llmBaseUrl,
         llmModel: user.llmModel,
@@ -250,7 +234,6 @@ async function performBackup(userId: string, statusFile: string) {
     duplicateGroupId: l.duplicateGroupId,
     duplicateStatus: l.duplicateStatus,
     mergedIntoId: l.mergedIntoId,
-    facilityIds: logFacilities.get(l.id) ?? [],
   }));
   writeJson(tmpDir, "activities.json", activities);
 
@@ -291,17 +274,6 @@ async function performBackup(userId: string, statusFile: string) {
     createdAt: g.createdAt.toISOString(),
   })));
 
-  writeJson(tmpDir, "facilities.json", trainingFacilities.map((f) => ({
-    id: f.id,
-    name: f.name,
-    type: f.type,
-    distanceMeters: f.distanceMeters,
-    elevationGainMeters: f.elevationGainMeters,
-    surface: f.surface,
-    notes: f.notes,
-    createdAt: f.createdAt.toISOString(),
-  })));
-
   writeJson(tmpDir, "body_metrics.json", bodyMetrics.map((m) => ({
     id: m.id,
     recordedAt: m.recordedAt.toISOString(),
@@ -310,17 +282,6 @@ async function performBackup(userId: string, statusFile: string) {
     restingHr: m.restingHr,
     notes: m.notes,
     createdAt: m.createdAt.toISOString(),
-  })));
-
-  writeJson(tmpDir, "schedule.json", trainingAvailability.map((a) => ({
-    id: a.id,
-    dayOfWeek: a.dayOfWeek,
-    startTime: a.startTime,
-    endTime: a.endTime,
-    facilityIds: a.facilityIds,
-    notes: a.notes,
-    effectiveFrom: a.effectiveFrom.toISOString(),
-    createdAt: a.createdAt.toISOString(),
   })));
 
   writeJson(tmpDir, "weekly_assessments.json", weeklyAssessments.map((a) => ({

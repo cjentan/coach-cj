@@ -19,11 +19,10 @@ export function formatDistance(meters: number, type?: string): string {
 export function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
   if (h > 0) {
-    return `${h}h ${m}m ${s}s`;
+    return `${h}h ${m}m`;
   }
-  return `${m}m ${s}s`;
+  return `${m}m`;
 }
 
 export function formatPace(metersPerSecond: number, type?: string): string {

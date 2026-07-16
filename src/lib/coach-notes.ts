@@ -56,7 +56,7 @@ export interface CoachNotesInput {
     adjustments: string[];
   } | null;
   recentRemarks?: Array<{ date: string; activity: string; remarks: string }>;
-  facilities?: Array<{ name: string; type: string; distanceMeters: number | null; elevationGainMeters: number | null; notes: string | null }>;
+  trainingContext?: string;
   dailyHealth?: {
     sleepAvg: number;
     hrvAvg: number;
@@ -87,7 +87,7 @@ Rules:
 - If fatigue is elevated, make rest/recovery the primary message
 - If the athlete's remarks mention tiredness, poor sleep, pain, or how they felt during specific portions of a session, reference those observations and connect them to the data
 - Consider recovery quality indicated by HRV, sleep duration, body battery, and stress levels alongside training data — poor recovery metrics may warrant lighter training even if TSB looks fine
-- When recommending sessions at specific facilities, incorporate the facility's characteristics (distance, elevation, surface type, any notes about the venue). For example, if Gunung Pulai is noted as a 4.5km tarmac climb with 550m gain, recommend it specifically for hill repeat workouts.
+- Consider the athlete's training context (where and when they typically train) when making recommendations. Reference their specific training environment.
 
 Structure your response:
 1. Overall assessment (1-2 sentences)
@@ -108,16 +108,9 @@ function buildUserMessage(input: CoachNotesInput): string {
     msg += "\n";
   }
 
-  // Facilities
-  if (input.facilities && input.facilities.length > 0) {
-    msg += `\n### Available Training Facilities\n`;
-    for (const f of input.facilities) {
-      const dist = f.distanceMeters ? `, ${formatDistance(f.distanceMeters)}` : "";
-      const elev = f.elevationGainMeters ? `, ${formatDistance(f.elevationGainMeters)} D+` : "";
-      msg += `- ${f.name} (${f.type}${dist}${elev})`;
-      if (f.notes) msg += ` — ${f.notes}`;
-      msg += `\n`;
-    }
+  // Training Context
+  if (input.trainingContext) {
+    msg += `\n### Training Context\n${input.trainingContext}\n`;
   }
 
   // PMC stats

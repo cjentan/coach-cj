@@ -362,7 +362,7 @@ export default function BackupRestorePage() {
             Use this to migrate your data to a new account. Sign up, then come here
             to restore from a backup you downloaded from your previous account.
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <Button
               variant="destructive"
               onClick={() => fileInputRef.current?.click()}

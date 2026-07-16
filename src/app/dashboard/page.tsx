@@ -8,9 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistance, formatDuration } from "@/lib/utils";
-import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database, Wand2 } from "lucide-react";
+import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database, Info } from "lucide-react";
 import PlanAdjustDialog from "@/components/plan/plan-adjust-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface LogEntry {
@@ -23,7 +24,7 @@ interface LogEntry {
 interface PlanData {
   weekStart: string; targetVolumeMeters: number; targetElevationMeters: number;
   plannedSessions: { dayOfWeek: number; type: string; description: string;
-    targetDistance: number | null; targetElevation: number | null; targetDuration: number; facility: string | null }[];
+    targetDistance: number | null; targetElevation: number | null; targetDuration: number }[];
   adjustments: string[]; trajectoryAssessment?: string; coachNotes?: string; fromCache?: boolean;
 }
 
@@ -98,7 +99,7 @@ interface AnalysisReportData {
 interface RaceReadinessOutput { readinessPct: number; status: string; volumeGap: number; elevationGap: number | null; tsbStatus: string; recommendations: string[]; }
 
 const TIME_RANGES = [
-  { label: "7D", days: 7 }, { label: "30D", days: 30 }, { label: "90D", days: 90 }, { label: "6M", days: 180 }, { label: "1Y", days: 365 },
+  { label: "7D", days: 7 }, { label: "30D", days: 30 }, { label: "90D", days: 90 }, { label: "6M", days: 180 }, { label: "1Y", days: 365 }, { label: "Max", days: 730 },
 ];
 
 export default function DashboardPage() {
@@ -114,16 +115,18 @@ export default function DashboardPage() {
   const [coachNotesAt, setCoachNotesAt] = useState<string | null>(null);
   const [pmc, setPmc] = useState<PmcData | null>(null);
   const [pmcHistory, setPmcHistory] = useState<PmcHistoryPoint[]>([]);
-  const [pmcDays, setPmcDays] = useState(30);
+  const [timeframeDays, setTimeframeDays] = useState(30);
   const [pmcMetrics, setPmcMetrics] = useState<Set<string>>(new Set(["ctl", "tsb"]));
   const [trendMetrics, setTrendMetrics] = useState<Set<string>>(new Set(["readinessScore", "weeklyVolumeMeters"]));
+  const [intensityDist, setIntensityDist] = useState<{
+    zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number;
+    distributionType: string; activityCount: number; analyzedHours: number;
+  } | null>(null);
   const [analysisReport, setAnalysisReport] = useState<AnalysisReportData | null>(null);
   const [raceReadiness, setRaceReadiness] = useState<Map<string, RaceReadinessOutput>>(new Map());
   const [dailyHealth, setDailyHealth] = useState<DailyHealthItem[]>([]);
   const [trackpointInsights, setTrackpointInsights] = useState<TrackpointInsights | null>(null);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
-  const [trendWeeks, setTrendWeeks] = useState(12);
-  const [trendGrouping, setTrendGrouping] = useState<"week" | "month">("week");
   const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
@@ -173,7 +176,10 @@ export default function DashboardPage() {
 
       fetch("/api/dashboard/plan").then((r) => r.ok ? r.json() : null).then((d) => d && setPlan(d)).catch(() => {});
       fetch("/api/dashboard/trackpoint-insights").then((r) => r.ok ? r.json() : null).then((d) => d && setTrackpointInsights(d)).catch(() => {});
-      fetch(`/api/dashboard/trends?weeks=${trendWeeks}&grouping=${trendGrouping}`).then((r) => r.ok ? r.json() : null).then((d) => d?.trends && setTrends(d.trends)).catch(() => {});
+      const w = Math.max(1, Math.ceil(timeframeDays / 7));
+const g = timeframeDays > 90 ? "month" : "week";
+fetch(`/api/dashboard/trends?weeks=${w}&grouping=${g}`).then((r) => r.ok ? r.json() : null).then((d) => d?.trends && setTrends(d.trends)).catch(() => {});
+fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)}`).then((r) => r.ok ? r.json() : null).then((d) => d?.distribution && setIntensityDist(d.distribution)).catch(() => {});
       fetch("/api/daily-health?days=7").then((r) => r.ok ? r.json() : null).then((d) => d?.healthData && setDailyHealth(d.healthData)).catch(() => {});
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed");
@@ -256,13 +262,17 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
-  useEffect(() => { if (status === "authenticated") fetchPmcHistory(pmcDays); }, [status, pmcDays, fetchPmcHistory]);
-
   useEffect(() => {
     if (status !== "authenticated") return;
-    fetch(`/api/dashboard/trends?weeks=${trendWeeks}&grouping=${trendGrouping}`)
+    const pmcDays = Math.min(timeframeDays, 365);
+    fetchPmcHistory(pmcDays);
+    const weeks = Math.max(1, Math.ceil(timeframeDays / 7));
+    const grouping = timeframeDays > 90 ? "month" : "week";
+    fetch(`/api/dashboard/trends?weeks=${weeks}&grouping=${grouping}`)
       .then((r) => r.ok ? r.json() : null).then((d) => d?.trends && setTrends(d.trends)).catch(() => {});
-  }, [status, trendWeeks, trendGrouping]);
+    fetch(`/api/dashboard/intensity-distribution?days=${pmcDays}`)
+      .then((r) => r.ok ? r.json() : null).then((d) => d?.distribution && setIntensityDist(d.distribution)).catch(() => {});
+  }, [status, timeframeDays, fetchPmcHistory]);
 
   // ─── Helper components ─────────────────────────────────────────────
 
@@ -288,9 +298,9 @@ export default function DashboardPage() {
             let lower = i === 0 ? 0 : restHr ? Math.round(restHr + (maxHr - restHr) * thresholds[i - 1]) : Math.round(maxHr * thresholds[i - 1]);
             let upper = i < 5 ? restHr ? Math.round(restHr + (maxHr - restHr) * thresholds[Math.min(i, 4)]) : Math.round(maxHr * thresholds[Math.min(i, 4)]) : 999;
             return <div key={label} className="flex items-center gap-2 text-[11px]">
-              <span className="w-14 text-muted-foreground shrink-0">{label}</span>
+              <span className="w-auto min-w-[3rem] text-muted-foreground shrink-0">{label}</span>
               <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden"><div className={`${colors[i]} h-full rounded-full`} style={{ width: "20%", marginLeft: `${(lower / (maxHr * 1.1)) * 100}%` }} /></div>
-              <span className={`w-20 text-right font-medium tabular-nums ${textColors[i]}`}>{lower === 0 ? `<${upper}` : upper >= 999 ? `>${lower}` : `${lower}–${upper}`} bpm</span>
+              <span className={`w-auto min-w-[4rem] text-right font-medium tabular-nums ${textColors[i]}`}>{lower === 0 ? `<${upper}` : upper >= 999 ? `>${lower}` : `${lower}–${upper}`} bpm</span>
             </div>;
           })}</div>;
         })()}
@@ -396,7 +406,27 @@ export default function DashboardPage() {
                   {readiness.score}
                 </div>
                 <div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Readiness</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">Readiness
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is Readiness?">
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Training Readiness</DialogTitle>
+                          <DialogDescription className="space-y-2 pt-2">
+                            <p>Readiness is a composite score (0–100) that blends your <strong>chronic training load (CTL), acute fatigue (ATL), volume adherence, and recovery signals</strong> into a single at-a-glance metric.</p>
+                            <p><strong>70–100:</strong> Ready to train hard &mdash; your body is recovered and adapted.</p>
+                            <p><strong>50–69:</strong> Proceed with caution &mdash; consider an easier session or extra recovery.</p>
+                            <p><strong>0–49:</strong> High fatigue or low recovery &mdash; prioritize rest or very light activity.</p>
+                            <p className="text-xs text-muted-foreground pt-1">The volume adherence bar shows how well your recent volume matches your training plan target.</p>
+                          </DialogDescription>
+                        </DialogHeader>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <div className={`font-semibold text-sm ${readiness.score >= 70 ? "text-green-600" : readiness.score >= 50 ? "text-amber-600" : "text-red-600"}`}>
                     {readiness.label}
                   </div>
@@ -405,7 +435,25 @@ export default function DashboardPage() {
               </div>
               <div className="sm:col-span-3 grid grid-cols-3 gap-3">
                 <div className="rounded-lg border bg-muted/20 p-2.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">CTL · Fitness</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">CTL · Fitness
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is CTL?">
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>CTL — Chronic Training Load (Fitness)</DialogTitle>
+                          <DialogDescription className="space-y-2 pt-2">
+                            <p>CTL is a rolling 42-day weighted average of your daily TSS (Training Stress Score). It represents your <strong>fitness</strong> level — the cumulative effect of all training over the last ~6 weeks.</p>
+                            <p>Think of it as your &ldquo;training baseline.&rdquo; Higher values mean you&rsquo;re maintaining a larger training load. Consistent CTL growth indicates improving aerobic fitness.</p>
+                            <p className="text-xs text-muted-foreground pt-1">Formula: TSS × e^(-t/42) weighted sum, where t is days ago.</p>
+                          </DialogDescription>
+                        </DialogHeader>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-xl font-bold ${pmc.ctl >= 50 ? "text-blue-600" : "text-blue-400"}`}>{pmc.ctl}</span>
                     {pmc.ctlTrend === "up" ? <TrendingUp className="h-3 w-3 text-green-500" /> : pmc.ctlTrend === "down" ? <TrendingDown className="h-3 w-3 text-red-500" /> : <Minus className="h-3 w-3 text-muted-foreground" />}
@@ -413,14 +461,51 @@ export default function DashboardPage() {
                   {pmc.rampRate !== null && <div className="text-[10px] text-muted-foreground">Ramp: {pmc.rampRate >= 0 ? "+" : ""}{pmc.rampRate}/wk</div>}
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-2.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">ATL · Fatigue</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">ATL · Fatigue
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is ATL?">
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>ATL — Acute Training Load (Fatigue)</DialogTitle>
+                          <DialogDescription className="space-y-2 pt-2">
+                            <p>ATL is a rolling 7-day weighted average of your daily TSS. It represents your <strong>fatigue</strong> level — the acute load from your most recent training.</p>
+                            <p>High ATL (&gt;80) means you&rsquo;re in a heavy training block and may be accumulating significant fatigue. This is normal during build phases but needs to be balanced with recovery.</p>
+                            <p className="text-xs text-muted-foreground pt-1">Formula: TSS &times; e^(-t/7) weighted sum, where t is days ago.</p>
+                          </DialogDescription>
+                        </DialogHeader>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-xl font-bold ${pmc.atl > 80 ? "text-red-600" : pmc.atl > 50 ? "text-amber-600" : "text-green-600"}`}>{pmc.atl}</span>
                     {pmc.atlTrend === "up" ? <TrendingUp className="h-3 w-3 text-amber-500" /> : pmc.atlTrend === "down" ? <TrendingDown className="h-3 w-3 text-green-500" /> : <Minus className="h-3 w-3 text-muted-foreground" />}
                   </div>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-2.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">TSB · Form</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">TSB · Form
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is TSB?">
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>TSB — Training Stress Balance (Form)</DialogTitle>
+                          <DialogDescription className="space-y-2 pt-2">
+                            <p>TSB is the difference between CTL (fitness) and ATL (fatigue): <strong>TSB = CTL − ATL</strong>.</p>
+                            <p>A positive TSB means training load has been light recently — you&rsquo;re <strong>fresh and recovered</strong>, ideal for racing or key sessions.</p>
+                            <p>A negative TSB means fatigue exceeds fitness — you&rsquo;re in a <strong>training overload</strong> phase. Moderate negatives (−5 to −15) are normal during building blocks. Deeper negatives (&lt;−20) suggest you may need a deload week soon.</p>
+                            <p className="text-xs text-muted-foreground pt-1">Target race-day TSB: +5 to +15 (tapered and ready).</p>
+                          </DialogDescription>
+                        </DialogHeader>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-xl font-bold ${pmc.tsb >= 0 ? "text-green-600" : pmc.tsb >= -10 ? "text-amber-600" : "text-red-600"}`}>{pmc.tsb}</span>
                     {pmc.tsbTrend === "up" ? <TrendingUp className="h-3 w-3 text-green-500" /> : pmc.tsbTrend === "down" ? <TrendingDown className="h-3 w-3 text-red-500" /> : <Minus className="h-3 w-3 text-muted-foreground" />}
@@ -452,7 +537,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="text-xs text-muted-foreground shrink-0">{goal.daysUntil > 0 ? `${goal.daysUntil}d` : "Due!"}</div>
                     </div>
-                    {rr ? <><div className="flex items-center gap-3 mb-2">
+                    {rr ? <><div className="flex items-center gap-3 mb-2 flex-wrap">
                       <div className={`text-2xl font-bold ${rr.readinessPct >= 70 ? "text-green-600" : rr.readinessPct >= 45 ? "text-amber-600" : "text-red-600"}`}>{rr.readinessPct}%</div>
                       <Badge variant={rr.status === "on_track" ? "success" : rr.status === "needs_work" ? "warning" : "destructive"}>{rr.status.replace("_", " ").toUpperCase()}</Badge>
                       <span className="text-xs text-muted-foreground">Volume: {rr.volumeGap}%{rr.elevationGap != null ? ` · Elev: ${rr.elevationGap}%` : ""}</span>
@@ -512,14 +597,16 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* ═══ 4. FITNESS TRENDS (PMC + Historical merged) ═══ */}
-      {pmcHistory.length > 0 && (
+      {/* ═══ 4. TRAINING ANALYSIS (PMC + Intensity Dist + Historical) ═══ */}
+      {(pmcHistory.length > 0 || intensityDist || trends.length >= 2) && (
         <Card className="mb-6">
           <CardContent className="py-4">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Fitness Trends</h2>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1 flex-wrap">
+            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2 mb-4"><TrendingUp className="h-4 w-4" /> Training Analysis</h2>
+
+            {/* PMC / Fitness Trends */}
+            {pmcHistory.length > 0 && (
+              <div className="mb-6">
+                <div className="flex gap-1 flex-wrap mb-3">
                   {PMC_METRICS.map((m) => (
                     <button key={m.key} onClick={() => setPmcMetrics((prev) => { const n = new Set(prev); if (n.has(m.key)) { if (n.size > 1) n.delete(m.key); } else n.add(m.key); return n; })}
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${pmcMetrics.has(m.key) ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
@@ -528,88 +615,95 @@ export default function DashboardPage() {
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-1">
-                  {TIME_RANGES.map((r) => (
-                    <Button key={r.days} variant={pmcDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPmcDays(r.days)}>{r.label}</Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={pmcHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 10 }} width={30} />
-                    <Tooltip labelFormatter={(v: string) => v} formatter={(v: number, name: string) => { const m = PMC_METRICS.find((mm) => mm.key === name); return m ? [m.format(v), m.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
-                    {PMC_METRICS.filter((m) => pmcMetrics.has(m.key)).map((m) => (
-                      <Area key={m.key} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />
-                    ))}
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ═══ 5. HISTORICAL TRENDS ═══ */}
-      {trends.length >= 2 && (
-        <Card className="mb-6">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Historical Trends</h2>
-              <div className="flex items-center gap-2">
-                <Tabs value={trendGrouping} onValueChange={(v) => setTrendGrouping(v as "week" | "month")}>
-                  <TabsList className="h-7"><TabsTrigger value="week" className="text-xs px-2.5">Weekly</TabsTrigger><TabsTrigger value="month" className="text-xs px-2.5">Monthly</TabsTrigger></TabsList>
-                </Tabs>
-                <div className="flex gap-1">
-                  {[{ label: "1M", weeks: 4 }, { label: "3M", weeks: 12 }, { label: "6M", weeks: 24 }, { label: "1Y", weeks: 52 }, { label: "Max", weeks: 200 }].map((r) => (
-                    <Button key={r.weeks} variant={trendWeeks === r.weeks ? "default" : "outline"} size="sm" className="h-7 px-2 text-xs" onClick={() => setTrendWeeks(r.weeks)}>{r.label}</Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap mb-3">
-              {TREND_METRICS.map((m) => (
-                <button key={m.key} onClick={() => setTrendMetrics((prev) => { const n = new Set(prev); if (n.has(m.key)) { if (n.size > 1) n.delete(m.key); } else n.add(m.key); return n; })}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${trendMetrics.has(m.key) ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
-                  style={trendMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}>
-                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} /> {m.label}
-                </button>
-              ))}
-            </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  {(() => {
-                    const vis = TREND_METRICS.filter((m) => trendMetrics.has(m.key));
-                    const leftN = vis.filter((m) => m.orientation === "left").length;
-                    const rightN = vis.filter((m) => m.orientation === "right").length;
-                    const margin = { top: 4, right: rightN > 1 ? 20 + rightN * 32 : rightN > 0 ? 20 : 8, left: leftN > 1 ? 20 + leftN * 32 : leftN > 0 ? 20 : 8, bottom: 0 };
-                    return (
-                      <AreaChart data={trends} margin={margin} onClick={(data) => {
-                        if (!data?.activeLabel) return;
-                        const label = data.activeLabel;
-                        if (trendGrouping === "month" && label.length === 7) router.push(`/training-logs?from=${label}-01&to=${label}-31`);
-                        else if (label.length === 10) { const d = new Date(label); const e = new Date(d); e.setDate(e.getDate() + 6); router.push(`/training-logs?from=${label}&to=${e.toISOString().split("T")[0]}`); }
-                      }}>
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={pmcHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.length > 7 ? v.slice(5) : v} interval="preserveStartEnd" />
-                        {vis.map((m) => (
-                          <YAxis key={m.yAxisId} yAxisId={m.yAxisId} orientation={m.orientation} stroke={m.color} tick={{ fontSize: 10, fill: m.color }}
-                            width={m.orientation === "left" ? (leftN === 0 ? 30 : 44) : (rightN === 0 ? 30 : 44)} tickFormatter={m.tickFormatter}
-                            domain={m.key === "readinessScore" ? [0, 100] : ["auto", "auto"]} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 10 }} width={30} />
+                        <Tooltip labelFormatter={(v: string) => v} formatter={(v: number, name: string) => { const m = PMC_METRICS.find((mm) => mm.key === name); return m ? [m.format(v), m.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
+                        {PMC_METRICS.filter((m) => pmcMetrics.has(m.key)).map((m) => (
+                          <Area key={m.key} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />
                         ))}
-                        <Tooltip labelFormatter={(v: string) => v.length > 7 ? `Week of ${v}` : v} formatter={(v: number, name: string) => { const mt = TREND_METRICS.find((mm) => mm.key === name); return mt ? [mt.format(v), mt.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
-                        {vis.map((m) => (<Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />))}
                       </AreaChart>
-                    );
-                  })()}
-                </ResponsiveContainer>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-1 text-center">Click a data point to view training logs for that period</div>
+            )}
+
+            {/* Intensity Distribution */}
+            {intensityDist && (
+              <div className="mb-6">
+                <h3 className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-3">Intensity Distribution</h3>
+                <div className="space-y-1.5">
+                  {([{ k: "zone1Pct" as const, l: "Z1 · Recovery", c: "bg-blue-400" }, { k: "zone2Pct" as const, l: "Z2 · Endurance", c: "bg-green-400" }, { k: "zone3Pct" as const, l: "Z3 · Tempo", c: "bg-amber-400" }, { k: "zone4Pct" as const, l: "Z4 · Threshold", c: "bg-orange-500" }, { k: "zone5Pct" as const, l: "Z5 · VO₂Max", c: "bg-red-500" }]).map((z) => {
+                    const pct = intensityDist[z.k];
+                    return <div key={z.k}><div className="flex justify-between text-xs mb-0.5"><span className="text-muted-foreground">{z.l}</span><span className="font-medium">{pct}%</span></div><div className="w-full bg-muted rounded-full h-2"><div className={`${z.c} h-2 rounded-full`} style={{ width: `${pct}%` }} /></div></div>;
+                  })}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant={intensityDist.distributionType === "polarized" ? "success" : intensityDist.distributionType === "pyramidal" ? "warning" : "destructive"}>
+                    {intensityDist.distributionType.replace("-", " ").toUpperCase()}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">{intensityDist.activityCount} activities · {intensityDist.analyzedHours}h analyzed</span>
+                </div>
+              </div>
+            )}
+
+            {/* Historical Trends */}
+            {trends.length >= 2 && (
+              <div className="mb-6 last:mb-0">
+                <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                  {TREND_METRICS.map((m) => (
+                    <button key={m.key} onClick={() => setTrendMetrics((prev) => { const n = new Set(prev); if (n.has(m.key)) { if (n.size > 1) n.delete(m.key); } else n.add(m.key); return n; })}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${trendMetrics.has(m.key) ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
+                      style={trendMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}>
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} /> {m.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      {(() => {
+                        const vis = TREND_METRICS.filter((m) => trendMetrics.has(m.key));
+                        const leftN = vis.filter((m) => m.orientation === "left").length;
+                        const rightN = vis.filter((m) => m.orientation === "right").length;
+                        const margin = { top: 4, right: rightN > 1 ? 20 + rightN * 32 : rightN > 0 ? 20 : 8, left: leftN > 1 ? 20 + leftN * 32 : leftN > 0 ? 20 : 8, bottom: 0 };
+                        return (
+                          <AreaChart data={trends} margin={margin} onClick={(data) => {
+                            if (!data?.activeLabel) return;
+                            const label = data.activeLabel;
+                            const g = timeframeDays > 90 ? "month" : "week";
+                            if (g === "month" && label.length === 7) router.push(`/training-logs?from=${label}-01&to=${label}-31`);
+                            else if (label.length === 10) { const d = new Date(label); const e = new Date(d); e.setDate(e.getDate() + 6); router.push(`/training-logs?from=${label}&to=${e.toISOString().split("T")[0]}`); }
+                          }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                            <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.length > 7 ? v.slice(5) : v} interval="preserveStartEnd" />
+                            {vis.map((m) => (
+                              <YAxis key={m.yAxisId} yAxisId={m.yAxisId} orientation={m.orientation} stroke={m.color} tick={{ fontSize: 10, fill: m.color }}
+                                width={m.orientation === "left" ? (leftN === 0 ? 30 : 44) : (rightN === 0 ? 30 : 44)} tickFormatter={m.tickFormatter}
+                                domain={m.key === "readinessScore" ? [0, 100] : ["auto", "auto"]} />
+                            ))}
+                            <Tooltip labelFormatter={(v: string) => v.length > 7 ? `Week of ${v}` : v} formatter={(v: number, name: string) => { const mt = TREND_METRICS.find((mm) => mm.key === name); return mt ? [mt.format(v), mt.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
+                            {vis.map((m) => (<Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />))}
+                          </AreaChart>
+                        );
+                      })()}
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1 text-center">Click a data point to view training logs for that period</div>
+                </div>
+              </div>
+            )}
+
+            {/* Shared timeframe buttons */}
+            <div className="flex gap-1 mt-4 flex-wrap">
+              {TIME_RANGES.map((r) => (
+                <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setTimeframeDays(r.days)}>{r.label}</Button>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -688,34 +782,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ═══ 8. WORKOUT TYPE DISTRIBUTION ═══ */}
-      {logs.some((l) => l.workoutType) && (
-        <Card className="mb-6">
-          <CardContent className="py-4">
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Workout Distribution</h2>
-            <div className="space-y-1.5">
-              {(["easy", "long_run", "intervals", "tempo", "fartlek", "recovery"] as const).map((type) => {
-                const count = logs.filter((l) => l.workoutType === type).length;
-                const pct = logs.length > 0 ? Math.round((count / logs.length) * 100) : 0;
-                if (count === 0) return null;
-                return (
-                  <div key={type}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="capitalize text-muted-foreground">{type.replace("_", " ")}</span>
-                      <span className="font-medium">{count} ({pct}%)</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full ${type === "easy" ? "bg-blue-400" : type === "long_run" ? "bg-green-400" : type === "intervals" ? "bg-red-500" : type === "tempo" ? "bg-amber-400" : type === "fartlek" ? "bg-purple-400" : "bg-gray-400"}`} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ═══ 9. GOAL PROGRESS ═══ */}
+      {/* ═══ 8. GOAL PROGRESS ═══ */}
       {goals.length > 0 && (
         <Card className="mb-6">
           <CardContent className="py-4">
@@ -781,7 +848,6 @@ export default function DashboardPage() {
                     <span className="font-medium">{session.description}</span>
                     {session.targetDistance && <span className="text-xs text-muted-foreground">{Math.round(session.targetDistance / 1000)}km</span>}
                     {session.targetElevation && session.targetElevation > 0 && <span className="text-xs text-muted-foreground">{session.targetElevation}m</span>}
-                    {session.facility && <span className="text-xs text-muted-foreground ml-auto truncate max-w-[120px]">{session.facility}</span>}
                   </div>
                 );
               })}
@@ -798,26 +864,31 @@ export default function DashboardPage() {
 
       {/* ═══ 12. TRACKPOINT INSIGHTS ═══ */}
       {trackpointInsights?.available && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          {trackpointInsights.intensityDistribution && (
-            <Card><CardContent className="py-4">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3">Intensity Distribution</h2>
-              <div className="space-y-1.5">
-                {([{ k: "zone1Pct" as const, l: "Z1 · Recovery", c: "bg-blue-400" }, { k: "zone2Pct" as const, l: "Z2 · Endurance", c: "bg-green-400" }, { k: "zone3Pct" as const, l: "Z3 · Tempo", c: "bg-amber-400" }, { k: "zone4Pct" as const, l: "Z4 · Threshold", c: "bg-orange-500" }, { k: "zone5Pct" as const, l: "Z5 · VO₂Max", c: "bg-red-500" }]).map((z) => {
-                  const pct = trackpointInsights.intensityDistribution![z.k];
-                  return <div key={z.k}><div className="flex justify-between text-xs mb-0.5"><span className="text-muted-foreground">{z.l}</span><span className="font-medium">{pct}%</span></div><div className="w-full bg-muted rounded-full h-2"><div className={`${z.c} h-2 rounded-full`} style={{ width: `${pct}%` }} /></div></div>;
-                })}
-              </div>
-              <div className="mt-2 pt-2 border-t flex items-center gap-2">
-                <Badge variant={trackpointInsights.intensityDistribution.distributionType === "polarized" ? "success" : trackpointInsights.intensityDistribution.distributionType === "pyramidal" ? "warning" : "destructive"}>
-                  {trackpointInsights.intensityDistribution.distributionType.replace("-", " ").toUpperCase()}
-                </Badge>
-              </div>
-            </CardContent></Card>
-          )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {trackpointInsights.decoupling && (
             <Card><CardContent className="py-4">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3"><Heart className="h-3.5 w-3.5 text-red-500 inline" /> HR Decoupling</h2>
+              <div className="flex items-start justify-between mb-3">
+                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Heart className="h-3.5 w-3.5 text-red-500 inline" /> HR Decoupling</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="What is HR Decoupling?">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>HR Decoupling</DialogTitle>
+                      <DialogDescription className="space-y-2 pt-2">
+                        <p>Heart rate decoupling measures how efficiently your heart rate responds during steady-state exercise. As you fatigue, your heart rate drifts upward (cardiac drift) to maintain the same output — this drift is &ldquo;decoupling.&rdquo;</p>
+                        <p><strong>Excellent (&lt;5%):</strong> Highly efficient aerobic system &mdash; your heart rate barely drifts.</p>
+                        <p><strong>Good (5&ndash;10%):</strong> Normal range for most athletes. Some drift is expected.</p>
+                        <p><strong>Elevated (&gt;10%):</strong> Significant drift &mdash; possible heat stress, dehydration, insufficient aerobic fitness, or overtraining.</p>
+                        <p className="text-xs text-muted-foreground pt-1">Calculated from&nbsp;HR&nbsp;vs.&nbsp;pace/power regression over the last 20&nbsp;minutes of steady-state efforts.</p>
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div className="text-center py-2">
                 <div className={`text-3xl font-bold ${trackpointInsights.decoupling.status === "excellent" ? "text-green-600" : trackpointInsights.decoupling.status === "good" ? "text-amber-600" : "text-red-600"}`}>{trackpointInsights.decoupling.avgDecouplingPct}%</div>
                 <Badge variant={trackpointInsights.decoupling.status === "excellent" ? "success" : trackpointInsights.decoupling.status === "good" ? "warning" : "destructive"} className="mt-1">{trackpointInsights.decoupling.status.toUpperCase()}</Badge>
@@ -826,7 +897,27 @@ export default function DashboardPage() {
           )}
           {trackpointInsights.efTrend && trackpointInsights.efTrend.length >= 2 && (
             <Card><CardContent className="py-4">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3">Efficiency Factor</h2>
+              <div className="flex items-start justify-between mb-3">
+                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Efficiency Factor</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="What is Efficiency Factor?">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Efficiency Factor (EF)</DialogTitle>
+                      <DialogDescription className="space-y-2 pt-2">
+                        <p>Efficiency Factor measures how much speed (or power) you produce per heart beat. It&rsquo;s calculated as pace (m/s) divided by heart rate for runs, or power (watts) divided by heart rate for rides.</p>
+                        <p>A rising EF over time means you&rsquo;re getting fitter — you can go faster at the same heart rate, or maintain the same pace at a lower heart rate. This is the hallmark of aerobic adaptation.</p>
+                        <p>Use it to track long-term fitness trends rather than day-to-day changes, since hydration, heat, fatigue, and caffeine all cause normal short-term variation.</p>
+                        <p className="text-xs text-muted-foreground pt-1">Tracked as a rolling weekly average using your steady-state efforts.</p>
+                      </DialogDescription>
+                    </DialogHeader>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div className="h-32"><ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trackpointInsights.efTrend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                   <YAxis tick={{ fontSize: 10 }} width={30} domain={["dataMin - 0.1", "dataMax + 0.1"]} />
@@ -856,7 +947,7 @@ export default function DashboardPage() {
                 <Link key={log.id} href={`/training-logs/${log.id}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Activity className="h-4 w-4 text-primary" /></div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                       <span className="text-sm font-medium truncate">{log.name}</span>
                       <Badge variant="outline" className="text-xs">{log.type}</Badge>
                       {log.workoutType && <span className="text-[10px] text-muted-foreground capitalize">{log.workoutType.replace("_", " ")}</span>}

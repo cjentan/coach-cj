@@ -32,10 +32,8 @@ export async function GET() {
   }
 
   // Generate new plan
-  const [goals, availability, facilities, trainingLogs, fatigueAlert] = await Promise.all([
+  const [goals, trainingLogs, fatigueAlert] = await Promise.all([
     prisma.raceGoal.findMany({ where: { userId: session.user.id, status: "active" } }),
-    prisma.trainingAvailability.findMany({ where: { userId: session.user.id } }),
-    prisma.trainingFacility.findMany({ where: { userId: session.user.id } }),
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
@@ -70,14 +68,6 @@ export async function GET() {
     recentVolumeByWeek: weeklyVolumes,
     recentElevationByWeek: weeklyElevations,
     recentDurationByWeek: weeklyDurations,
-    availability: availability.map((a) => ({
-      dayOfWeek: a.dayOfWeek, startTime: a.startTime, endTime: a.endTime,
-      facilityIds: a.facilityIds,
-    })),
-    facilities: facilities.map((f) => ({
-      id: f.id, name: f.name, type: f.type,
-      distanceMeters: f.distanceMeters, elevationGainMeters: f.elevationGainMeters,
-    })),
     consistencyScore: 0.7,
     fatigueSeverity: fatigueAlert?.severity || null,
   });

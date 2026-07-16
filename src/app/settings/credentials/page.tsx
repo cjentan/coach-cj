@@ -40,7 +40,7 @@ const PROVIDER_BASE_URLS: Record<string, string> = {
 // Provider → available models
 const PROVIDER_MODELS: Record<string, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  deepseek: ["deepseek-v4-flash"],
   anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
   ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
 };
@@ -54,8 +54,6 @@ const QUICK_PROMPTS = [
 export default function CredentialsPage() {
   const { status } = useSession();
   const router = useRouter();
-  const [publicUrl, setPublicUrl] = useState("");
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // LLM settings
@@ -87,11 +85,9 @@ export default function CredentialsPage() {
     if (status === "unauthenticated") router.push("/auth/signin");
     else if (status === "authenticated") {
       Promise.all([
-        fetch("/api/settings/credentials").then((r) => r.json()),
         fetch("/api/settings/api-keys").then((r) => r.json()),
         fetch("/api/settings/llm").then((r) => r.json()),
-      ]).then(([credData, keyData, llmData]) => {
-        setPublicUrl(credData.public_url || "");
+      ]).then(([keyData, llmData]) => {
         setApiKeys(keyData.keys || []);
         setHasStoredKey(llmData.hasUserKey);
         setHasServerDefault(llmData.hasServerDefault);
@@ -103,16 +99,6 @@ export default function CredentialsPage() {
       });
     }
   }, [status, router]);
-
-  async function savePublicUrl() {
-    await fetch("/api/settings/credentials", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ public_url: publicUrl }),
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  }
 
   async function createKey() {
     if (!newKeyName.trim()) return;
@@ -173,38 +159,12 @@ export default function CredentialsPage() {
 
   if (loading) return <div>Loading...</div>;
 
-  const baseUrl = publicUrl || (typeof window !== "undefined" ? window.location.origin : "");
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-2">API &amp; Credentials</h1>
-      <p className="text-sm text-muted-foreground mb-8">Manage your API keys, AI provider, and public URL.</p>
-
-      {/* ── Public URL ──────────────────────────────────── */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Public URL</CardTitle>
-          <CardDescription>
-            Your app&apos;s public URL. Used for callback links and external references.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Public URL</Label>
-            <Input
-              value={publicUrl}
-              onChange={(e) => setPublicUrl(e.target.value)}
-              placeholder="https://coach.example.com"
-            />
-            <p className="text-xs text-muted-foreground">
-              Set this to your domain or Tailscale URL so push API examples show the correct endpoint.
-            </p>
-          </div>
-          <Button onClick={savePublicUrl}>
-            {saved ? <><Check className="h-4 w-4 mr-2" /> Saved</> : "Save"}
-          </Button>
-        </CardContent>
-      </Card>
+      <p className="text-sm text-muted-foreground mb-8">Manage your API keys and AI provider configuration.</p>
 
       {/* ── AI Provider + LLM Test ──────────────────────── */}
       <Card className="mb-6">
@@ -221,7 +181,7 @@ export default function CredentialsPage() {
           {hasServerDefault && !hasStoredKey && !llmApiKey && !llmProvider && (
             <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-sm flex items-center gap-2">
               <Check className="h-4 w-4 shrink-0" />
-              <span><strong>Server default:</strong> DeepSeek (deepseek-chat) is configured. AI features work out of the box. Set your own key below to override.</span>
+              <span><strong>Server default:</strong> DeepSeek (deepseek-v4-flash) is configured. AI features work out of the box. Set your own key below to override.</span>
             </div>
           )}
           {hasStoredKey && !llmApiKey && !llmProvider && (
@@ -372,7 +332,7 @@ export default function CredentialsPage() {
             {/* Result */}
             {(testing || result || testError) && (
               <div className="rounded-md border">
-                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 flex-wrap gap-1">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     {testing ? (
                       <><Loader2 className="h-4 w-4 animate-spin" /> Testing...</>
@@ -426,17 +386,54 @@ export default function CredentialsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Key className="h-5 w-5" /> API Keys</CardTitle>
           <CardDescription>
-            Create API keys to push GPX, TCX, or FIT files remotely via the push API.
+            API keys let external tools and scripts push activity data to your account programmatically.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+
+          {/* ── API Usage Guide ──────────────────────────── */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <h3 className="text-sm font-semibold">Push API — <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">POST /api/push/activity</code></h3>
+            <div className="text-xs text-muted-foreground space-y-2">
+              <p>Upload GPX, TCX, or FIT files to your account from any HTTP client. Send the file in the request body and authenticate with your API key.</p>
+
+              <div className="mt-3">
+                <span className="font-medium text-foreground">Authentication</span>
+                <div className="mt-1 font-mono bg-muted/50 p-2 rounded text-[11px] leading-relaxed">
+                  Authorization: Bearer &lt;your_api_key&gt;
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <span className="font-medium text-foreground">Supported formats</span>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li><strong>GPX</strong> — set <code className="font-mono bg-muted px-1 rounded text-[11px]">Content-Type: application/gpx+xml</code></li>
+                  <li><strong>TCX</strong> — set <code className="font-mono bg-muted px-1 rounded text-[11px]">Content-Type: application/vnd.garmin.tcx+xml</code></li>
+                  <li><strong>FIT</strong> — use multipart upload with <code className="font-mono bg-muted px-1 rounded text-[11px]">-F file=@activity.fit</code></li>
+                </ul>
+              </div>
+
+              <div className="mt-3">
+                <span className="font-medium text-foreground">Optional query parameters</span>
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 mt-1">
+                  <code className="font-mono text-[11px]">?name=</code>
+                  <span>Override auto-detected activity name</span>
+                  <code className="font-mono text-[11px]">?type=</code>
+                  <span>Set activity type: <code className="font-mono bg-muted px-1 rounded text-[11px]">run</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">ride</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">swim</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">hike</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">walk</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">workout</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">other</code></span>
+                  <code className="font-mono text-[11px]">?externalId=</code>
+                  <span>Deduplication key (default: hash of filename + date)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Existing keys */}
           {apiKeys.length > 0 && (
             <div className="space-y-2">
               <Label>Your Keys</Label>
               <div className="border rounded-lg divide-y">
                 {apiKeys.map((key) => (
-                  <div key={key.id} className="flex items-center justify-between p-3 text-sm">
+                  <div key={key.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 text-sm gap-2">
                     <div className="space-y-0.5 min-w-0">
                       <div className="font-medium truncate">{key.name}</div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -465,7 +462,7 @@ export default function CredentialsPage() {
           {/* Create new key form */}
           <div className="space-y-3 p-4 rounded-lg bg-muted/50">
             <Label className="font-medium">Create a New Key</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-col sm:flex-row">
               <Input
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
@@ -489,7 +486,7 @@ export default function CredentialsPage() {
               <p className="text-xs text-muted-foreground">
                 This is the only time the full key will be shown. Store it securely.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <code className="flex-1 p-2 rounded bg-muted font-mono text-xs break-all select-all">
                   {showKey ? newlyCreatedKey.rawKey : "•".repeat(48)}
                 </code>

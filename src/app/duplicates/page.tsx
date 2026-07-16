@@ -177,12 +177,13 @@ export default function DuplicatesPage() {
             Detect and resolve duplicate activities from different sources
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={handleResnapshot}
             disabled={snapshotting}
+            className="w-full sm:w-auto"
           >
             {snapshotting ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Resnapshotting...</>
@@ -190,7 +191,7 @@ export default function DuplicatesPage() {
               <><Activity className="h-4 w-4 mr-2" /> Re-snapshot Trends</>
             )}
           </Button>
-          <Button onClick={handleScan} disabled={scanning}>
+          <Button onClick={handleScan} disabled={scanning} className="w-full sm:w-auto">
             {scanning ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning...</>
             ) : (
@@ -365,7 +366,7 @@ function ActivityRow({ activity, isSelected }: { activity: DuplicateActivity; is
           </span>
           <Badge variant="outline" className="text-[10px] shrink-0">{activity.type}</Badge>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
           <span>{format(new Date(activity.startDate), "MMM d, yyyy h:mm a")}</span>
           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDuration(activity.durationSeconds)}</span>
           {activity.distanceMeters && (

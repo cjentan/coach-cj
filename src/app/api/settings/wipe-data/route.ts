@@ -6,9 +6,7 @@ import type { Prisma } from "@prisma/client";
 const ALL_TYPES = [
   "trainingLogs",
   "raceGoals",
-  "trainingFacilities",
   "bodyMetrics",
-  "availability",
   "weeklyAssessments",
   "weeklyPlans",
   "fatigueAlerts",
@@ -43,9 +41,7 @@ export async function DELETE(request: NextRequest) {
 
   if (types.includes("trainingLogs")) operations.push(prisma.trainingLog.deleteMany({ where: { userId } }));
   if (types.includes("raceGoals")) operations.push(prisma.raceGoal.deleteMany({ where: { userId } }));
-  if (types.includes("trainingFacilities")) operations.push(prisma.trainingFacility.deleteMany({ where: { userId } }));
   if (types.includes("bodyMetrics")) operations.push(prisma.bodyMetric.deleteMany({ where: { userId } }));
-  if (types.includes("availability")) operations.push(prisma.trainingAvailability.deleteMany({ where: { userId } }));
   if (types.includes("weeklyAssessments")) operations.push(prisma.weeklyAssessment.deleteMany({ where: { userId } }));
   if (types.includes("weeklyPlans")) operations.push(prisma.weeklyPlan.deleteMany({ where: { userId } }));
   if (types.includes("fatigueAlerts")) operations.push(prisma.fatigueAlert.deleteMany({ where: { userId } }));
