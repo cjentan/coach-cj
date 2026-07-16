@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   NotebookText,
@@ -16,32 +17,33 @@ import {
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
-const NAV_ITEMS = [
-  { href: "/training-logs", label: "Training", icon: NotebookText },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, primary: true },
-  { href: "#more", label: "More", icon: MoreHorizontal },
-];
-
 export function MobileNav() {
   const { data: session } = useSession();
+  const t = useTranslations("nav");
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isAdmin = session?.user?.role === "admin";
 
+  const NAV_ITEMS = [
+    { href: "/activities", label: t("activities"), icon: NotebookText },
+    { href: "/dashboard", label: t("dashboard"), icon: LayoutDashboard, primary: true },
+    { href: "#more", label: t("more"), icon: MoreHorizontal },
+  ];
+
   const MORE_ITEMS = [
-    { href: "/duplicates", label: "Duplicate", icon: Copy },
-    { href: "/ingestion", label: "Import", icon: Upload },
-    { href: "/settings", label: "Settings", icon: Settings },
-    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
-    { label: "Sign Out", icon: LogOut, action: "signout" },
+    { href: "/duplicates", label: t("duplicates"), icon: Copy },
+    { href: "/ingestion", label: t("import"), icon: Upload },
+    { href: "/settings", label: t("settings"), icon: Settings },
+    ...(isAdmin ? [{ href: "/admin", label: t("admin"), icon: Shield }] : []),
+    { label: t("signOut"), icon: LogOut, action: "signout" as const },
   ];
 
   if (!session?.user) return null;
 
   const isActive = (href: string) => {
     if (href === "#more") return moreOpen;
-    if (href === "/training-logs") return pathname.startsWith("/training-logs");
+    if (href === "/activities") return pathname.startsWith("/activities");
     return pathname === "/dashboard" || pathname === "/";
   };
 

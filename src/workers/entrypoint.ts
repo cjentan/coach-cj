@@ -4,7 +4,7 @@
  *
  * Starts the BullMQ workers that process:
  * 1. fatigue-monitor — runs daily fatigue detection for all users
- * 2. sunday-review — runs the weekly review + plan generator
+ * 2. sunday-review — runs the weekly review + plan generator (uses ai-coach for LLM)
  * 3. garmin-sync — syncs activities + health from Garmin Connect
  * 4. coros-sync — syncs activities from COROS Training Hub
  */
@@ -14,10 +14,8 @@ import { prisma } from "../lib/prisma";
 import { computePMC } from "../lib/pmc";
 import { detectFatigue } from "../lib/fatigue-detector";
 import { generateWeeklyPlan } from "../lib/plan-generator";
-import { getWeekStart, formatDistance, formatDuration } from "../lib/utils";
-import { generateCoachNotes } from "../lib/coach-notes";
-import { snapshotWeek } from "../lib/metrics-snapshot";
-import { getDefaultLlmConfig } from "../lib/llm";
+import { getWeekStart } from "../lib/utils";
+import { analyze } from "../lib/ai-coach";
 import { getGarminClient, syncGarminActivities, syncGarminHealthData } from "../lib/garmin";
 import { getCorosClient, syncCorosActivities } from "../lib/coros";
 
@@ -100,12 +98,7 @@ const sundayWorker = new Worker(
       select: {
         id: true,
         name: true,
-        llmApiKey: true,
-        llmBaseUrl: true,
-        llmModel: true,
-        llmProvider: true,
         raceGoals: { where: { status: "active" } },
-        trainingContext: true,
         trainingLogs: { orderBy: { startDate: "desc" }, take: 100 },
         fatigueAlerts: { where: { acknowledged: false }, orderBy: { detectedAt: "desc" }, take: 1 },
       },
@@ -116,7 +109,7 @@ const sundayWorker = new Worker(
     weekStart.setDate(weekStart.getDate() + 7); // Next week's Monday
 
     for (const user of users) {
-      // Aggregate weekly volumes (last 4 weeks)
+      // Aggregate weekly volumes (last 4 weeks) — needed for the rule-based plan generator
       const now = Date.now();
       const weeklyVolumes: number[] = [];
       const weeklyElevations: number[] = [];
@@ -133,6 +126,7 @@ const sundayWorker = new Worker(
         weeklyDurations.push(weekLogs.reduce((s, logItem) => s + logItem.durationSeconds, 0));
       }
 
+      // 1. Generate rule-based plan for next week
       const plan = generateWeeklyPlan({
         goals: user.raceGoals.map((g) => ({
           id: g.id,
@@ -149,113 +143,7 @@ const sundayWorker = new Worker(
         fatigueSeverity: user.fatigueAlerts[0]?.severity || null,
       });
 
-      // ── LLM Coach Notes ──────────────────────────────────
-      const weekLabels = [] as string[];
-      for (let w = 3; w >= 0; w--) {
-        const start = new Date(now - (w + 1) * 7 * 86400000);
-        const end = new Date(now - w * 7 * 86400000);
-        weekLabels.push(
-          start.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-        );
-      }
-
-      // Compute PMC for the user
-      const tssByDate: Record<string, number> = {};
-      for (const log of user.trainingLogs) {
-        const dk = log.startDate.toISOString().split("T")[0];
-        tssByDate[dk] = (tssByDate[dk] || 0) + (log.tss || 50);
-      }
-      const pmcInput = Object.entries(tssByDate).map(([date, tss]) => ({ date, tss }));
-      const pmcResults = computePMC(pmcInput);
-      const latestPmc = pmcResults[pmcResults.length - 1] || { ctl: 30, atl: 30, tsb: 0 };
-
-      // Fetch daily health metrics for this user
-      const dailyHealthData = await prisma.dailyHealth.findMany({
-        where: { userId: user.id, date: { gte: new Date(now - 7 * 86400000) } },
-        select: { sleepSeconds: true, sleepScore: true, overnightHrv: true, hrvStatus: true, bodyBatteryMin: true, bodyBatteryMax: true, avgStress: true, restingHeartRate: true },
-      });
-      const healthMetrics = dailyHealthData.length > 0 ? {
-        sleepAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.sleepSeconds || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.sleepSeconds).length) / 60),
-        hrvAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.overnightHrv || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.overnightHrv).length)),
-        bodyBatteryAvg: Math.round(dailyHealthData.reduce((s, d) => s + ((d.bodyBatteryMin || 0) + (d.bodyBatteryMax || 0)) / 2, 0) / dailyHealthData.length),
-        stressAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.avgStress || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.avgStress).length)),
-        restingHrAvg: Math.round(dailyHealthData.reduce((s, d) => s + (d.restingHeartRate || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.restingHeartRate).length)),
-        sleepScoreAvg: dailyHealthData.length > 0 ? Math.round(dailyHealthData.reduce((s, d) => s + (d.sleepScore || 0), 0) / Math.max(1, dailyHealthData.filter(d => d.sleepScore).length)) : null,
-        hrvStatus: dailyHealthData.find(d => d.hrvStatus)?.hrvStatus || null,
-      } : undefined;
-
-      // Resolve LLM config — user key takes priority, fall back to server-default DeepSeek
-      const serverDefault = getDefaultLlmConfig();
-      const llmConfig = {
-        apiKey: user.llmApiKey || serverDefault?.apiKey || undefined,
-        provider: user.llmProvider || serverDefault?.provider || undefined,
-        baseUrl: user.llmBaseUrl || serverDefault?.baseUrl || undefined,
-        model: user.llmModel || serverDefault?.model || undefined,
-      };
-
-      const coachNotes = await generateCoachNotes(
-        {
-          athleteName: user.name || "Athlete",
-          goals: user.raceGoals.map((g) => ({
-            name: g.name,
-            targetDate: g.targetDate.toISOString().split("T")[0],
-            distanceMeters: g.distanceMeters,
-            elevationGainMeters: g.elevationGainMeters,
-            priority: g.priority,
-            goalStatement: g.goalStatement,
-          })),
-          dailyHealth: healthMetrics,
-          recentWeeks: weekLabels.map((label, i) => ({
-            label,
-            volumeMeters: weeklyVolumes[i] || 0,
-            elevationMeters: weeklyElevations[i] || 0,
-            durationSeconds: weeklyDurations[i] || 0,
-            activityCount: 0,
-          })),
-          currentWeek: {
-            volumeMeters: weeklyVolumes[3] || 0,
-            elevationMeters: weeklyElevations[3] || 0,
-            durationSeconds: weeklyDurations[3] || 0,
-            activityCount: 0,
-          },
-          pmc: {
-          ctl: latestPmc.ctl,
-          atl: latestPmc.atl,
-          tsb: latestPmc.tsb,
-          tsbTrend: latestPmc.tsb > (pmcResults[pmcResults.length - 8]?.tsb || latestPmc.tsb) ? "rising" : "falling",
-        },
-        fatigue: user.fatigueAlerts[0]
-          ? { severity: user.fatigueAlerts[0].severity, signals: [] }
-          : null,
-        readinessScore: 50,
-        volumeAdherence: plan.targetVolumeMeters > 0 ? Math.round((weeklyVolumes[3] / plan.targetVolumeMeters) * 100) : 0,
-        elevationAdherence: plan.targetElevationMeters > 0 ? Math.round((weeklyElevations[3] / plan.targetElevationMeters) * 100) : 0,
-        consistencyScore: 70,
-        weeklyPlan: {
-          targetVolumeMeters: plan.targetVolumeMeters,
-          targetElevationMeters: plan.targetElevationMeters,
-          plannedSessions: plan.plannedSessions.map((s) => ({
-            dayOfWeek: s.dayOfWeek,
-            type: s.type,
-            description: s.description,
-            targetDistance: s.targetDistance,
-            targetElevation: s.targetElevation,
-          })),
-          adjustments: plan.adjustments,
-        },
-        recentRemarks: user.trainingLogs
-          .filter((entry) => entry.remarks)
-          .slice(0, 10)
-          .map((entry) => ({
-            date: entry.startDate.toISOString().split("T")[0],
-            activity: entry.name,
-            remarks: entry.remarks!,
-          })),
-        trainingContext: user.trainingContext ?? undefined,
-      },
-      llmConfig
-    );
-
+      // 2. Save plan to DB (needed before ai-coach can read it from context)
       await prisma.weeklyPlan.upsert({
         where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
         create: {
@@ -267,7 +155,6 @@ const sundayWorker = new Worker(
           plannedSessions: JSON.parse(JSON.stringify(plan.plannedSessions)),
           adjustments: plan.adjustments,
           trajectoryAssessment: plan.trajectoryAssessment,
-          coachNotes,
         },
         update: {
           targetVolumeMeters: plan.targetVolumeMeters,
@@ -276,40 +163,35 @@ const sundayWorker = new Worker(
           plannedSessions: JSON.parse(JSON.stringify(plan.plannedSessions)),
           adjustments: plan.adjustments,
           trajectoryAssessment: plan.trajectoryAssessment,
-          coachNotes,
           generatedAt: new Date(),
         },
       });
 
-      // Save analysis report for this scheduled review
-      if (coachNotes) {
-        await prisma.analysisReport.create({
-          data: {
-            userId: user.id,
-            reportType: "coach_notes",
-            triggeredBy: "scheduled",
-            inputSnapshot: { goals: user.raceGoals.length, dailyHealthAvailable: !!healthMetrics, pmcSnapshot: { ctl: latestPmc.ctl, atl: latestPmc.atl, tsb: latestPmc.tsb } },
-            outputContent: coachNotes,
-            reasoning: {
-              dataDrivers: [
-                `CTL: ${Math.round(latestPmc.ctl)}`,
-                `TSB: ${Math.round(latestPmc.tsb)}`,
-                `Plan volume: ${Math.round(plan.targetVolumeMeters / 1000)}km`,
-                ...(healthMetrics ? [`Sleep: ${healthMetrics.sleepAvg}min`, `HRV: ${healthMetrics.hrvAvg}ms`] : []),
-              ],
-              strengths: [],
-              concerns: [],
-              keyDecisions: plan.adjustments,
-            },
-            metrics: {
-              ctl: Math.round(latestPmc.ctl),
-              atl: Math.round(latestPmc.atl),
-              tsb: Math.round(latestPmc.tsb),
-              volumeAdherence: plan.targetVolumeMeters > 0 ? Math.round((weeklyVolumes[3] / plan.targetVolumeMeters) * 100) : 0,
-              ...(healthMetrics ? { sleepAvg: healthMetrics.sleepAvg, hrvAvg: healthMetrics.hrvAvg, restingHrAvg: healthMetrics.restingHrAvg } : {}),
-            },
-          },
+      // 3. Unified AI Coach analysis — handles LLM call, conversation creation,
+      //    structured suggestions, legacy notes persistence, and analysis report.
+      //    Reads the plan from the DB via gatherTrainingContext().
+      try {
+        // Archive any active conversation so analyze() creates a fresh one
+        await prisma.coachConversation.updateMany({
+          where: { userId: user.id, status: "active" },
+          data: { status: "archived" },
         }).catch(() => {});
+
+        const result = await analyze(user.id);
+
+        if ("analysis" in result) {
+          // Copy analysis text to next week's plan's coachNotes
+          await prisma.weeklyPlan.update({
+            where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
+            data: { coachNotes: result.analysis, generatedAt: new Date() },
+          }).catch(() => {});
+
+          console.log(`[sunday-review] User ${user.id}: analysis done (${result.analysis.length} chars, ${result.suggestions.length} suggestions)`);
+        } else {
+          console.log(`[sunday-review] User ${user.id}: AI coach unavailable (${result.code})`);
+        }
+      } catch (err) {
+        console.error(`[sunday-review] User ${user.id}: AI coach error:`, (err as Error).message);
       }
 
       plansCreated++;
@@ -418,7 +300,6 @@ async function scheduleRecurring() {
     try {
       const now = new Date();
       const dayOfWeek = now.getDay();
-      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
       const users = await prisma.user.findMany({
         where: { raceGoals: { some: { status: "active" } } },

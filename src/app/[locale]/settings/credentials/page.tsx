@@ -1,0 +1,539 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Check, Copy, Trash2, Key, Plus, Eye, EyeOff, Terminal, Brain,
+  Zap, Clock, CheckCircle2, XCircle, Loader2, Send, Server,
+} from "lucide-react";
+
+interface ApiKeyInfo {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+interface TestResult {
+  success: boolean;
+  response?: string;
+  error?: string;
+  durationMs: number;
+  tokenEstimate?: number;
+}
+
+// Provider → default base URL
+const PROVIDER_BASE_URLS: Record<string, string> = {
+  openai: "https://api.openai.com/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  ollama: "http://localhost:11434/v1",
+};
+
+// Provider → available models
+const PROVIDER_MODELS: Record<string, string[]> = {
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  deepseek: ["deepseek-v4-flash"],
+  anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
+  ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
+};
+
+const QUICK_PROMPTS = [
+  { label: "Training week", prompt: "Summarize a training week: 62km running, 1800m elevation, 5h 23min across 6 sessions. The athlete has a 100km trail race in 12 weeks. What should they focus on?" },
+  { label: "Fatigue check", prompt: "An athlete reports feeling tired, with resting HR 5 bpm above baseline, and training monotony at 0.82. Their TSB is -15. What's your assessment and recommendation?" },
+  { label: "Simple test", prompt: "In one sentence, what is the most important principle of endurance training?" },
+];
+
+export default function CredentialsPage() {
+  const { status } = useSession();
+  const router = useRouter();
+  const t = useTranslations("settings.credentials");
+  const common = useTranslations("common");
+  const [loading, setLoading] = useState(true);
+
+  // LLM settings
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmBaseUrl, setLlmBaseUrl] = useState("");
+  const [llmModel, setLlmModel] = useState("");
+  const [llmProvider, setLlmProvider] = useState("");
+  const [llmSaved, setLlmSaved] = useState(false);
+  const [hasStoredKey, setHasStoredKey] = useState(false);
+  const [hasServerDefault, setHasServerDefault] = useState(false);
+  const [showLlmKey, setShowLlmKey] = useState(false);
+
+  // LLM test
+  const [prompt, setPrompt] = useState("");
+  const [result, setResult] = useState<TestResult | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+
+  // API keys
+  const [apiKeys, setApiKeys] = useState<ApiKeyInfo[]>([]);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState<{ rawKey: string; name: string } | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === "unauthenticated") router.push("/auth/signin");
+    else if (status === "authenticated") {
+      Promise.all([
+        fetch("/api/settings/api-keys").then((r) => r.json()),
+        fetch("/api/settings/llm").then((r) => r.json()),
+      ]).then(([keyData, llmData]) => {
+        setApiKeys(keyData.keys || []);
+        setHasStoredKey(llmData.hasUserKey);
+        setHasServerDefault(llmData.hasServerDefault);
+        setLlmApiKey("");
+        setLlmBaseUrl(llmData.llmBaseUrl || "");
+        setLlmModel(llmData.llmModel || "");
+        setLlmProvider(llmData.llmProvider || "");
+        setLoading(false);
+      });
+    }
+  }, [status, router]);
+
+  async function createKey() {
+    if (!newKeyName.trim()) return;
+    setCreating(true);
+    const res = await fetch("/api/settings/api-keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newKeyName.trim() }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setNewlyCreatedKey({ rawKey: data.rawKey, name: data.key.name });
+      setShowKey(false);
+      setCopied(false);
+      setNewKeyName("");
+      // Refresh list
+      const listRes = await fetch("/api/settings/api-keys");
+      const listData = await listRes.json();
+      setApiKeys(listData.keys || []);
+    }
+    setCreating(false);
+  }
+
+  async function revokeKey(id: string) {
+    setRevoking(id);
+    await fetch(`/api/settings/api-keys?id=${id}`, { method: "DELETE" });
+    setApiKeys((prev) => prev.filter((k) => k.id !== id));
+    setRevoking(null);
+  }
+
+  function copyKey() {
+    if (!newlyCreatedKey) return;
+    navigator.clipboard.writeText(newlyCreatedKey.rawKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  }
+
+  async function runTest(testPrompt?: string) {
+    const p = testPrompt || prompt;
+    if (!p.trim()) return;
+    setTesting(true);
+    setResult(null);
+    setTestError(null);
+    try {
+      const res = await fetch("/api/llm-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: p }),
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch {
+      setTestError("Network error — is the server running?");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (loading) return <div>{common("loading")}</div>;
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-2">{t("title")}</h1>
+      <p className="text-sm text-muted-foreground mb-8">{t("description")}</p>
+
+      {/* ── AI Provider + LLM Test ──────────────────────── */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" /> {t("aiProvider")}
+          </CardTitle>
+          <CardDescription>
+            {t("aiProviderDescription")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {hasServerDefault && !hasStoredKey && !llmApiKey && !llmProvider && (
+            <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-sm flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0" />
+              <span>{t("serverDefaultNotice")}</span>
+            </div>
+          )}
+          {hasStoredKey && !llmApiKey && !llmProvider && (
+            <div className="p-3 rounded-md bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200 text-sm flex items-center gap-2">
+              <Check className="h-4 w-4 shrink-0" />
+              {t("configuredNotice")}
+            </div>
+          )}
+
+          {/* Provider */}
+          <div className="space-y-2">
+            <Label htmlFor="llm-provider">{t("provider")}</Label>
+            <select
+              id="llm-provider"
+              value={llmProvider}
+              onChange={(e) => {
+                const provider = e.target.value;
+                setLlmProvider(provider);
+                setLlmModel("");
+                setLlmBaseUrl(PROVIDER_BASE_URLS[provider] || "");
+              }}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">{t("selectProvider")}</option>
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="ollama">{t("providerOllama")}</option>
+            </select>
+          </div>
+
+          {/* Model */}
+          {llmProvider && (
+            <div className="space-y-2">
+              <Label htmlFor="llm-model">{t("model")}</Label>
+              <select
+                id="llm-model"
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">{t("selectModel")}</option>
+                {(PROVIDER_MODELS[llmProvider] || []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* API Key */}
+          <div className="space-y-2">
+            <Label htmlFor="llm-api-key">{t("apiKey")}</Label>
+            <div className="relative">
+              <Input
+                id="llm-api-key"
+                type={showLlmKey ? "text" : "password"}
+                value={llmApiKey}
+                onChange={(e) => setLlmApiKey(e.target.value)}
+                placeholder={hasStoredKey ? t("apiKeyPlaceholderReplace") : t("apiKeyPlaceholder")}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowLlmKey(!showLlmKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showLlmKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("apiKeyDescription")}
+              {llmProvider === "ollama" && <> {t("ollamaKeyDescription")}</>}
+            </p>
+          </div>
+
+          {/* Endpoint display */}
+          {llmProvider && llmBaseUrl && (
+            <div className="p-3 rounded-md bg-muted/50 text-xs text-muted-foreground">
+              <span className="font-medium">{t("endpoint")}</span>
+              <code className="font-mono">{llmBaseUrl}/chat/completions</code>
+            </div>
+          )}
+
+          <Button
+            disabled={!llmProvider || !llmModel || (llmProvider !== "ollama" && !llmApiKey)}
+            onClick={async () => {
+              await fetch("/api/settings/llm", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  llmApiKey: llmApiKey || undefined,
+                  llmBaseUrl: llmBaseUrl || undefined,
+                  llmModel: llmModel || undefined,
+                  llmProvider: llmProvider || undefined,
+                }),
+              });
+              setHasStoredKey(!!llmApiKey || llmProvider === "ollama");
+              setLlmSaved(true);
+              setTimeout(() => setLlmSaved(false), 2500);
+            }}
+          >
+            {llmSaved ? <><Check className="h-4 w-4 mr-2" /> {t("saved")}</> : t("saveSettings")}
+          </Button>
+
+          {/* ── Test Connection ──────────────────────────────── */}
+          <div className="border-t pt-6 mt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Server className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-medium">{t("testConnection")}</h3>
+            </div>
+
+            {/* Quick prompts */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {QUICK_PROMPTS.map((qp, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  size="sm"
+                  disabled={testing}
+                  onClick={() => {
+                    setPrompt(qp.prompt);
+                    runTest(qp.prompt);
+                  }}
+                >
+                  <Zap className="h-3 w-3 mr-1" /> {t(qp.label === "Training week" ? "quickTrainingWeek" : qp.label === "Fatigue check" ? "quickFatigueCheck" : "quickSimpleTest")}
+                </Button>
+              ))}
+            </div>
+
+            {/* Custom prompt */}
+            <div className="flex gap-2 mb-4">
+              <Input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={t("customPromptPlaceholder")}
+                onKeyDown={(e) => e.key === "Enter" && runTest()}
+                disabled={testing}
+              />
+              <Button
+                variant="secondary"
+                onClick={() => runTest()}
+                disabled={testing || !prompt.trim()}
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            {/* Result */}
+            {(testing || result || testError) && (
+              <div className="rounded-md border">
+                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 flex-wrap gap-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    {testing ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> {t("testing")}</>
+                    ) : result?.success ? (
+                      <><CheckCircle2 className="h-4 w-4 text-green-500" /> {t("response")}</>
+                    ) : (
+                      <><XCircle className="h-4 w-4 text-destructive" /> {t("failed")}</>
+                    )}
+                  </div>
+                  {result && !testing && (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {result.durationMs}ms</span>
+                      {result.tokenEstimate && (
+                        <span>~{result.tokenEstimate} tokens</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="p-4">
+                  {testing ? (
+                    <div className="flex items-center gap-3 justify-center text-muted-foreground py-4">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">{t("waitingForResponse")}</span>
+                    </div>
+                  ) : testError ? (
+                    <div className="text-sm text-destructive">{testError}</div>
+                  ) : result?.error ? (
+                    <div className="text-sm">
+                      <p className="text-destructive font-medium mb-1">{common("error")}</p>
+                      <p className="text-muted-foreground">{result.error}</p>
+                      {llmProvider === "ollama" && (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          <strong>{t("troubleshooting")}</strong><br />
+                          • {t("ollamaCheckRunning")} <code className="bg-muted px-1 rounded">docker ps | grep ollama</code><br />
+                          • {t("ollamaCheckModel")} <code className="bg-muted px-1 rounded">docker compose exec ollama ollama list</code>
+                        </p>
+                      )}
+                    </div>
+                  ) : result?.response ? (
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed">{result.response}</div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── API Keys ───────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Key className="h-5 w-5" /> {t("apiKeys")}</CardTitle>
+          <CardDescription>
+            {t("apiKeysDescription")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+
+          {/* ── API Usage Guide ──────────────────────────── */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <h3 className="text-sm font-semibold">{t("pushApi")} <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">POST /api/push/activity</code></h3>
+            <div className="text-xs text-muted-foreground space-y-2">
+              <p>{t("pushApiDescription")}</p>
+
+              <div className="mt-3">
+                <span className="font-medium text-foreground">{t("authentication")}</span>
+                <div className="mt-1 font-mono bg-muted/50 p-2 rounded text-[11px] leading-relaxed">
+                  Authorization: Bearer &lt;your_api_key&gt;
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <span className="font-medium text-foreground">{t("supportedFormats")}</span>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li><strong>GPX</strong> — set <code className="font-mono bg-muted px-1 rounded text-[11px]">Content-Type: application/gpx+xml</code></li>
+                  <li><strong>TCX</strong> — set <code className="font-mono bg-muted px-1 rounded text-[11px]">Content-Type: application/vnd.garmin.tcx+xml</code></li>
+                  <li><strong>FIT</strong> — use multipart upload with <code className="font-mono bg-muted px-1 rounded text-[11px]">-F file=@activity.fit</code></li>
+                </ul>
+              </div>
+
+              <div className="mt-3">
+                <span className="font-medium text-foreground">{t("optionalQueryParams")}</span>
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 mt-1">
+                  <code className="font-mono text-[11px]">?name=</code>
+                  <span>{t("paramNameDescription")}</span>
+                  <code className="font-mono text-[11px]">?type=</code>
+                  <span>{t("paramTypeDescription")}: <code className="font-mono bg-muted px-1 rounded text-[11px]">run</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">ride</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">swim</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">hike</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">walk</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">workout</code> <code className="font-mono bg-muted px-1 rounded text-[11px]">other</code></span>
+                  <code className="font-mono text-[11px]">?externalId=</code>
+                  <span>{t("paramExternalIdDescription")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Existing keys */}
+          {apiKeys.length > 0 && (
+            <div className="space-y-2">
+              <Label>{t("yourKeys")}</Label>
+              <div className="border rounded-lg divide-y">
+                {apiKeys.map((key) => (
+                  <div key={key.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 text-sm gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="font-medium truncate">{key.name}</div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <code className="font-mono">{key.keyPrefix}…</code>
+                        {key.lastUsedAt && (
+                          <span>{t("lastUsed")} {new Date(key.lastUsedAt).toLocaleDateString()}</span>
+                        )}
+                        <span>{t("created")} {new Date(key.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive shrink-0 ml-2"
+                      disabled={revoking === key.id}
+                      onClick={() => revokeKey(key.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Create new key form */}
+          <div className="space-y-3 p-4 rounded-lg bg-muted/50">
+            <Label className="font-medium">{t("createKey")}</Label>
+            <div className="flex gap-2 flex-col sm:flex-row">
+              <Input
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder={t("createKeyPlaceholder")}
+                disabled={creating}
+                onKeyDown={(e) => e.key === "Enter" && createKey()}
+              />
+              <Button onClick={createKey} disabled={creating || !newKeyName.trim()}>
+                <Plus className="h-4 w-4 mr-1" /> {creating ? t("creating") : t("createButton")}
+              </Button>
+            </div>
+          </div>
+
+          {/* Newly created key — shown once */}
+          {newlyCreatedKey && (
+            <div className="space-y-3 p-4 rounded-lg border-2 border-primary/30 bg-primary/5">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="font-medium text-sm">{t("keyCreated")}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("keyCreatedDescription")}
+              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <code className="flex-1 p-2 rounded bg-muted font-mono text-xs break-all select-all">
+                  {showKey ? newlyCreatedKey.rawKey : "•".repeat(48)}
+                </code>
+                <Button variant="outline" size="sm" onClick={() => setShowKey(!showKey)}>
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button variant="outline" size="sm" onClick={copyKey}>
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-destructive font-medium">
+                {t("keyWarning")}
+              </p>
+
+              {/* Example curl */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  <Terminal className="h-3 w-3" /> {t("examplePushCommands")}
+                </div>
+                <div className="space-y-2 text-xs font-mono">
+                  <div className="p-2 rounded bg-muted overflow-x-auto">
+                    <span className="text-muted-foreground">{t("pushGpx")}</span><br />
+                    curl -X POST {baseUrl}/api/push/activity \<br />
+                    {"  "}-H &quot;Authorization: Bearer {showKey ? newlyCreatedKey.rawKey : "coach_…"}&quot; \<br />
+                    {"  "}-H &quot;Content-Type: application/gpx+xml&quot; \<br />
+                    {"  "}<span className="text-muted-foreground">--data-binary @activity.gpx</span>
+                  </div>
+                  <div className="p-2 rounded bg-muted overflow-x-auto">
+                    <span className="text-muted-foreground">{t("pushFit")}</span><br />
+                    curl -X POST {baseUrl}/api/push/activity \<br />
+                    {"  "}-H &quot;Authorization: Bearer {showKey ? newlyCreatedKey.rawKey : "coach_…"}&quot; \<br />
+                    {"  "}<span className="text-muted-foreground">-F &quot;file=@activity.fit&quot;</span>
+                  </div>
+                  <div className="p-2 rounded bg-muted overflow-x-auto">
+                    <span className="text-muted-foreground">{t("pushOverride")}</span><br />
+                    curl -X POST &quot;{baseUrl}/api/push/activity?name=Morning+Run&amp;type=run&quot; \<br />
+                    {"  "}-H &quot;Authorization: Bearer {showKey ? newlyCreatedKey.rawKey : "coach_…"}&quot; \<br />
+                    {"  "}<span className="text-muted-foreground">-F &quot;file=@activity.tcx&quot;</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

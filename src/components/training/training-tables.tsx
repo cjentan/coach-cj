@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import L from "leaflet";
 import { Split, formatSplitPace, formatTime } from "@/lib/trackpoint-charts";
 import { LapSummary } from "@/lib/trackpoint-charts";
@@ -9,6 +10,7 @@ import { RoutePoint } from "@/lib/trackpoint-charts";
 // ─── Splits Table ────────────────────────────────────────────
 
 export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }) {
+  const t = useTranslations("activities.detail");
   if (splits.length === 0) return null;
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -16,12 +18,12 @@ export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }
         <thead>
           <tr className="bg-muted/50 text-left">
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">#</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Split</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Cum. Time</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? "Speed" : "Pace"}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("split")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("cumTime")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? "Speed" : t("pace")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">HR</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Gain</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Loss</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("gain")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("loss")}</th>
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -45,16 +47,17 @@ export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }
 // ─── Lap Table (TCX-style laps) ──────────────────────────────
 
 export function LapTable({ laps, type }: { laps: LapSummary[]; type?: string }) {
+  const t = useTranslations("activities.detail");
   if (!laps || laps.length === 0) return null;
   return (
     <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-muted/50 text-left">
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">Lap</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">{t("laps")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Time</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Distance</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? "Speed" : "Pace"}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? "Speed" : t("pace")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Avg HR</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Max HR</th>
             {laps.some((l) => l.avgPower) && (
@@ -85,6 +88,7 @@ export function LapTable({ laps, type }: { laps: LapSummary[]; type?: string }) 
 // ─── Route Map (Leaflet + OpenStreetMap) ─────────────────────
 
 function MapContent({ points, expanded }: { points: RoutePoint[]; expanded: boolean }) {
+  const t = useTranslations("activities.detail");
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
 
@@ -124,7 +128,7 @@ function MapContent({ points, expanded }: { points: RoutePoint[]; expanded: bool
       fillOpacity: 1,
     })
       .addTo(map)
-      .bindTooltip("Start", { permanent: false, direction: "top" });
+      .bindTooltip(t("start"), { permanent: false, direction: "top" });
 
     // End marker (red circle)
     const end = latlngs[latlngs.length - 1];
@@ -137,7 +141,7 @@ function MapContent({ points, expanded }: { points: RoutePoint[]; expanded: bool
       fillOpacity: 1,
     })
       .addTo(map)
-      .bindTooltip("Finish", { permanent: false, direction: "top" });
+      .bindTooltip(t("finish"), { permanent: false, direction: "top" });
 
     // Fit map to route bounds with padding
     map.fitBounds(polyline.getBounds(), { padding: [30, 30], maxZoom: 16 });
@@ -163,6 +167,7 @@ function MapContent({ points, expanded }: { points: RoutePoint[]; expanded: bool
 }
 
 export function RouteMap({ points }: { points: RoutePoint[] }) {
+  const t = useTranslations("activities.detail");
   const [expanded, setExpanded] = useState(false);
 
   if (points.length < 3) return null;
@@ -184,13 +189,13 @@ export function RouteMap({ points }: { points: RoutePoint[] }) {
               <line x1="21" y1="3" x2="14" y2="10" />
               <line x1="3" y1="21" x2="10" y2="14" />
             </svg>
-            Expand
+            {t("expand")}
           </button>
         </div>
         <MapContent points={points} expanded={false} />
         <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500 border border-white" /> Start</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 border border-white" /> Finish</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500 border border-white" /> {t("start")}</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 border border-white" /> {t("finish")}</span>
           <span className="ml-auto">© OpenStreetMap contributors</span>
         </div>
       </div>
@@ -212,7 +217,7 @@ export function RouteMap({ points }: { points: RoutePoint[] }) {
                   <line x1="14" y1="10" x2="21" y2="3" />
                   <line x1="3" y1="21" x2="10" y2="14" />
                 </svg>
-                Close
+                {t("close")}
               </button>
             </div>
             {/* Map */}
@@ -221,8 +226,8 @@ export function RouteMap({ points }: { points: RoutePoint[] }) {
             </div>
             {/* Footer */}
             <div className="flex items-center gap-3 px-4 py-1.5 border-t bg-muted/20 text-[10px] text-muted-foreground shrink-0">
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500 border border-white" /> Start</span>
-              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 border border-white" /> Finish</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500 border border-white" /> {t("start")}</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 border border-white" /> {t("finish")}</span>
               <span className="ml-auto">© OpenStreetMap contributors</span>
             </div>
           </div>

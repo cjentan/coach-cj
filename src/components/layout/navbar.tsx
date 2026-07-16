@@ -3,21 +3,23 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Activity, Shield, Menu, X } from "lucide-react";
 
-const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/training-logs", label: "Training" },
-  { href: "/duplicates", label: "Duplicates" },
-  { href: "/ingestion", label: "Import" },
-  { href: "/settings", label: "Settings" },
-];
-
 export function Navbar() {
   const { data: session } = useSession();
+  const t = useTranslations("nav");
   const isAdmin = session?.user?.role === "admin";
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const NAV_LINKS = [
+    { href: "/dashboard", label: t("dashboard") },
+    { href: "/activities", label: t("activities") },
+    { href: "/duplicates", label: t("duplicates") },
+    { href: "/ingestion", label: t("import") },
+    { href: "/settings", label: t("settings") },
+  ];
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 hidden md:block">
@@ -38,11 +40,11 @@ export function Navbar() {
               ))}
               {isAdmin && (
                 <Link href="/admin" className="text-xs lg:text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
-                  <Shield className="h-3 w-3" /> Admin
+                  <Shield className="h-3 w-3" /> {t("admin")}
                 </Link>
               )}
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => signOut({ redirectTo: "/" })}>
-                Sign Out
+                {t("signOut")}
               </Button>
             </nav>
             {/* Mobile hamburger */}
@@ -52,8 +54,8 @@ export function Navbar() {
           </>
         ) : (
           <nav className="flex items-center gap-2">
-            <Link href="/auth/signin"><Button variant="ghost" size="sm">Sign In</Button></Link>
-            <Link href="/auth/signup"><Button size="sm">Get Started</Button></Link>
+            <Link href="/auth/signin"><Button variant="ghost" size="sm">{t("signIn")}</Button></Link>
+            <Link href="/auth/signup"><Button size="sm">{t("getStarted")}</Button></Link>
           </nav>
         )}
       </div>
@@ -74,11 +76,11 @@ export function Navbar() {
             ))}
             {isAdmin && (
               <Link href="/admin" className="py-2.5 text-sm font-medium hover:text-primary transition-colors flex items-center gap-1 border-b" onClick={() => setMenuOpen(false)}>
-                <Shield className="h-3 w-3" /> Admin
+                <Shield className="h-3 w-3" /> {t("admin")}
               </Link>
             )}
             <Button variant="ghost" size="sm" className="justify-start px-0 mt-1 text-sm" onClick={() => signOut({ redirectTo: "/" })}>
-              Sign Out
+              {t("signOut")}
             </Button>
           </nav>
         </div>

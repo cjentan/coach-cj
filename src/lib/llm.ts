@@ -10,8 +10,30 @@
  */
 
 export interface LlmMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export interface ToolDefinition {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+}
+
+export interface LlmResponse {
+  content: string | null;
+  toolCalls: ToolCall[];
 }
 
 export interface LlmOptions {
@@ -21,6 +43,8 @@ export interface LlmOptions {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  tools?: ToolDefinition[];
+  toolChoice?: "auto" | "none" | { type: "function"; function: { name: string } };
 }
 
 /**
@@ -186,4 +210,77 @@ export async function resolveUserLlmConfig(
     model: user?.llmModel ?? undefined,
     provider: user?.llmProvider ?? undefined,
   };
+}
+
+/**
+ * Send a chat completion with tool/function calling support.
+ * The caller is responsible for executing any tool calls returned
+ * and feeding the results back in a follow-up request.
+ *
+ * Returns the raw response with content and toolCalls.
+ */
+export async function chatWithTools(
+  messages: LlmMessage[],
+  opts: LlmOptions = {}
+): Promise<LlmResponse | null> {
+  const {
+    temperature = 0.3,
+    maxTokens = 1024,
+    apiKey,
+    baseUrl,
+    model,
+    tools,
+    toolChoice,
+  } = opts;
+
+  if (!apiKey || !baseUrl || !model) {
+    console.error("LLM not configured — missing apiKey, baseUrl, or model");
+    return null;
+  }
+
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  if (tools && tools.length > 0) {
+    body.tools = tools;
+    if (toolChoice) body.tool_choice = toolChoice;
+  }
+
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(300000),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      console.error(`[AI-COACH] LLM API error ${res.status}: ${errorText.slice(0, 500)}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const message = data.choices?.[0]?.message;
+    if (!message) {
+      console.error(`[AI-COACH] LLM response missing message: ${JSON.stringify(data).slice(0, 300)}`);
+      return null;
+    }
+
+    console.error(`[AI-COACH] LLM response: tool_calls=${message.tool_calls?.length || 0}, content_length=${(message.content || "").length}`);
+    return {
+      content: message.content?.trim() || null,
+      toolCalls: message.tool_calls || [],
+    };
+  } catch (err) {
+    console.error("[AI-COACH] LLM request failed:", (err as Error).message);
+    return null;
+  }
 }

@@ -39,7 +39,6 @@ export async function GET() {
   const now = new Date();
   const weekStart = getWeekStart(now);
   const fourWeeksAgo = new Date(now.getTime() - 28 * 86400000);
-  const sixWeeksAgo = new Date(now.getTime() - 42 * 86400000);
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
 
   // Period boundaries for stats
@@ -59,8 +58,6 @@ export async function GET() {
     pmcLogs,
     goals,
     bodyMetrics,
-    fatigueRecentLogs,
-    fatigueOlderLogs,
     latestPlan,
     maxHrLog,
     latestAnalysisReport,
@@ -114,18 +111,6 @@ export async function GET() {
       take: 14,
       select: { recordedAt: true, restingHr: true, weightKg: true },
     }),
-    // Fatigue — recent logs (2 weeks)
-    prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: twoWeeksAgo() }, mergedIntoId: null },
-      orderBy: { startDate: "asc" },
-      select: { startDate: true, tss: true, averageHr: true, distanceMeters: true },
-    }),
-    // Fatigue — older logs (6 weeks ago to 2 weeks ago)
-    prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: sixWeeksAgo, lt: twoWeeksAgo() }, mergedIntoId: null },
-      orderBy: { startDate: "asc" },
-      select: { startDate: true, tss: true, averageHr: true },
-    }),
     // Latest coach notes
     prisma.weeklyPlan.findFirst({
       where: { userId: session.user.id, coachNotes: { not: null } },
@@ -149,8 +134,6 @@ export async function GET() {
       select: { id: true, reasoning: true, metrics: true, createdAt: true },
     }),
   ]);
-
-  const twoWeeksAgoVal = new Date(now.getTime() - 14 * 86400000);
 
   // ── Stats ─────────────────────────────────────────────────────────
   const daysThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / 86400000));
@@ -234,98 +217,8 @@ export async function GET() {
     };
   });
 
-  // ── Fatigue ───────────────────────────────────────────────────────
-  const thisWeekFatigueLogs = fatigueRecentLogs.filter((l) => l.startDate >= weekStart);
-  const weeklyTss = thisWeekFatigueLogs.reduce((sum, l) => sum + (l.tss || 50), 0);
-
-  const signals: string[] = [];
-  const recommendations: string[] = [];
-
-  // High volume check
-  if (weeklyTss > 600) {
-    signals.push("High training volume this week");
-    recommendations.push("Your TSS load is high. Prioritize sleep and nutrition this week.");
-  }
-
-  // HR trend
-  const recentHrLogs = thisWeekFatigueLogs.filter((l) => l.averageHr != null && l.averageHr > 0);
-  const olderHrLogs = fatigueOlderLogs.filter((l) => l.averageHr != null && l.averageHr > 0);
-  if (recentHrLogs.length >= 3 && olderHrLogs.length >= 5) {
-    const recentAvg = recentHrLogs.reduce((sum, l) => sum + (l.averageHr || 0), 0) / recentHrLogs.length;
-    const olderAvg = olderHrLogs.reduce((sum, l) => sum + (l.averageHr || 0), 0) / olderHrLogs.length;
-    const hrDrift = recentAvg - olderAvg;
-    if (hrDrift > 6) {
-      signals.push(`Exercise HR +${Math.round(hrDrift)} bpm above baseline`);
-      recommendations.push("Your heart rate is elevated at similar efforts. This can indicate accumulating fatigue or insufficient recovery.");
-    } else if (hrDrift > 3) {
-      signals.push(`Exercise HR slightly elevated (+${Math.round(hrDrift)} bpm)`);
-    }
-  }
-
-  // Resting HR trend
-  const restingHrValues = bodyMetrics.filter((m) => m.restingHr != null).slice(0, 7);
-  if (restingHrValues.length >= 3) {
-    const recentResting = restingHrValues.slice(0, 3).reduce((sum, m) => sum + (m.restingHr || 0), 0) / 3;
-    const olderResting = restingHrValues.length >= 6
-      ? restingHrValues.slice(3, 6).reduce((sum, m) => sum + (m.restingHr || 0), 0) / 3
-      : recentResting;
-    const restingDrift = recentResting - olderResting;
-    if (restingDrift > 5) {
-      signals.push(`Resting HR +${Math.round(restingDrift)} bpm above baseline`);
-      recommendations.push("Your resting heart rate is trending up — a key sign of autonomic stress. Consider a lighter training week.");
-    }
-  }
-
-  // Consistency
-  const weekLogsCount = recentLogs.length;
-  const expectedSessions = 6; // Default expectation without structured availability
-  const consistency = Math.round((weekLogsCount / expectedSessions) * 100);
-  if (consistency < 50) {
-    signals.push(`Low consistency (${consistency}% of expected sessions)`);
-    recommendations.push(`You've completed ${weekLogsCount} of ~${expectedSessions} expected sessions this week.`);
-  }
-
-  // Weight stability
-  const recentWeights = bodyMetrics.filter((m) => m.weightKg != null).slice(0, 7);
-  if (recentWeights.length >= 3) {
-    const recentW = recentWeights.slice(0, 3).reduce((sum, m) => sum + (m.weightKg || 0), 0) / 3;
-    const olderW = recentWeights.length >= 6
-      ? recentWeights.slice(3, 6).reduce((sum, m) => sum + (m.weightKg || 0), 0) / 3
-      : recentW;
-    const weightLoss = olderW - recentW;
-    if (weightLoss > 1.5) {
-      signals.push(`Rapid weight loss (${weightLoss.toFixed(1)} kg in recent days)`);
-      recommendations.push("Unexplained rapid weight loss can signal under-fueling.");
-    }
-  }
-
-  let fatigueSeverity: string;
-  let fatigueSummary: string;
-  if (signals.length >= 3) {
-    fatigueSeverity = "high";
-    fatigueSummary = "Multiple fatigue signals detected. Strongly consider reducing volume.";
-  } else if (signals.length === 2) {
-    fatigueSeverity = "medium";
-    fatigueSummary = "Some fatigue signals present. Monitor how you feel.";
-  } else if (signals.length === 1) {
-    fatigueSeverity = "low";
-    fatigueSummary = "One minor signal — likely within normal training fluctuations.";
-  } else {
-    fatigueSeverity = "clear";
-    fatigueSummary = "No fatigue signals detected.";
-  }
-  if (recommendations.length === 0 && weekLogsCount > 0) {
-    recommendations.push("Training looks balanced. Keep up the consistency.");
-  }
-
-  const fatigue = {
-    severity: fatigueSeverity,
-    summary: fatigueSummary,
-    signals,
-    recommendations,
-    consistency,
-    weeklyTss,
-  };
+  // ── TSS for readiness computation ─────────────────────────────────
+  const weeklyTss = statsWeekLogs.reduce((sum, l) => sum + (l.tss || 50), 0);
 
   // ── Readiness ─────────────────────────────────────────────────────
   // Simplified readiness computation (same logic as original)
@@ -405,7 +298,6 @@ export async function GET() {
     logs: recentLogs,
     stats,
     goals: goalSummaries,
-    fatigue,
     readiness,
     pmc,
     coachNotes: latestPlan?.coachNotes || null,
@@ -417,9 +309,4 @@ export async function GET() {
       createdAt: latestAnalysisReport.createdAt.toISOString(),
     } : null,
   });
-}
-
-// Helper for two-weeks-ago boundary
-function twoWeeksAgo(): Date {
-  return new Date(Date.now() - 14 * 86400000);
 }

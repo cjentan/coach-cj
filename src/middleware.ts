@@ -1,21 +1,63 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import createMiddleware from "next-intl/middleware";
+import { routing } from "./i18n/routing";
+
+// Create the i18n middleware instance
+const intlMiddleware = createMiddleware(routing);
 
 export default auth((req) => {
-  const isLoggedIn = !!req.auth?.user;
-  const isAuthPage = req.nextUrl.pathname.startsWith("/auth/");
-  const isApiRoute = req.nextUrl.pathname.startsWith("/api/");
-  const isPublic = req.nextUrl.pathname === "/";
+  const { pathname } = req.nextUrl;
 
-  if (isApiRoute) return NextResponse.next();
+  // Bypass i18n for API routes, static files, and next internals
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico"
+  ) {
+    return NextResponse.next();
+  }
+
+  // Run i18n middleware first (locale detection + redirect)
+  const intlResponse = intlMiddleware(req);
+  if (intlResponse) return intlResponse;
+
+  // Detect current locale from URL (always-prefix mode)
+  const detectedLocale =
+    routing.locales.find((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`) ||
+    routing.defaultLocale;
+  const localePrefix = `/${detectedLocale}`;
+
+  // Strip locale prefix to check the actual route
+  let effectivePath = pathname;
+  if (pathname.startsWith(localePrefix + "/")) {
+    effectivePath = pathname.slice(localePrefix.length);
+  } else if (pathname === localePrefix) {
+    effectivePath = "/";
+  }
+
+  const isAuthPage = effectivePath.startsWith("/auth/");
+  const isPublic = effectivePath === "/";
+  const isLoggedIn = !!req.auth?.user;
+
+  // Set locale cookie from user's stored preference (logged-in users)
+  const userLocale = req.auth?.user?.locale;
+  const response = NextResponse.next();
+  if (userLocale && routing.locales.includes(userLocale as any)) {
+    response.cookies.set("NEXT_LOCALE", userLocale, {
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+      path: "/",
+    });
+  }
+
   if (isAuthPage && isLoggedIn) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return NextResponse.redirect(new URL(`${localePrefix}/dashboard`, req.url));
   }
   if (!isLoggedIn && !isAuthPage && !isPublic) {
-    return NextResponse.redirect(new URL("/auth/signin", req.url));
+    return NextResponse.redirect(new URL(`${localePrefix}/auth/signin`, req.url));
   }
 
-  return NextResponse.next();
+  return response;
 });
 
 export const config = {

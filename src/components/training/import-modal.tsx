@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +96,7 @@ interface ImportModalProps {
 }
 
 export default function ImportModal({ open, onOpenChange, onImport }: ImportModalProps) {
+  const t = useTranslations("training");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Manual entry state ─────────────────────────────────────────────
@@ -223,9 +225,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import Activity</DialogTitle>
-          <DialogDescription>
-            Log a manual entry or upload GPX/TCX/FIT files from your device
-          </DialogDescription>
+          <DialogDescription>Log a manual entry or upload GPX/TCX/FIT files from your device</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="manual" className="mt-2">
@@ -239,12 +239,12 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Activity Name *</Label>
+                  <Label>{t("activityName")}</Label>
                   <Input value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
                     placeholder="Morning Run" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Type *</Label>
+                  <Label>{t("activityType")}</Label>
                   <Select value={manualForm.type} onValueChange={(v) => { setManualForm({ ...manualForm, type: v, subType: "" }); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -258,7 +258,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                 </div>
                 {SUB_TYPE_OPTIONS[manualForm.type] && SUB_TYPE_OPTIONS[manualForm.type].length > 0 && (
                   <div className="space-y-2">
-                    <Label>Sub-Type</Label>
+                    <Label>{t("subType")}</Label>
                     <Select value={manualForm.subType} onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}>
                       <SelectTrigger><SelectValue placeholder="None (generic)" /></SelectTrigger>
                       <SelectContent>
@@ -271,12 +271,12 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label>Date & Time *</Label>
+                  <Label>{t("date")}</Label>
                   <Input type="datetime-local" value={manualForm.date}
                     onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Duration *</Label>
+                  <Label>{t("duration")}</Label>
                   <div className="flex gap-2">
                     <Input type="number" placeholder="Min" value={manualForm.durationMinutes}
                       onChange={(e) => setManualForm({ ...manualForm, durationMinutes: e.target.value })} />
@@ -285,12 +285,12 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Distance (meters)</Label>
+                  <Label>{t("distance")}</Label>
                   <Input type="number" value={manualForm.distance}
                     onChange={(e) => setManualForm({ ...manualForm, distance: e.target.value })} placeholder="12000" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Elevation Gain (meters)</Label>
+                  <Label>{t("elevation")}</Label>
                   <Input type="number" value={manualForm.elevation}
                     onChange={(e) => setManualForm({ ...manualForm, elevation: e.target.value })} placeholder="450" />
                 </div>
@@ -310,7 +310,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                     onChange={(e) => setManualForm({ ...manualForm, calories: e.target.value })} placeholder="450" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Notes</Label>
+                  <Label>{t("description")}</Label>
                   <Input value={manualForm.description}
                     onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
                     placeholder="Felt strong, negative split..." />
@@ -330,7 +330,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                 {manualSubmitting ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
                 ) : (
-                  <><Pencil className="h-4 w-4 mr-2" /> Log Activity</>
+                  <><Pencil className="h-4 w-4 mr-2" /> {t("save")}</>
                 )}
               </Button>
             </form>

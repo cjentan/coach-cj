@@ -45,6 +45,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user && token.sub) {
         session.user.id = token.sub;
         session.user.role = token.role as string;
+        session.user.locale = token.locale as string;
       }
       return session;
     },
@@ -53,9 +54,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.sub = user.id;
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { role: true },
+          select: { role: true, locale: true },
         });
         token.role = dbUser?.role || "user";
+        token.locale = dbUser?.locale || "en";
       }
       return token;
     },

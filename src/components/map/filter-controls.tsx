@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,6 +47,7 @@ export default function FilterControls({
   onBuildHeatmap,
   loading,
 }: FilterControlsProps) {
+  const t = useTranslations("map");
   const update = (patch: Partial<FilterValues>) =>
     onChange({ ...filters, ...patch });
 
@@ -54,7 +56,7 @@ export default function FilterControls({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Heatmap</h2>
+          <h2 className="text-sm font-semibold">{t("heatmap")}</h2>
           <span className="text-[10px] text-muted-foreground">
             {activityCount} activity
             {activityCount === 1 ? "" : "ies"}
@@ -84,7 +86,7 @@ export default function FilterControls({
                 Building heatmap…
               </span>
             ) : (
-              "Build my heatmap"
+              t("build")
             )}
           </button>
           <p className="text-[10px] text-muted-foreground">
@@ -98,7 +100,7 @@ export default function FilterControls({
         <>
           {/* Activity type */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Activity Type</Label>
+            <Label className="text-xs">{t("activityType")}</Label>
             <Select
               value={filters.type}
               onValueChange={(v) => update({ type: v })}
@@ -119,7 +121,7 @@ export default function FilterControls({
           {/* Date range */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">From</Label>
+              <Label className="text-xs">{t("from")}</Label>
               <Input
                 type="date"
                 value={filters.dateFrom}
@@ -128,7 +130,7 @@ export default function FilterControls({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">To</Label>
+              <Label className="text-xs">{t("to")}</Label>
               <Input
                 type="date"
                 value={filters.dateTo}

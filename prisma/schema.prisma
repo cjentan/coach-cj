@@ -26,6 +26,7 @@ model User {
   llmBaseUrl              String?  @map("llm_base_url")
   llmModel                String?  @map("llm_model")
   llmApiKey               String?  @map("llm_api_key")
+  locale                  String   @default("en")
   trainingContext         String?  @map("training_context")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -42,6 +43,8 @@ model User {
   corosSession         CorosSession?
   dailyHealth          DailyHealth[]
   analysisReports      AnalysisReport[]
+  coachConversations   CoachConversation[]
+  coachSuggestions     CoachSuggestion[]
 
   @@map("users")
 }
@@ -205,6 +208,7 @@ model RaceGoal {
   status              GoalStatus  @default(active)
   notes               String?
   goalStatement       String?  @map("goal_statement")
+  courseProfile       Json?    @map("course_profile")
   createdAt           DateTime    @default(now()) @map("created_at")
   updatedAt           DateTime    @updatedAt @map("updated_at")
 
@@ -428,4 +432,56 @@ model AnalysisReport {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("analysis_reports")
+}
+
+model CoachConversation {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  title           String?
+  status          String   @default("active")
+  contextSnapshot Json?    @map("context_snapshot")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    CoachMessage[]
+  suggestions CoachSuggestion[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("coach_conversations")
+}
+
+model CoachMessage {
+  id              String   @id @default(uuid())
+  conversationId  String   @map("conversation_id")
+  role            String
+  content         String
+  suggestionId    String?  @map("suggestion_id")
+  tokenCount      Int?     @map("token_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  conversation CoachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("coach_messages")
+}
+
+model CoachSuggestion {
+  id              String    @id @default(uuid())
+  conversationId  String    @map("conversation_id")
+  userId          String    @map("user_id")
+  suggestionType  String    @map("suggestion_type")
+  title           String
+  description     String
+  changes         Json
+  status          String    @default("pending")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  appliedAt       DateTime? @map("applied_at")
+
+  conversation CoachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([userId, status])
+  @@map("coach_suggestions")
 }
