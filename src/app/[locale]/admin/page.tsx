@@ -240,7 +240,7 @@ export default function AdminPage() {
       const d = await res.json();
       setTestResult({
         ok: res.ok,
-        message: res.ok ? "Test email sent successfully!" : d.error || "Failed to send",
+        message: res.ok ? t("email.sendSuccess") : d.error || t("email.sendFailed"),
       });
     } catch {
       setTestResult({ ok: false, message: "Network error" });
@@ -259,7 +259,7 @@ export default function AdminPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2"><Settings2 className="h-7 w-7" /> {t("title")}</h1>
-          <p className="text-muted-foreground mt-1">Manage users, integrations, and system settings</p>
+          <p className="text-muted-foreground mt-1">{t("description")}</p>
         </div>
       </div>
 
@@ -270,13 +270,13 @@ export default function AdminPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="users" className="gap-2">
-            <Users className="h-4 w-4" /> Users
+            <Users className="h-4 w-4" /> {t("tabs.users")}
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-2">
-            <Mail className="h-4 w-4" /> Email Settings
+            <Mail className="h-4 w-4" /> {t("tabs.email")}
           </TabsTrigger>
           <TabsTrigger value="prompts" className="gap-2">
-            <FileText className="h-4 w-4" /> Prompts
+            <FileText className="h-4 w-4" /> {t("tabs.prompts")}
           </TabsTrigger>
         </TabsList>
 
@@ -284,10 +284,10 @@ export default function AdminPage() {
         <TabsContent value="users">
           {/* Summary strip */}
           <div className="flex flex-wrap gap-3 mb-6">
-            <StatCard icon={<Users className="h-5 w-5" />} label="Total Users" value={summary?.totalUsers ?? 0} />
-            <StatCard icon={<Activity className="h-5 w-5" />} label="Total Activities" value={summary?.totalActivities ?? 0} />
-            <StatCard icon={<Radio className="h-5 w-5" />} label="Garmin Users" value={summary?.garminUsers ?? 0} />
-            <StatCard icon={<Watch className="h-5 w-5" />} label="COROS Users" value={summary?.corosUsers ?? 0} />
+            <StatCard icon={<Users className="h-5 w-5" />} label={t("statLabels.totalUsers")} value={summary?.totalUsers ?? 0} />
+            <StatCard icon={<Activity className="h-5 w-5" />} label={t("statLabels.totalActivities")} value={summary?.totalActivities ?? 0} />
+            <StatCard icon={<Radio className="h-5 w-5" />} label={t("statLabels.garminUsers")} value={summary?.garminUsers ?? 0} />
+            <StatCard icon={<Watch className="h-5 w-5" />} label={t("statLabels.corosUsers")} value={summary?.corosUsers ?? 0} />
           </div>
 
           {loading ? (
@@ -303,39 +303,39 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="font-semibold truncate">{user.name}</span>
                           {user.role === "admin" ? (
-                            <Badge variant="default"><Shield className="h-3 w-3 mr-1" /> Admin</Badge>
+                            <Badge variant="default"><Shield className="h-3 w-3 mr-1" /> {t("badges.admin")}</Badge>
                           ) : (
-                            <Badge variant="outline"><ShieldOff className="h-3 w-3 mr-1" /> User</Badge>
+                            <Badge variant="outline"><ShieldOff className="h-3 w-3 mr-1" /> {t("badges.user")}</Badge>
                           )}
                           {user.hasGarmin && (
-                            <Badge variant="secondary"><Radio className="h-3 w-3 mr-1" /> Garmin</Badge>
+                            <Badge variant="secondary"><Radio className="h-3 w-3 mr-1" /> {t("badges.garmin")}</Badge>
                           )}
                           {user.hasCoros && (
-                            <Badge variant="secondary"><Watch className="h-3 w-3 mr-1" /> COROS</Badge>
+                            <Badge variant="secondary"><Watch className="h-3 w-3 mr-1" /> {t("badges.coros")}</Badge>
                           )}
                           {!user.hasGarmin && !user.hasCoros && (
-                            <Badge variant="outline" className="text-muted-foreground">No integration</Badge>
+                            <Badge variant="outline" className="text-muted-foreground">{t("badges.noIntegration")}</Badge>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           <UserCheck className="h-3 w-3 inline mr-0.5" />
-                          Joined {format(new Date(user.createdAt), "MMM d, yyyy")}
+                          {t("user.joined")} {format(new Date(user.createdAt), "MMM d, yyyy")}
                         </p>
                       </div>
 
                       {/* Stats */}
                       <div className="flex flex-wrap gap-3 text-xs">
-                        <Stat icon={<Activity className="h-3 w-3" />} label="Activities" value={user.trainingLogs} />
-                        <Stat icon={<Target className="h-3 w-3" />} label="Goals" value={user.raceGoals} />
-                        <Stat icon={<Dumbbell className="h-3 w-3" />} label="Facilities" value={user.facilities} />
-                        <Stat icon={<Scale className="h-3 w-3" />} label="Metrics" value={user.bodyMetrics} />
-                        <Stat icon={<AlertTriangle className="h-3 w-3" />} label="Alerts" value={user.fatigueAlerts} />
+                        <Stat icon={<Activity className="h-3 w-3" />} label={t("user.activities")} value={user.trainingLogs} />
+                        <Stat icon={<Target className="h-3 w-3" />} label={t("user.goals")} value={user.raceGoals} />
+                        <Stat icon={<Dumbbell className="h-3 w-3" />} label={t("user.facilities")} value={user.facilities} />
+                        <Stat icon={<Scale className="h-3 w-3" />} label={t("user.metrics")} value={user.bodyMetrics} />
+                        <Stat icon={<AlertTriangle className="h-3 w-3" />} label={t("user.alerts")} value={user.fatigueAlerts} />
                         {user.latestWeight && (
-                          <Stat icon={null} label="Weight" value={`${user.latestWeight} kg`} />
+                          <Stat icon={null} label={t("user.weight")} value={`${user.latestWeight} kg`} />
                         )}
                         {user.lastActivity && (
-                          <Stat icon={<Calendar className="h-3 w-3" />} label="Last Activity"
+                          <Stat icon={<Calendar className="h-3 w-3" />} label={t("user.lastActivity")}
                             value={formatDistanceToNow(new Date(user.lastActivity), { addSuffix: true })} />
                         )}
                       </div>
@@ -347,7 +347,7 @@ export default function AdminPage() {
                           size="sm"
                           disabled={toggling === user.id}
                           onClick={() => toggleRole(user.id, user.role)}
-                          title={user.role === "admin" ? "Demote to user" : "Promote to admin"}
+                          title={user.role === "admin" ? t("user.demote") : t("user.promote")}
                         >
                           {user.role === "admin"
                             ? <ShieldOff className="h-4 w-4" />
@@ -355,19 +355,19 @@ export default function AdminPage() {
                         </Button>
                         {generating === user.id ? (
                           <Button variant="outline" size="sm" disabled>
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Generating...
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("user.generating")}
                           </Button>
                         ) : resetLinks[user.id]?.resetUrl ? (
                           <Button variant="outline" size="sm" onClick={() => copyLink(resetLinks[user.id].resetUrl, user.id)}>
                             {copied === user.id ? (
-                              <><Check className="h-3 w-3 mr-1" /> Copied</>
+                              <><Check className="h-3 w-3 mr-1" /> {t("user.copied")}</>
                             ) : (
-                              <><Copy className="h-3 w-3 mr-1" /> Copy Link</>
+                              <><Copy className="h-3 w-3 mr-1" /> {t("user.copyLink")}</>
                             )}
                           </Button>
                         ) : (
                           <Button variant="outline" size="sm" onClick={() => generateResetLink(user.id)}>
-                            <Key className="h-3 w-3 mr-1" /> Reset PW
+                            <Key className="h-3 w-3 mr-1" /> {t("user.resetPw")}
                           </Button>
                         )}
                       </div>
@@ -382,14 +382,14 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2 text-xs">
                           {resetLinks[user.id].email.sent ? (
                             <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                              <Check className="h-3 w-3" /> Email sent to {user.email}
+                              <Check className="h-3 w-3" /> {t("user.emailSent", { email: user.email })}
                             </span>
                           ) : resetLinks[user.id].email.error ? (
                             <span className="flex items-center gap-1 text-destructive" title={resetLinks[user.id].email.error}>
-                              <AlertTriangle className="h-3 w-3" /> Failed to email — {resetLinks[user.id].email.error}
+                              <AlertTriangle className="h-3 w-3" /> {t("user.emailFailed", { error: resetLinks[user.id].email.error })}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">No email sent (Resend not configured)</span>
+                            <span className="text-muted-foreground">{t("user.noEmail")}</span>
                           )}
                         </div>
                       </div>
@@ -409,18 +409,15 @@ export default function AdminPage() {
             <div className="max-w-2xl space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Resend Configuration</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> {t("email.title")}</CardTitle>
                   <CardDescription>
-                    Configure your Resend API key for password reset emails and system notifications.
-                    Get your API key from the{" "}
-                    <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Resend dashboard</a>.
-                    Make sure your domain is verified and you&apos;ve created an API key with sending permissions.
+                    {t("email.description")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="resend_api_key">Resend API Key</Label>
+                      <Label htmlFor="resend_api_key">{t("email.apiKeyLabel")}</Label>
                       <Input
                         id="resend_api_key"
                         type="password"
@@ -430,7 +427,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email_from">From Address</Label>
+                      <Label htmlFor="email_from">{t("email.fromLabel")}</Label>
                       <Input
                         id="email_from"
                         type="email"
@@ -439,11 +436,11 @@ export default function AdminPage() {
                         onChange={(e) => setEmailSettings((p) => ({ ...p, email_from: e.target.value }))}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Must be a verified sender in your Resend account.
+                        {t("email.fromDescription")}
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reset_link_expiry">Reset Link Expiry (hours)</Label>
+                      <Label htmlFor="reset_link_expiry">{t("email.expiryLabel")}</Label>
                       <Input
                         id="reset_link_expiry"
                         type="number"
@@ -454,7 +451,7 @@ export default function AdminPage() {
                         onChange={(e) => setEmailSettings((p) => ({ ...p, reset_link_expiry_hours: e.target.value }))}
                       />
                       <p className="text-xs text-muted-foreground">
-                        How long password reset links remain valid (1&ndash;168 hours).
+                        {t("email.expiryDescription")}
                       </p>
                     </div>
 
@@ -468,12 +465,12 @@ export default function AdminPage() {
                     {emailSaved && (
                       <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                         <Check className="h-4 w-4 shrink-0" />
-                        <span>Settings saved.</span>
+                        <span>{t("email.saved")}</span>
                       </div>
                     )}
 
                     <Button onClick={saveEmailSettings} disabled={emailSaving}>
-                      {emailSaving ? "Saving..." : "Save Settings"}
+                      {emailSaving ? t("email.saving") : t("email.saveSettings")}
                     </Button>
                   </div>
                 </CardContent>
@@ -482,15 +479,15 @@ export default function AdminPage() {
               {/* Test email card */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Send Test Email</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> {t("email.testTitle")}</CardTitle>
                   <CardDescription>
-                    Send a test email to verify your Resend configuration is working.
+                    {t("email.testDescription")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-end gap-3">
                     <div className="flex-1 space-y-2">
-                      <Label htmlFor="test_email">Recipient Email</Label>
+                      <Label htmlFor="test_email">{t("email.recipientLabel")}</Label>
                       <Input
                         id="test_email"
                         type="email"
@@ -503,7 +500,7 @@ export default function AdminPage() {
                       onClick={sendTestEmail}
                       disabled={testSending || !testEmail}
                     >
-                      {testSending ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Sending</> : "Send Test"}
+                      {testSending ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("email.sending")}</> : t("email.sendTest")}
                     </Button>
                   </div>
 
@@ -553,6 +550,7 @@ function PromptEditorCard({
   saved: boolean;
   saving: boolean;
 }) {
+  const t = useTranslations("admin");
   const [editValue, setEditValue] = useState(prompt.current);
   const isDefault = editValue === prompt.default;
 
@@ -567,14 +565,14 @@ function PromptEditorCard({
             <CardDescription>{prompt.description}</CardDescription>
           </div>
           {!isDefault && (
-            <Badge variant="secondary" className="text-xs shrink-0">Customized</Badge>
+            <Badge variant="secondary" className="text-xs shrink-0">{t("prompts.customized")}</Badge>
           )}
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{editValue.length} chars</span>
+            <span>{t("prompts.chars", { count: editValue.length })}</span>
             {!isDefault && (
               <button
                 className="text-primary hover:underline"
@@ -583,7 +581,7 @@ function PromptEditorCard({
                   await onSave(prompt.key, prompt.default);
                 }}
               >
-                Reset to default
+                {t("prompts.resetDefault")}
               </button>
             )}
           </div>
@@ -597,7 +595,7 @@ function PromptEditorCard({
             <div>
               {saved && (
                 <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                  <Check className="h-3 w-3" /> Saved
+                  <Check className="h-3 w-3" /> {t("prompts.saved")}
                 </span>
               )}
             </div>
@@ -607,9 +605,9 @@ function PromptEditorCard({
               onClick={() => onSave(prompt.key, editValue)}
             >
               {saving ? (
-                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Saving</>
+                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("prompts.saving")}</>
               ) : (
-                <>Save Changes</>
+                <>{t("prompts.saveChanges")}</>
               )}
             </Button>
           </div>

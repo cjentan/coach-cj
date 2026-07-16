@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import {
   AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -16,9 +17,10 @@ const tooltipStyle = { fontSize: 12, borderRadius: 6, border: "1px solid var(--b
 // ─── Elevation Profile ───────────────────────────────────────
 
 export function ElevationChart({ data }: { data: { distance: number; ele: number }[] }) {
+  const t = useTranslations("activities.detail");
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-2">Elevation Profile</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">{t("elevationProfile")}</h3>
       <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -34,7 +36,7 @@ export function ElevationChart({ data }: { data: { distance: number; ele: number
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(v: number) => `${(v / 1000).toFixed(2)} km`}
-              formatter={(v: number) => [`${v} m`, "Elevation"]}
+              formatter={(v: number) => [`${v} m`, t("seriesElevation")]}
             />
             <Area type="monotone" dataKey="ele" stroke="#8b5cf6" fill="url(#eleGrad)" strokeWidth={1.5} dot={false} />
           </AreaChart>
@@ -51,6 +53,7 @@ export function HrChart({ data, maxHr, restingHr }: {
   maxHr: number;
   restingHr?: number;
 }) {
+  const t = useTranslations("activities.detail");
   const base = restingHr || 0;
   const reserve = maxHr - base;
   const z1 = Math.round(base + reserve * 0.68);
@@ -60,7 +63,7 @@ export function HrChart({ data, maxHr, restingHr }: {
 
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-2">Heart Rate</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">{t("heartRate")}</h3>
       <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -70,7 +73,7 @@ export function HrChart({ data, maxHr, restingHr }: {
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(v: number) => `${(v / 1000).toFixed(2)} km`}
-              formatter={(v: number) => [`${v} bpm`, "HR"]}
+              formatter={(v: number) => [`${v} bpm`, t("seriesHr")]}
             />
             {/* Zone bands */}
             <ReferenceArea y1={base} y2={z1} fill="#6b7280" fillOpacity={0.06} />
@@ -106,10 +109,11 @@ export function HrChart({ data, maxHr, restingHr }: {
 export function HrZoneBar({ zones }: {
   zones: { zone: number; label: string; pct: number; timeMin: number; lowerBpm: number; upperBpm: number }[];
 }) {
+  const t = useTranslations("activities.detail");
   const zoneColors = ["#6b7280", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7"];
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-3">HR Zone Distribution</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-3">{t("hrZoneDistribution")}</h3>
       <div className="space-y-2">
         {zones.map((z, i) => (
           <div key={z.zone}>
@@ -133,9 +137,10 @@ export function HrZoneBar({ zones }: {
 // ─── Pace Chart ──────────────────────────────────────────────
 
 export function PaceChart({ data }: { data: { distance: number; pace: number }[] }) {
+  const t = useTranslations("activities.detail");
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-2">Pace</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">{t("pace")}</h3>
       <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -154,7 +159,7 @@ export function PaceChart({ data }: { data: { distance: number; pace: number }[]
               formatter={(v: number) => {
                 const min = Math.floor(v);
                 const sec = Math.round((v - min) * 60);
-                return [`${min}:${sec.toString().padStart(2, "0")} /km`, "Pace"];
+                return [`${min}:${sec.toString().padStart(2, "0")} /km`, t("seriesPace")];
               }}
             />
             <Line type="monotone" dataKey="pace" stroke="#0ea5e9" strokeWidth={1.5} dot={false} />
@@ -168,9 +173,10 @@ export function PaceChart({ data }: { data: { distance: number; pace: number }[]
 // ─── Power Chart ─────────────────────────────────────────────
 
 export function PowerChart({ data }: { data: { timeSec: number; power: number; smoothedPower: number }[] }) {
+  const t = useTranslations("activities.detail");
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-2">Power</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">{t("power")}</h3>
       <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -180,7 +186,7 @@ export function PowerChart({ data }: { data: { timeSec: number; power: number; s
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(v: number) => fmtTime(v)}
-              formatter={(v: number) => [`${v} W`, "Power"]}
+              formatter={(v: number) => [`${v} W`, t("seriesPower")]}
             />
             <Area type="monotone" dataKey="power" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.08} strokeWidth={0.5} dot={false} />
             <Line type="monotone" dataKey="smoothedPower" stroke="#f59e0b" strokeWidth={2} dot={false} />
@@ -188,7 +194,7 @@ export function PowerChart({ data }: { data: { timeSec: number; power: number; s
         </ResponsiveContainer>
       </div>
       <p className="text-[10px] text-muted-foreground mt-1">
-        Thin line = raw · Bold = 30s smoothed
+        {t("rawSmoothedLabel")}
       </p>
     </div>
   );
@@ -197,9 +203,10 @@ export function PowerChart({ data }: { data: { timeSec: number; power: number; s
 // ─── Grade-Adjusted Pace Chart ───────────────────────────────
 
 export function GapChart({ data }: { data: { distance: number; pace: number; gap: number }[] }) {
+  const t = useTranslations("activities.detail");
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-2">Grade-Adjusted Pace</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">{t("gradeAdjustedPace")}</h3>
       <div className="h-44">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -218,7 +225,7 @@ export function GapChart({ data }: { data: { distance: number; pace: number; gap
               formatter={(v: number, name: string) => {
                 const min = Math.floor(v);
                 const sec = Math.round((v - min) * 60);
-                return [`${min}:${sec.toString().padStart(2, "0")} /km`, name === "gap" ? "GAP" : "Actual Pace"];
+                return [`${min}:${sec.toString().padStart(2, "0")} /km`, name === "gap" ? t("seriesGap") : t("seriesActualPace")];
               }}
             />
             <Line type="monotone" dataKey="pace" stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 3" dot={false} />
@@ -227,7 +234,7 @@ export function GapChart({ data }: { data: { distance: number; pace: number; gap
         </ResponsiveContainer>
       </div>
       <p className="text-[10px] text-muted-foreground mt-1">
-        Dashed = actual pace · Solid = grade-adjusted (flattened)
+        {t("dashedSolidLabel")}
       </p>
     </div>
   );
@@ -238,21 +245,22 @@ export function GapChart({ data }: { data: { distance: number; pace: number; gap
 export function VamCard({ totalGain, vamTotal, peakVam30min }: {
   totalGain: number; vamTotal: number; peakVam30min: number;
 }) {
+  const t = useTranslations("activities.detail");
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
-      <h3 className="text-xs font-medium text-muted-foreground mb-2">Climbing (VAM)</h3>
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">{t("climbingVam")}</h3>
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
           <div className="text-lg font-bold">{totalGain.toLocaleString()}m</div>
-          <div className="text-[10px] text-muted-foreground">Total Gain</div>
+          <div className="text-[10px] text-muted-foreground">{t("totalGain")}</div>
         </div>
         <div>
           <div className="text-lg font-bold">{vamTotal.toLocaleString()}</div>
-          <div className="text-[10px] text-muted-foreground">VAM (m/h)</div>
+          <div className="text-[10px] text-muted-foreground">{t("vamPerHour")}</div>
         </div>
         <div>
           <div className="text-lg font-bold">{peakVam30min.toLocaleString()}</div>
-          <div className="text-[10px] text-muted-foreground">Peak 30min VAM</div>
+          <div className="text-[10px] text-muted-foreground">{t("peak30minVam")}</div>
         </div>
       </div>
     </div>
@@ -302,6 +310,14 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
   timeData: CombinedDataPoint[];
   maxHr?: number;
 }) {
+  const t = useTranslations("activities.detail");
+  const metricLabels: Record<MetricKey, string> = {
+    ele: t("seriesElevation"),
+    hr: t("heartRate"),
+    pace: t("seriesPace"),
+    gap: t("seriesGap"),
+    power: t("seriesPower"),
+  };
   const [visible, setVisible] = useState<Record<MetricKey, boolean>>({
     ele: true, hr: true, pace: true, gap: true, power: true,
   });
@@ -350,7 +366,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
               style={visible[m.key] ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}
             >
               <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />
-              {m.label}
+              {metricLabels[m.key]}
             </button>
           ))}
         </div>
@@ -362,7 +378,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
               xAxisMode === "distance" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Distance
+            {t("xAxisDistance")}
           </button>
           <button
             onClick={() => setXAxisMode("time")}
@@ -370,7 +386,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
               xAxisMode === "time" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Time
+            {t("xAxisTime")}
           </button>
         </div>
       </div>
@@ -452,12 +468,12 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
               labelFormatter={(v: number) => formatXAxis(v, xAxisMode)}
               formatter={(v: number, name: string) => {
                 switch (name) {
-                  case "ele":   return [`${Math.round(v)} m`, "Elevation"];
-                  case "hr":    return [`${Math.round(v)} bpm`, "HR"];
-                  case "pace":  return [`${formatPaceVal(v)} /km`, "Pace"];
-                  case "gap":   return [`${formatPaceVal(v)} /km`, "GAP"];
-                  case "power": return [`${Math.round(v)} W`, "Power"];
-                  case "smoothedPower": return [`${Math.round(v)} W`, "Power (smoothed)"];
+                  case "ele":   return [`${Math.round(v)} m`, t("seriesElevation")];
+                  case "hr":    return [`${Math.round(v)} bpm`, t("seriesHr")];
+                  case "pace":  return [`${formatPaceVal(v)} /km`, t("seriesPace")];
+                  case "gap":   return [`${formatPaceVal(v)} /km`, t("seriesGap")];
+                  case "power": return [`${Math.round(v)} W`, t("seriesPower")];
+                  case "smoothedPower": return [`${Math.round(v)} W`, t("seriesPowerSmoothed")];
                   default:      return [v, name];
                 }
               }}
@@ -505,7 +521,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
       {/* Legend hint */}
       {visible.pace && visible.gap && (
         <p className="text-[10px] text-muted-foreground mt-1">
-          Pace (solid blue) · GAP (solid green) · Raw power (thin amber) · Smoothed power (bold amber)
+          {t("paceGapLegend")}
         </p>
       )}
     </div>

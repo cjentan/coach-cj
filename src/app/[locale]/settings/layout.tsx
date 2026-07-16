@@ -24,7 +24,7 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   const SIDEBAR_ITEMS = [
-    { href: "/settings", label: t("general"), icon: Settings2 },
+    { href: "/settings", label: t("general.title"), icon: Settings2 },
     { href: "/settings/goals", label: t("goals.title"), icon: Target },
     { href: "/settings/body-metrics", label: t("bodyMetrics.title"), icon: Scale },
     { href: "/settings/analysis", label: t("analysisTab"), icon: Brain },

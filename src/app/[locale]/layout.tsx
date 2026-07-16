@@ -8,7 +8,11 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import AuthProvider from "@/components/providers/session-provider";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 const notoSansSC = Noto_Sans_SC({
   subsets: ["latin"],
@@ -68,7 +72,7 @@ export default async function LocaleLayout({
 }) {
   const messages = await getMessages();
 
-  // Determine which font variable to apply based on locale
+  // Determine which font classes to apply based on locale
   const fontClass =
     locale === "zh-CN"
       ? `${inter.variable} ${notoSansSC.variable}`
@@ -76,9 +80,17 @@ export default async function LocaleLayout({
         ? `${inter.variable} ${notoSansTC.variable}`
         : inter.variable;
 
+  // Build explicit font-family per locale to ensure reliable rendering
+  const fontFamily =
+    locale === "zh-CN"
+      ? "var(--font-inter), var(--font-noto-sans-sc), system-ui, sans-serif"
+      : locale === "zh-TW"
+        ? "var(--font-inter), var(--font-noto-sans-tc), system-ui, sans-serif"
+        : "var(--font-inter), system-ui, sans-serif";
+
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={`${fontClass} font-sans`}>
+      <body className={fontClass} style={{ fontFamily }}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             <AuthProvider>

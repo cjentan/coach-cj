@@ -457,12 +457,10 @@ export default function OnboardingPage() {
             <div className="text-center mb-8">
               <Activity className="h-10 w-10 text-primary mx-auto mb-4" />
               <h1 className="text-2xl font-bold mb-2">
-                Connect Your Watch
+                {t("integration.title")}
               </h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Sync your training data automatically by connecting your
-                wearable account. Choose one or skip — you can set this up
-                later.
+                {t("integration.description")}
               </p>
             </div>
 
@@ -481,17 +479,17 @@ export default function OnboardingPage() {
                   {corosConnected ? (
                     <div className="flex items-center gap-2 text-green-600">
                       <CheckCircle2 className="h-5 w-5" />
-                      <span className="font-medium">Connected</span>
+                      <span className="font-medium">{t("integration.connected")}</span>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-muted-foreground mb-1">
                         <XCircle className="h-4 w-4" />
-                        <span className="text-sm">Not connected</span>
+                        <span className="text-sm">{t("integration.notConnected")}</span>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="coros-email" className="text-xs">
-                          Email
+                          {t("integration.emailLabel")}
                         </Label>
                         <Input
                           id="coros-email"
@@ -508,7 +506,7 @@ export default function OnboardingPage() {
                           htmlFor="coros-password"
                           className="text-xs"
                         >
-                          Password
+                          {t("integration.passwordLabel")}
                         </Label>
                         <Input
                           id="coros-password"
@@ -534,12 +532,11 @@ export default function OnboardingPage() {
                         {corosConnecting ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />{" "}
-                            Connecting...
+                            {t("integration.connecting")}
                           </>
                         ) : (
                           <>
-                            <Plug className="h-4 w-4 mr-1" /> Connect
-                            COROS
+                            <Plug className="h-4 w-4 mr-1" /> {t("integration.connectCoros")}
                           </>
                         )}
                       </Button>
@@ -567,7 +564,7 @@ export default function OnboardingPage() {
                   {garminConnected ? (
                     <div className="flex items-center gap-2 text-green-600">
                       <CheckCircle2 className="h-5 w-5" />
-                      <span className="font-medium">Connected</span>
+                      <span className="font-medium">{t("integration.connected")}</span>
                       {garminDisplayName && (
                         <Badge variant="outline" className="ml-1">
                           {garminDisplayName}
@@ -578,14 +575,14 @@ export default function OnboardingPage() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-muted-foreground mb-1">
                         <XCircle className="h-4 w-4" />
-                        <span className="text-sm">Not connected</span>
+                        <span className="text-sm">{t("integration.notConnected")}</span>
                       </div>
                       <div className="space-y-1.5">
                         <Label
                           htmlFor="garmin-email"
                           className="text-xs"
                         >
-                          Email
+                          {t("integration.emailLabel")}
                         </Label>
                         <Input
                           id="garmin-email"
@@ -601,7 +598,7 @@ export default function OnboardingPage() {
                           htmlFor="garmin-password"
                           className="text-xs"
                         >
-                          Password
+                          {t("integration.passwordLabel")}
                         </Label>
                         <Input
                           id="garmin-password"
@@ -620,7 +617,7 @@ export default function OnboardingPage() {
                             htmlFor="garmin-mfa"
                             className="text-xs"
                           >
-                            MFA Code
+                            {t("integration.mfaCodeLabel")}
                           </Label>
                           <Input
                             id="garmin-mfa"
@@ -648,12 +645,11 @@ export default function OnboardingPage() {
                         {garminConnecting ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />{" "}
-                            Connecting...
+                            {t("integration.connecting")}
                           </>
                         ) : (
                           <>
-                            <Plug className="h-4 w-4 mr-1" /> Connect
-                            Garmin
+                            <Plug className="h-4 w-4 mr-1" /> {t("integration.connectGarmin")}
                           </>
                         )}
                       </Button>
@@ -669,9 +665,7 @@ export default function OnboardingPage() {
             </div>
 
             <ExplanationCard>
-              Syncing your watch auto-imports activities so you don&apos;t
-              have to upload files manually. Garmin also syncs daily health
-              metrics like heart rate, sleep, and HRV.
+              {t("integration.explanation")}
             </ExplanationCard>
 
             <StepFooter
@@ -689,28 +683,25 @@ export default function OnboardingPage() {
             <div className="text-center mb-8">
               <Brain className="h-10 w-10 text-primary mx-auto mb-4" />
               <h1 className="text-2xl font-bold mb-2">
-                Schedule Your Training Review
+                {t("review.title")}
               </h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Set when the AI Coach analyzes your training and generates
-                insights and next week&apos;s plan.
+                {t("review.description")}
               </p>
             </div>
 
             <Card className="mb-4">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Brain className="h-4 w-4" /> Analysis &amp; Review
-                  Schedule
+                  <Brain className="h-4 w-4" /> {t("review.cardTitle")}
                 </CardTitle>
                 <CardDescription>
-                  How often and when the AI Coach generates fresh analysis and
-                  next week&apos;s plan
+                  {t("review.cardDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>How often should the AI analyze your training?</Label>
+                  <Label>{t("review.frequencyLabel")}</Label>
                   <Select
                     value={analysisTrigger}
                     onValueChange={setAnalysisTrigger}
@@ -737,7 +728,7 @@ export default function OnboardingPage() {
                 {/* Trigger-specific options */}
                 {analysisTrigger === "activity_count" && (
                   <div className="flex items-center gap-2">
-                    <Label>Every</Label>
+                    <Label>{t("review.everyLabel")}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -754,14 +745,14 @@ export default function OnboardingPage() {
                       className="w-20"
                     />
                     <span className="text-sm text-muted-foreground">
-                      activit{analysisTriggerValue === 1 ? "y" : "ies"}
+                      {t("review.activityCountSuffix", { count: analysisTriggerValue })}
                     </span>
                   </div>
                 )}
 
                 {analysisTrigger === "every_n_days" && (
                   <div className="flex items-center gap-2">
-                    <Label>Every</Label>
+                    <Label>{t("review.everyLabel")}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -778,7 +769,7 @@ export default function OnboardingPage() {
                       className="w-20"
                     />
                     <span className="text-sm text-muted-foreground">
-                      day{analysisTriggerValue === 1 ? "" : "s"}
+                      {t("review.daySuffix", { count: analysisTriggerValue })}
                     </span>
                   </div>
                 )}
@@ -808,7 +799,7 @@ export default function OnboardingPage() {
 
                 {analysisTrigger === "monthly" && (
                   <div className="flex items-center gap-2">
-                    <Label>Day of Month</Label>
+                    <Label>{t("review.dayOfMonth")}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -849,10 +840,7 @@ export default function OnboardingPage() {
             </Card>
 
             <ExplanationCard>
-              The AI Coach reviews your training logs, fatigue, readiness,
-              and goal progress on this schedule. It generates personalized
-              coach notes and adjusts your weekly plan. Weekly is
-              recommended for most athletes.
+              {t("review.explanation")}
             </ExplanationCard>
 
             <StepFooter
@@ -871,11 +859,10 @@ export default function OnboardingPage() {
             <div className="text-center mb-8">
               <Target className="h-10 w-10 text-primary mx-auto mb-4" />
               <h1 className="text-2xl font-bold mb-2">
-                Set Your First Goal
+                {t("goal.title")}
               </h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Tell the coach what you&apos;re training for. You can
-                always add more goals or adjust later.
+                {t("goal.description")}
               </p>
             </div>
 
@@ -884,10 +871,10 @@ export default function OnboardingPage() {
                 <CardContent className="p-6 text-center">
                   <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
                   <p className="font-medium text-green-700 dark:text-green-300">
-                    Goal saved!
+                    {t("goal.savedTitle")}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    You can add more goals from the Settings page later.
+                    {t("goal.savedDescription")}
                   </p>
                 </CardContent>
               </Card>
@@ -960,7 +947,7 @@ export default function OnboardingPage() {
                         htmlFor="goal-elevation"
                         className="text-xs"
                       >
-                        Elevation Gain (meters, optional)
+                        {t("goal.elevationLabel")}
                       </Label>
                       <Input
                         id="goal-elevation"
@@ -985,17 +972,14 @@ export default function OnboardingPage() {
                       !goalDistance
                     }
                   >
-                    {goalSaving ? "Saving..." : "Save Goal"}
+                    {goalSaving ? t("saving") : t("goal.saveGoal")}
                   </Button>
                 </CardContent>
               </Card>
             )}
 
             <ExplanationCard>
-              Setting goals powers the AI coach&apos;s race readiness
-              analysis — it tracks your training trajectory against the
-              target and tells you if you&apos;re on pace, need more work,
-              or are falling behind. You can always add more goals later.
+              {t("goal.explanation")}
             </ExplanationCard>
 
             <StepFooter
@@ -1017,11 +1001,10 @@ export default function OnboardingPage() {
             <div className="text-center mb-8">
               <Scale className="h-10 w-10 text-primary mx-auto mb-4" />
               <h1 className="text-2xl font-bold mb-2">
-                Track Your Body Metrics
+                {t("bodyMetrics.title")}
               </h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Enter your current weight and optional body stats to
-                improve analysis accuracy.
+                {t("bodyMetrics.description")}
               </p>
             </div>
 
@@ -1030,7 +1013,7 @@ export default function OnboardingPage() {
                 <CardContent className="p-6 text-center">
                   <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
                   <p className="font-medium text-green-700 dark:text-green-300">
-                    Body metrics saved!
+                    {t("bodyMetrics.savedTitle")}
                   </p>
                 </CardContent>
               </Card>
@@ -1038,14 +1021,14 @@ export default function OnboardingPage() {
               <Card className="mb-4">
                 <CardHeader>
                   <CardTitle className="text-base">
-                    Body Metrics Entry
+                    {t("bodyMetrics.cardTitle")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="metric-date" className="text-xs">
-                        Date
+                        {t("bodyMetrics.dateLabel")}
                       </Label>
                       <Input
                         id="metric-date"
@@ -1056,7 +1039,7 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="metric-weight" className="text-xs">
-                        Weight (kg) *
+                        {t("bodyMetrics.weightLabel")}
                       </Label>
                       <Input
                         id="metric-weight"
@@ -1073,7 +1056,7 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="metric-height" className="text-xs">
-                        Height (cm, optional)
+                        {t("bodyMetrics.heightLabel")}
                       </Label>
                       <Input
                         id="metric-height"
@@ -1092,7 +1075,7 @@ export default function OnboardingPage() {
                         htmlFor="metric-resting-hr"
                         className="text-xs"
                       >
-                        Resting HR (bpm, optional)
+                        {t("bodyMetrics.restingHrLabel")}
                       </Label>
                       <Input
                         id="metric-resting-hr"
@@ -1113,17 +1096,14 @@ export default function OnboardingPage() {
                     onClick={handleSaveBodyMetric}
                     disabled={metricSaving || !metricWeight}
                   >
-                    {metricSaving ? "Saving..." : "Save Entry"}
+                    {metricSaving ? t("saving") : t("bodyMetrics.saveEntry")}
                   </Button>
                 </CardContent>
               </Card>
             )}
 
             <ExplanationCard>
-              Body weight is used to calculate relative intensity metrics
-              (e.g., watts/kg, VO₂ estimates). Tracking your resting heart
-              rate helps detect fatigue trends. Even a one-time entry
-              improves your analysis.
+              {t("bodyMetrics.explanation")}
             </ExplanationCard>
 
             <StepFooter
@@ -1158,17 +1138,17 @@ export default function OnboardingPage() {
             <div className="max-w-md mx-auto text-left space-y-3 mb-8">
               <SummaryItem
                 icon={integrationType ? CheckCircle2 : XCircle}
-                label="Wearable Integration"
+                label={t("summary.wearable")}
                 detail={
                   integrationType
-                    ? `${integrationType === "garmin" ? "Garmin" : "COROS"} connected`
-                    : "Skipped — set up later"
+                    ? t("summary.wearableConnected", { type: integrationType === "garmin" ? "Garmin" : "COROS" })
+                    : t("summary.wearableSkipped")
                 }
                 done={!!integrationType}
               />
               <SummaryItem
                 icon={Check}
-                label="Review Schedule"
+                label={t("summary.reviewSchedule")}
                 detail={
                   analysisTrigger === "weekly"
                     ? `${DAY_NAMES[Number(reviewDay)]} at ${reviewTime}`
@@ -1186,14 +1166,14 @@ export default function OnboardingPage() {
               />
               <SummaryItem
                 icon={goalSaved ? Check : XCircle}
-                label="Race Goal"
-                detail={goalSaved ? goalName : "Skipped"}
+                label={t("summary.raceGoal")}
+                detail={goalSaved ? goalName : t("summary.skipped")}
                 done={goalSaved}
               />
               <SummaryItem
                 icon={metricSaved ? Check : XCircle}
-                label="Body Metrics"
-                detail={metricSaved ? "Logged today" : "Skipped"}
+                label={t("summary.bodyMetrics")}
+                detail={metricSaved ? t("summary.loggedToday") : t("summary.skipped")}
                 done={metricSaved}
               />
             </div>
@@ -1202,11 +1182,11 @@ export default function OnboardingPage() {
               {saving ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />{" "}
-                  Finalizing...
+                  {t("finalizing")}
                 </>
               ) : (
                 <>
-                  Go to Dashboard{" "}
+                  {t("goToDashboard")}{" "}
                   <ChevronRight className="h-5 w-5 ml-1" />
                 </>
               )}

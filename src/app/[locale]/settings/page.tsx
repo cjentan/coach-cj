@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +31,8 @@ export default function SettingsGeneralPage() {
 
   // Language state
   const currentLocale = useLocale();
+  const t = useTranslations("settings.general");
+  const common = useTranslations("common");
 
   async function handleLocaleChange(newLocale: string) {
     await fetch("/api/settings/locale", {
@@ -83,34 +85,34 @@ export default function SettingsGeneralPage() {
       setTrainingContextSaved(true);
       setTimeout(() => setTrainingContextSaved(false), 3000);
     } catch {
-      setTrainingContextError("Failed to save training context");
+      setTrainingContextError(t("contextSaveFailed"));
     }
     setTrainingContextSaving(false);
   }
 
-  if (status === "loading" || !session) return <div className="py-8">Loading...</div>;
+  if (status === "loading" || !session) return <div className="py-8">{common("loading")}</div>;
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">General</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your profile and preferences.
+          {t("cardProfileDesc")}
         </p>
       </div>
 
       {/* Profile */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Profile</CardTitle>
-          <CardDescription>Your account details</CardDescription>
+          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> {t("cardProfileTitle")}</CardTitle>
+          <CardDescription>{t("cardProfileAccountDetails")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Name</span><span className="font-medium">{session.user?.name}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium">{session.user?.email}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("cardName")}</span><span className="font-medium">{session.user?.name}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("cardEmail")}</span><span className="font-medium">{session.user?.email}</span></div>
             <div className="flex justify-between pt-2 border-t border-border/50">
-              <span className="text-muted-foreground">Password</span>
+              <span className="text-muted-foreground">{t("cardPassword")}</span>
               <Dialog>
                 <DialogTrigger asChild>
                   <button
@@ -118,13 +120,13 @@ export default function SettingsGeneralPage() {
                     className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1.5"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
-                    Change password
+                    {t("changePassword")}
                   </button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Change Password</DialogTitle>
-                    <DialogDescription>Update your account password.</DialogDescription>
+                    <DialogTitle>{t("changePassword")}</DialogTitle>
+                    <DialogDescription>{t("changePasswordDesc")}</DialogDescription>
                   </DialogHeader>
                   <form
                     onSubmit={async (e) => {
@@ -133,12 +135,12 @@ export default function SettingsGeneralPage() {
                       setPasswordSuccess(false);
 
                       if (newPassword !== confirmPassword) {
-                        setPasswordError("New passwords do not match.");
+                        setPasswordError(t("passwordMismatch"));
                         return;
                       }
 
                       if (newPassword.length < 8) {
-                        setPasswordError("New password must be at least 8 characters.");
+                        setPasswordError(t("passwordTooShort"));
                         return;
                       }
 
@@ -153,7 +155,7 @@ export default function SettingsGeneralPage() {
                         const data = await res.json();
 
                         if (!res.ok) {
-                          setPasswordError(data.error || "Failed to change password.");
+                          setPasswordError(data.error || t("changePasswordFailed"));
                           return;
                         }
 
@@ -163,7 +165,7 @@ export default function SettingsGeneralPage() {
                         setConfirmPassword("");
                         setTimeout(() => setPasswordSuccess(false), 3000);
                       } catch {
-                        setPasswordError("Network error. Please try again.");
+                        setPasswordError(t("networkError"));
                       } finally {
                         setPasswordLoading(false);
                       }
@@ -171,7 +173,7 @@ export default function SettingsGeneralPage() {
                   >
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="current-password">Current Password</Label>
+                        <Label htmlFor="current-password">{t("currentPassword")}</Label>
                         <Input
                           id="current-password"
                           type="password"
@@ -181,7 +183,7 @@ export default function SettingsGeneralPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="new-password">New Password</Label>
+                        <Label htmlFor="new-password">{t("newPassword")}</Label>
                         <Input
                           id="new-password"
                           type="password"
@@ -192,7 +194,7 @@ export default function SettingsGeneralPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="confirm-password">Confirm New Password</Label>
+                        <Label htmlFor="confirm-password">{t("confirmNewPassword")}</Label>
                         <Input
                           id="confirm-password"
                           type="password"
@@ -213,18 +215,18 @@ export default function SettingsGeneralPage() {
                       {passwordSuccess && (
                         <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                           <Check className="h-4 w-4 shrink-0" />
-                          <span>Password changed successfully.</span>
+                          <span>{t("passwordChanged")}</span>
                         </div>
                       )}
 
                       <div className="flex justify-end gap-3">
                         <DialogClose asChild>
                           <Button type="button" variant="outline" disabled={passwordLoading}>
-                            Cancel
+                            {common("cancel")}
                           </Button>
                         </DialogClose>
                         <Button type="submit" disabled={passwordLoading}>
-                          {passwordLoading ? "Changing..." : "Change Password"}
+                          {passwordLoading ? t("changing") : t("changePassword")}
                         </Button>
                       </div>
                     </div>
@@ -239,20 +241,20 @@ export default function SettingsGeneralPage() {
       {/* Where and When I Can Train */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" /> Where and When I Can Train</CardTitle>
-          <CardDescription>Describe your training environment so the AI coach can give you better recommendations.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" /> {t("trainingContextTitle")}</CardTitle>
+          <CardDescription>{t("trainingContextDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           {trainingContextLoading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <p className="text-sm text-muted-foreground">{common("loading")}</p>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="training-context">Where and When I Can Train...</Label>
+                <Label htmlFor="training-context">{t("trainingContextLabel")}</Label>
                 <Textarea
                   id="training-context"
                   rows={6}
-                  placeholder="Describe your training environment in as much detail as possible. For example: which facilities you use (roads, trails, track, pool, gym), when you typically train (mornings, evenings, specific days), any constraints or preferences. The AI coach uses this context for personalized recommendations and analysis."
+                  placeholder={t("trainingContextPlaceholder")}
                   value={trainingContext}
                   onChange={(e) => setTrainingContext(e.target.value)}
                 />
@@ -268,12 +270,12 @@ export default function SettingsGeneralPage() {
               {trainingContextSaved && (
                 <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                   <Check className="h-4 w-4 shrink-0" />
-                  <span>Training context saved.</span>
+                  <span>{t("contextSaved")}</span>
                 </div>
               )}
 
               <Button onClick={handleSaveTrainingContext} disabled={trainingContextSaving}>
-                {trainingContextSaving ? "Saving..." : "Save"}
+                {trainingContextSaving ? common("saving") : common("save")}
               </Button>
             </div>
           )}
@@ -312,15 +314,15 @@ export default function SettingsGeneralPage() {
       {/* Appearance */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">{mounted && (theme === "dark" ? <Moon className="h-5 w-5" /> : theme === "light" ? <Sun className="h-5 w-5" /> : <Monitor className="h-5 w-5" />)} Appearance</CardTitle>
-          <CardDescription>Choose your color scheme</CardDescription>
+          <CardTitle className="flex items-center gap-2">{mounted && (theme === "dark" ? <Moon className="h-5 w-5" /> : theme === "light" ? <Sun className="h-5 w-5" /> : <Monitor className="h-5 w-5" />)} {t("appearanceTitle")}</CardTitle>
+          <CardDescription>{t("appearanceDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
             {[
-              { value: "light", label: "Light", icon: Sun },
-              { value: "dark", label: "Dark", icon: Moon },
-              { value: "system", label: "System", icon: Monitor },
+              { value: "light", label: t("light"), icon: Sun },
+              { value: "dark", label: t("dark"), icon: Moon },
+              { value: "system", label: t("system"), icon: Monitor },
             ].map(({ value, label, icon: Icon }) => (
               <button
                 key={value}

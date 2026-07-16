@@ -419,13 +419,13 @@ export default function IngestionPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-2">{t("title")}</h1>
-      <p className="text-muted-foreground mb-8">Import training data from GPX, TCX, FIT, CSV files, or enter manually</p>
+      <p className="text-muted-foreground mb-8">{t("description")}</p>
 
       <Tabs defaultValue="strava-export">
         <TabsList className="mb-6">
           <TabsTrigger value="strava-export"><Archive className="h-4 w-4 mr-2" /> {t("tabs.strava")}</TabsTrigger>
-          <TabsTrigger value="csv"><FileSpreadsheet className="h-4 w-4 mr-2" /> CSV</TabsTrigger>
-          <TabsTrigger value="gpx"><FileType className="h-4 w-4 mr-2" /> GPX / TCX / FIT</TabsTrigger>
+          <TabsTrigger value="csv"><FileSpreadsheet className="h-4 w-4 mr-2" /> {t("tabs.csv")}</TabsTrigger>
+          <TabsTrigger value="gpx"><FileType className="h-4 w-4 mr-2" /> {t("tabs.gpx")}</TabsTrigger>
           <TabsTrigger value="manual"><Pencil className="h-4 w-4 mr-2" /> {t("tabs.manual")}</TabsTrigger>
         </TabsList>
 
@@ -433,14 +433,14 @@ export default function IngestionPage() {
         <TabsContent value="strava-export">
           <Card>
             <CardHeader>
-              <CardTitle>Strava Bulk Export (ZIP)</CardTitle>
-              <CardDescription>Upload your complete Strava data export ZIP — matches activities.csv with GPX/TCX/FIT files for full trackpoint data</CardDescription>
+              <CardTitle>{t("strava.title")}</CardTitle>
+              <CardDescription>{t("strava.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* ── Date Range Filter ──────────────────── */}
               <div className="flex flex-wrap items-end gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="strava-from">From</Label>
+                  <Label htmlFor="strava-from">{t("strava.fromLabel")}</Label>
                   <Input
                     id="strava-from"
                     type="date"
@@ -451,7 +451,7 @@ export default function IngestionPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="strava-to">To</Label>
+                  <Label htmlFor="strava-to">{t("strava.toLabel")}</Label>
                   <Input
                     id="strava-to"
                     type="date"
@@ -462,15 +462,15 @@ export default function IngestionPage() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground pb-1">
-                  Leave blank to import everything
+                  {t("strava.leaveBlank")}
                 </p>
               </div>
 
               <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => stravaExportInputRef.current?.click()}>
                 <Archive className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="font-medium mb-1">Click to upload your Strava export ZIP</p>
-                <p className="text-sm text-muted-foreground">Download from strava.com → Settings → My Account → Download or Delete Your Account</p>
+                <p className="font-medium mb-1">{t("strava.clickToUpload")}</p>
+                <p className="text-sm text-muted-foreground">{t("strava.downloadInstructions")}</p>
                 <Input ref={stravaExportInputRef} type="file" accept=".zip" className="hidden" onChange={handleStravaExportUpload} />
               </div>
 
@@ -482,12 +482,12 @@ export default function IngestionPage() {
                     <div className="flex items-center gap-2 text-sm">
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       <span className="font-medium">
-                        {stravaExportPhase === "reading" ? "Reading ZIP file…" :
-                         stravaExportPhase === "parsing" ? "Extracting and parsing activities…" :
-                         stravaExportPhase === "importing" ? "Importing activities to database…" :
-                         stravaExportPhase === "snapshotting" ? "Updating weekly snapshots…" :
-                         stravaExportPhase === "cancelled" ? "Cancelled" :
-                         "Processing ZIP…"}
+                        {stravaExportPhase === "reading" ? t("strava.phase.reading") :
+                         stravaExportPhase === "parsing" ? t("strava.phase.parsing") :
+                         stravaExportPhase === "importing" ? t("strava.phase.importing") :
+                         stravaExportPhase === "snapshotting" ? t("strava.phase.snapshotting") :
+                         stravaExportPhase === "cancelled" ? t("strava.phase.cancelled") :
+                         t("strava.phase.processing")}
                       </span>
                     </div>
                     <Button
@@ -496,7 +496,7 @@ export default function IngestionPage() {
                       onClick={handleCancel}
                       disabled={!stravaExportLoading}
                     >
-                      <Trash2 className="h-4 w-4 mr-1.5" /> Stop
+                      <Trash2 className="h-4 w-4 mr-1.5" /> {t("strava.stop")}
                     </Button>
                   </div>
 
@@ -504,7 +504,7 @@ export default function IngestionPage() {
                   {stravaExportProgress && stravaExportProgress.total > 0 && (
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Progress</span>
+                        <span>{t("strava.progress")}</span>
                         <span>{stravaExportProgress.current} / {stravaExportProgress.total} ({Math.round((stravaExportProgress.current / stravaExportProgress.total) * 100)}%)</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
@@ -524,7 +524,7 @@ export default function IngestionPage() {
                         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-1"
                       >
                         {logExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        Processing log ({stravaExportLog.length} entries)
+                        {t("strava.processingLog", { entries: stravaExportLog.length })}
                       </button>
                       <div
                         ref={logContainerRef}
@@ -559,18 +559,18 @@ export default function IngestionPage() {
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                       <div className="p-3 rounded-lg bg-muted text-center">
                         <div className="text-2xl font-bold text-primary">{stravaExportResult.imported}</div>
-                        <div className="text-xs text-muted-foreground">Total Imported</div>
+                        <div className="text-xs text-muted-foreground">{t("strava.totalImported")}</div>
                       </div>
                       {stravaExportResult.withRichData != null && (
                         <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950 text-center">
                           <div className="text-2xl font-bold text-green-600">{stravaExportResult.withRichData}</div>
-                          <div className="text-xs text-muted-foreground">With Full GPS Track Data</div>
+                          <div className="text-xs text-muted-foreground">{t("strava.withGpsData")}</div>
                         </div>
                       )}
                       {stravaExportResult.enriched != null && stravaExportResult.enriched > 0 && (
                         <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 text-center">
                           <div className="text-2xl font-bold text-blue-600">{stravaExportResult.enriched}</div>
-                          <div className="text-xs text-muted-foreground">Upgraded from Basic</div>
+                          <div className="text-xs text-muted-foreground">{t("strava.upgradedFromBasic")}</div>
                         </div>
                       )}
                     </div>
@@ -579,7 +579,7 @@ export default function IngestionPage() {
                     <div className="mt-3 p-3 rounded-lg bg-muted/50 flex items-start gap-2">
                       <Database className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                       <p className="text-sm text-muted-foreground">
-                        <strong>Full trackpoint data stored:</strong> {stravaExportResult.withRichData} activities now include per-second GPS coordinates, heart rate, cadence, and power data.
+                        <strong>{t("strava.fullTrackpointData")}</strong> {t("strava.fullTrackpointDataDesc", { count: stravaExportResult.withRichData })}
                       </p>
                     </div>
                   )}
@@ -587,14 +587,14 @@ export default function IngestionPage() {
               )}
 
               <div className="text-sm text-muted-foreground space-y-2">
-                <p><strong>How it works:</strong></p>
+                <p><strong>{t("strava.howItWorks")}</strong></p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
-                  <li>Go to strava.com → Settings → My Account → Download or Delete Your Account</li>
-                  <li>Request your data export (Strava will email you a ZIP when ready)</li>
-                  <li>Upload the ZIP here — activities are matched with their GPX files by activity ID</li>
-                  <li>Activities with GPX files get full trackpoint data: GPS route, HR at every second, cadence, and power</li>
+                  <li>{t("strava.step1")}</li>
+                  <li>{t("strava.step2")}</li>
+                  <li>{t("strava.step3")}</li>
+                  <li>{t("strava.step4")}</li>
                 </ol>
-                <p className="mt-2"><strong>Safe to re-upload:</strong> If you have already imported via CSV, uploading the full ZIP will <strong>upgrade</strong> those activities with rich trackpoint data — no duplicates created.</p>
+                <p className="mt-2"><strong>{t("strava.safeToReupload")}</strong></p>
               </div>
             </CardContent>
           </Card>
@@ -604,30 +604,30 @@ export default function IngestionPage() {
         <TabsContent value="csv">
           <Card>
             <CardHeader>
-              <CardTitle>CSV Bulk Import</CardTitle>
-              <CardDescription>Upload your activities.csv from a data export</CardDescription>
+              <CardTitle>{t("csv.title")}</CardTitle>
+              <CardDescription>{t("csv.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}>
                 <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="font-medium mb-1">Click to upload activities.csv</p>
-                <p className="text-sm text-muted-foreground">From your data export ZIP (activities.csv)</p>
+                <p className="font-medium mb-1">{t("csv.clickToUpload")}</p>
+                <p className="text-sm text-muted-foreground">{t("csv.fromZip")}</p>
                 <Input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
               </div>
 
               {csvLoading && (
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Processing CSV...
+                    <Loader2 className="h-4 w-4 animate-spin" /> {t("csv.processing")}
                   </div>
                   <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!csvLoading}>
-                    <Trash2 className="h-4 w-4 mr-1.5" /> Stop
+                    <Trash2 className="h-4 w-4 mr-1.5" /> {t("strava.stop")}
                   </Button>
                 </div>
               )}
 
-              {csvResult && <ResultBadge result={csvResult} detail={`${csvResult.totalRows || "?"} rows scanned`} />}
+              {csvResult && <ResultBadge result={csvResult} detail={t("csv.rowsScanned", { value: csvResult.totalRows || "?" })} />}
             </CardContent>
           </Card>
         </TabsContent>
@@ -636,25 +636,25 @@ export default function IngestionPage() {
         <TabsContent value="gpx">
           <Card>
             <CardHeader>
-              <CardTitle>GPX / TCX / FIT File Import</CardTitle>
-              <CardDescription>Upload .gpx, .tcx, or .fit files from your devices or other platforms</CardDescription>
+              <CardTitle>{t("gpx.title")}</CardTitle>
+              <CardDescription>{t("gpx.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
                 onClick={() => gpxInputRef.current?.click()}>
                 <FileType className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="font-medium mb-1">Click to upload GPX, TCX, or FIT files</p>
-                <p className="text-sm text-muted-foreground">Supports Garmin, Wahoo, Suunto, COROS, and other device exports</p>
+                <p className="font-medium mb-1">{t("gpx.clickToUpload")}</p>
+                <p className="text-sm text-muted-foreground">{t("gpx.supportedDevices")}</p>
                 <Input ref={gpxInputRef} type="file" accept=".gpx,.tcx,.fit,.xml" multiple className="hidden" onChange={handleGpxUpload} />
               </div>
 
               {gpxLoading && (
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Parsing files...
+                    <Loader2 className="h-4 w-4 animate-spin" /> {t("gpx.parsing")}
                   </div>
                   <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!gpxLoading}>
-                    <Trash2 className="h-4 w-4 mr-1.5" /> Stop
+                    <Trash2 className="h-4 w-4 mr-1.5" /> {t("gpx.stop")}
                   </Button>
                 </div>
               )}
@@ -682,8 +682,7 @@ export default function IngestionPage() {
               )}
 
               <p className="text-sm text-muted-foreground">
-                <strong>Supported formats:</strong> GPX (GPS Exchange Format), TCX (Garmin Training Center XML), FIT (Garmin Flexible & Interoperable Data Transfer).{" "}
-                FIT files are Garmin&apos;s native binary format — used by most modern Garmin watches, Edge cycling computers, and many COROS/Wahoo devices.
+                <strong>{t("gpx.supportedFormats")}</strong>
               </p>
             </CardContent>
           </Card>
@@ -693,19 +692,19 @@ export default function IngestionPage() {
         <TabsContent value="manual">
           <Card>
             <CardHeader>
-              <CardTitle>Manual Activity Entry</CardTitle>
-              <CardDescription>Log a training session that wasn&apos;t tracked digitally</CardDescription>
+              <CardTitle>{t("manual.title")}</CardTitle>
+              <CardDescription>{t("manual.description")}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleManualSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Activity Name *</Label>
+                    <Label>{t("manual.nameLabel")}</Label>
                     <Input value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
                       placeholder="Morning Run" required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Type *</Label>
+                    <Label>{t("manual.typeLabel")}</Label>
                     <Select value={manualForm.type} onValueChange={(v) => { setManualForm({ ...manualForm, type: v, subType: "" }); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -719,11 +718,11 @@ export default function IngestionPage() {
                   </div>
                   {SUB_TYPE_OPTIONS[manualForm.type] && SUB_TYPE_OPTIONS[manualForm.type].length > 0 && (
                     <div className="space-y-2">
-                      <Label>Sub-Type</Label>
+                      <Label>{t("manual.subTypeLabel")}</Label>
                       <Select value={manualForm.subType} onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}>
                         <SelectTrigger><SelectValue placeholder="None (generic)" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None (generic)</SelectItem>
+                          <SelectItem value="">{t("manual.subTypeNone")}</SelectItem>
                           {SUB_TYPE_OPTIONS[manualForm.type].map((st) => (
                             <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
                           ))}
@@ -732,12 +731,12 @@ export default function IngestionPage() {
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Label>Date & Time *</Label>
+                    <Label>{t("manual.dateTimeLabel")}</Label>
                     <Input type="datetime-local" value={manualForm.date}
                       onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Duration *</Label>
+                    <Label>{t("manual.durationLabel")}</Label>
                     <div className="flex gap-2">
                       <Input type="number" placeholder="Min" value={manualForm.durationMinutes}
                         onChange={(e) => setManualForm({ ...manualForm, durationMinutes: e.target.value })} />
@@ -746,32 +745,32 @@ export default function IngestionPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Distance (meters)</Label>
+                    <Label>{t("manual.distanceLabel")}</Label>
                     <Input type="number" value={manualForm.distance}
                       onChange={(e) => setManualForm({ ...manualForm, distance: e.target.value })} placeholder="12000" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Elevation Gain (meters)</Label>
+                    <Label>{t("manual.elevationLabel")}</Label>
                     <Input type="number" value={manualForm.elevation}
                       onChange={(e) => setManualForm({ ...manualForm, elevation: e.target.value })} placeholder="450" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Avg Heart Rate (bpm)</Label>
+                    <Label>{t("manual.avgHrLabel")}</Label>
                     <Input type="number" value={manualForm.avgHr}
                       onChange={(e) => setManualForm({ ...manualForm, avgHr: e.target.value })} placeholder="142" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Max Heart Rate (bpm)</Label>
+                    <Label>{t("manual.maxHrLabel")}</Label>
                     <Input type="number" value={manualForm.maxHr}
                       onChange={(e) => setManualForm({ ...manualForm, maxHr: e.target.value })} placeholder="172" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Calories</Label>
+                    <Label>{t("manual.caloriesLabel")}</Label>
                     <Input type="number" value={manualForm.calories}
                       onChange={(e) => setManualForm({ ...manualForm, calories: e.target.value })} placeholder="450" />
                   </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label>Notes</Label>
+                    <Label>{t("manual.notesLabel")}</Label>
                     <Input value={manualForm.description}
                       onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
                       placeholder="Felt strong, negative split..." />
@@ -785,7 +784,7 @@ export default function IngestionPage() {
                 )}
 
                 <Button type="submit">
-                  <Pencil className="h-4 w-4 mr-2" /> Log Activity
+                  <Pencil className="h-4 w-4 mr-2" /> {t("manual.logActivity")}
                 </Button>
               </form>
             </CardContent>

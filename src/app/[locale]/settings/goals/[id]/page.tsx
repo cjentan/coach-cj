@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,18 +25,21 @@ interface RaceGoal {
 export default function SettingsGoalDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const t = useTranslations("settings.goals");
+  const common = useTranslations("common");
   const [goal, setGoal] = useState<RaceGoal | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     fetch(`/api/goals/${id}`).then((r) => r.json()).then(setGoal).finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="py-8">Loading...</div>;
-  if (!goal) return <div className="py-8">Goal not found.</div>;
+  if (loading) return <div className="py-8">{common("loading")}</div>;
+  if (!goal) return <div className="py-8">{t("goalNotFound")}</div>;
 
   const daysUntil = differenceInDays(new Date(goal.targetDate), new Date());
   const weeksUntil = Math.max(1, Math.ceil(daysUntil / 7));
@@ -43,16 +47,16 @@ export default function SettingsGoalDetailPage() {
   return (
     <div className="max-w-3xl">
       <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-        <ArrowLeft className="h-4 w-4 mr-2" /> Back
+        <ArrowLeft className="h-4 w-4 mr-2" /> {t("back")}
       </Button>
 
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3 mb-2">
             <Badge variant={goal.priority === "A" ? "destructive" : goal.priority === "B" ? "default" : "secondary"}>
-              {goal.priority}-Goal
+              {t("priorityBadge", { priority: goal.priority })}
             </Badge>
-            <Badge variant={goal.status === "active" ? "success" : "secondary"}>{goal.status}</Badge>
+            <Badge variant={goal.status === "active" ? "success" : "secondary"}>{goal.status === "active" ? t("statusActive") : t("statusCompleted")}</Badge>
           </div>
           <CardTitle className="text-2xl">{goal.name}</CardTitle>
           {goal.goalStatement && (
@@ -65,7 +69,7 @@ export default function SettingsGoalDetailPage() {
               <CardContent className="py-4 text-center">
                 <Route className="h-5 w-5 mx-auto text-primary mb-1" />
                 <div className="text-xl font-bold">{formatDistance(goal.distanceMeters)}</div>
-                <div className="text-xs text-muted-foreground">Distance</div>
+                <div className="text-xs text-muted-foreground">{t("distanceLabel")}</div>
               </CardContent>
             </Card>
             {goal.elevationGainMeters && (
@@ -73,7 +77,7 @@ export default function SettingsGoalDetailPage() {
                 <CardContent className="py-4 text-center">
                   <Mountain className="h-5 w-5 mx-auto text-primary mb-1" />
                   <div className="text-xl font-bold">{formatDistance(goal.elevationGainMeters)}</div>
-                  <div className="text-xs text-muted-foreground">Elevation Gain</div>
+                  <div className="text-xs text-muted-foreground">{t("elevationGainLabel")}</div>
                 </CardContent>
               </Card>
             )}
@@ -81,7 +85,7 @@ export default function SettingsGoalDetailPage() {
               <CardContent className="py-4 text-center">
                 <Calendar className="h-5 w-5 mx-auto text-primary mb-1" />
                 <div className="text-xl font-bold">{format(new Date(goal.targetDate), "MMM d, yyyy")}</div>
-                <div className="text-xs text-muted-foreground">{daysUntil > 0 ? `${daysUntil} days (${weeksUntil} weeks)` : "Past due"}</div>
+                <div className="text-xs text-muted-foreground">{daysUntil > 0 ? t("daysUntil", { daysUntil, weeksUntil }) : common("pastDue")}</div>
               </CardContent>
             </Card>
           </div>
@@ -89,7 +93,7 @@ export default function SettingsGoalDetailPage() {
           {goal.targetTimeSeconds && (
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Target Time:</span>
+              <span className="text-muted-foreground">{t("targetTime")}</span>
               <span className="font-medium">
                 {Math.floor(goal.targetTimeSeconds / 3600)}h {Math.round((goal.targetTimeSeconds % 3600) / 60)}m
               </span>
@@ -100,7 +104,7 @@ export default function SettingsGoalDetailPage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2"><Route className="h-4 w-4" /> Course Profile</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2"><Route className="h-4 w-4" /> {t("courseProfileTitle")}</CardTitle>
                 <Button
                   variant="ghost" size="sm"
                   onClick={() => setShowProfile(!showProfile)}
@@ -115,23 +119,23 @@ export default function SettingsGoalDetailPage() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-xs text-muted-foreground">Distance</div>
+                        <div className="text-xs text-muted-foreground">{t("courseProfileDist")}</div>
                         <div className="font-semibold text-sm">{formatDistance(goal.courseProfile.distanceMeters)}</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-xs text-muted-foreground">Elevation</div>
+                        <div className="text-xs text-muted-foreground">{t("courseProfileElev")}</div>
                         <div className="font-semibold text-sm">{formatDistance(goal.courseProfile.elevationGainMeters)}</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-xs text-muted-foreground">Max Elevation</div>
+                        <div className="text-xs text-muted-foreground">{t("courseProfileMaxElev")}</div>
                         <div className="font-semibold text-sm">{goal.courseProfile.maxElevation}m</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
-                        <div className="text-xs text-muted-foreground">Points</div>
+                        <div className="text-xs text-muted-foreground">{t("courseProfilePoints")}</div>
                         <div className="font-semibold text-sm">{goal.courseProfile.pointCount}</div>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">Upload a new file to replace the course profile.</p>
+                    <p className="text-xs text-muted-foreground">{t("courseProfileReplaceHint")}</p>
                     <form
                       onSubmit={async (e) => {
                         e.preventDefault();
@@ -146,13 +150,16 @@ export default function SettingsGoalDetailPage() {
                           const res = await fetch(`/api/goals/${goal.id}/course`, { method: "POST", body: fd });
                           const data = await res.json();
                           if (data.success) {
-                            setUploadResult("Course profile updated!");
+                            setUploadResult(t("courseProfileUpdated"));
+                            setUploadError(false);
                             setGoal((prev) => prev ? { ...prev, courseProfile: data.profile } : prev);
                           } else {
-                            setUploadResult(`Error: ${data.error}`);
+                            setUploadResult(data.error || t("uploadFailed"));
+                            setUploadError(true);
                           }
                         } catch {
-                          setUploadResult("Upload failed.");
+                          setUploadResult(t("uploadFailed"));
+                          setUploadError(true);
                         }
                         setUploading(false);
                       }}
@@ -161,12 +168,12 @@ export default function SettingsGoalDetailPage() {
                       <input type="file" accept=".gpx,.tcx,.fit" className="text-xs flex-1" disabled={uploading} />
                       <Button type="submit" size="sm" disabled={uploading}>
                         {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        Upload
+                        {t("upload")}
                       </Button>
                     </form>
                     {uploadResult && (
-                      <p className={`text-xs ${uploadResult.startsWith("Error") ? "text-destructive" : "text-green-600"}`}>
-                        {uploadResult.startsWith("Error") ? "" : <Check className="h-3 w-3 inline mr-1" />}
+                      <p className={`text-xs ${uploadError ? "text-destructive" : "text-green-600"}`}>
+                        {uploadError ? "" : <Check className="h-3 w-3 inline mr-1" />}
                         {uploadResult}
                       </p>
                     )}
@@ -174,7 +181,7 @@ export default function SettingsGoalDetailPage() {
                 ) : (
                   <div>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Upload a GPX, TCX, or FIT course file to extract elevation profile data for more accurate training recommendations.
+                      {t("courseProfileUploadHint")}
                     </p>
                     <form
                       onSubmit={async (e) => {
@@ -190,13 +197,16 @@ export default function SettingsGoalDetailPage() {
                           const res = await fetch(`/api/goals/${goal.id}/course`, { method: "POST", body: fd });
                           const data = await res.json();
                           if (data.success) {
-                            setUploadResult("Course profile uploaded!");
+                            setUploadResult(t("courseProfileUploaded"));
+                            setUploadError(false);
                             setGoal((prev) => prev ? { ...prev, courseProfile: data.profile } : prev);
                           } else {
-                            setUploadResult(`Error: ${data.error}`);
+                            setUploadResult(data.error || t("uploadFailed"));
+                            setUploadError(true);
                           }
                         } catch {
-                          setUploadResult("Upload failed.");
+                          setUploadResult(t("uploadFailed"));
+                          setUploadError(true);
                         }
                         setUploading(false);
                       }}
@@ -205,12 +215,12 @@ export default function SettingsGoalDetailPage() {
                       <input type="file" accept=".gpx,.tcx,.fit" className="text-xs flex-1" disabled={uploading} />
                       <Button type="submit" size="sm" disabled={uploading}>
                         {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        Upload
+                        {t("upload")}
                       </Button>
                     </form>
                     {uploadResult && (
-                      <p className={`text-xs mt-2 ${uploadResult.startsWith("Error") ? "text-destructive" : "text-green-600"}`}>
-                        {uploadResult.startsWith("Error") ? "" : <Check className="h-3 w-3 inline mr-1" />}
+                      <p className={`text-xs mt-2 ${uploadError ? "text-destructive" : "text-green-600"}`}>
+                        {uploadError ? "" : <Check className="h-3 w-3 inline mr-1" />}
                         {uploadResult}
                       </p>
                     )}
@@ -221,26 +231,26 @@ export default function SettingsGoalDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg">Training Plan Summary</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg">{t("trainingPlanTitle")}</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Recommended peak weekly volume</span>
+                  <span className="text-muted-foreground">{t("recommendedWeeklyVolume")}</span>
                   <span className="font-medium">{formatDistance(goal.distanceMeters * 0.7)}</span>
                 </div>
                 {goal.elevationGainMeters && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Recommended peak weekly vert</span>
+                    <span className="text-muted-foreground">{t("recommendedWeeklyVert")}</span>
                     <span className="font-medium">{formatDistance(goal.elevationGainMeters * 0.5)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Weeks remaining</span>
+                  <span className="text-muted-foreground">{t("weeksRemaining")}</span>
                   <span className="font-medium">{weeksUntil}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Volume ramp rate</span>
-                  <span className="font-medium">5-10% per week</span>
+                  <span className="text-muted-foreground">{t("volumeRampRate")}</span>
+                  <span className="font-medium">{t("volumeRampRateValue")}</span>
                 </div>
               </div>
             </CardContent>
@@ -248,7 +258,7 @@ export default function SettingsGoalDetailPage() {
 
           {goal.notes && (
             <div>
-              <h3 className="font-semibold mb-2">Notes</h3>
+              <h3 className="font-semibold mb-2">{t("notes")}</h3>
               <p className="text-sm text-muted-foreground">{goal.notes}</p>
             </div>
           )}

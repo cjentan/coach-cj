@@ -441,19 +441,19 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("readiness")}
                     <Dialog>
                       <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is Readiness?">
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("readinessInfo")}>
                           <Info className="h-3 w-3" />
                         </button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Training Readiness</DialogTitle>
+                          <DialogTitle>{t("readinessDialogTitle")}</DialogTitle>
                           <DialogDescription className="space-y-2 pt-2">
-                            <p>Readiness is a composite score (0–100) that blends your <strong>chronic training load (CTL), acute fatigue (ATL), volume adherence, and recovery signals</strong> into a single at-a-glance metric.</p>
-                            <p><strong>70–100:</strong> Ready to train hard &mdash; your body is recovered and adapted.</p>
-                            <p><strong>50–69:</strong> Proceed with caution &mdash; consider an easier session or extra recovery.</p>
-                            <p><strong>0–49:</strong> High fatigue or low recovery &mdash; prioritize rest or very light activity.</p>
-                            <p className="text-xs text-muted-foreground pt-1">The volume adherence bar shows how well your recent volume matches your training plan target.</p>
+                            <p>{t.rich("readinessDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t.rich("readinessDialogP2", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t.rich("readinessDialogP3", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t.rich("readinessDialogP4", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p className="text-xs text-muted-foreground pt-1">{t("readinessDialogP5")}</p>
                           </DialogDescription>
                         </DialogHeader>
                       </DialogContent>
@@ -470,17 +470,17 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">CTL · Fitness
                     <Dialog>
                       <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is CTL?">
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("ctlInfo")}>
                           <Info className="h-3 w-3" />
                         </button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>CTL — Chronic Training Load (Fitness)</DialogTitle>
+                          <DialogTitle>{t("ctlDialogTitle")}</DialogTitle>
                           <DialogDescription className="space-y-2 pt-2">
-                            <p>CTL is a rolling 42-day weighted average of your daily TSS (Training Stress Score). It represents your <strong>fitness</strong> level — the cumulative effect of all training over the last ~6 weeks.</p>
-                            <p>Think of it as your &ldquo;training baseline.&rdquo; Higher values mean you&rsquo;re maintaining a larger training load. Consistent CTL growth indicates improving aerobic fitness.</p>
-                            <p className="text-xs text-muted-foreground pt-1">Formula: TSS × e^(-t/42) weighted sum, where t is days ago.</p>
+                            <p>{t.rich("ctlDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t("ctlDialogP2")}</p>
+                            <p className="text-xs text-muted-foreground pt-1">{t("ctlDialogP3")}</p>
                           </DialogDescription>
                         </DialogHeader>
                       </DialogContent>
@@ -496,17 +496,17 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">ATL · Fatigue
                     <Dialog>
                       <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is ATL?">
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("atlInfo")}>
                           <Info className="h-3 w-3" />
                         </button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>ATL — Acute Training Load (Fatigue)</DialogTitle>
+                          <DialogTitle>{t("atlDialogTitle")}</DialogTitle>
                           <DialogDescription className="space-y-2 pt-2">
-                            <p>ATL is a rolling 7-day weighted average of your daily TSS. It represents your <strong>fatigue</strong> level — the acute load from your most recent training.</p>
-                            <p>High ATL (&gt;80) means you&rsquo;re in a heavy training block and may be accumulating significant fatigue. This is normal during build phases but needs to be balanced with recovery.</p>
-                            <p className="text-xs text-muted-foreground pt-1">Formula: TSS &times; e^(-t/7) weighted sum, where t is days ago.</p>
+                            <p>{t.rich("atlDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t("atlDialogP2")}</p>
+                            <p className="text-xs text-muted-foreground pt-1">{t("atlDialogP3")}</p>
                           </DialogDescription>
                         </DialogHeader>
                       </DialogContent>
@@ -521,18 +521,18 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">TSB · Form
                     <Dialog>
                       <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label="What is TSB?">
+                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("tsbInfo")}>
                           <Info className="h-3 w-3" />
                         </button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>TSB — Training Stress Balance (Form)</DialogTitle>
+                          <DialogTitle>{t("tsbDialogTitle")}</DialogTitle>
                           <DialogDescription className="space-y-2 pt-2">
-                            <p>TSB is the difference between CTL (fitness) and ATL (fatigue): <strong>TSB = CTL − ATL</strong>.</p>
-                            <p>A positive TSB means training load has been light recently — you&rsquo;re <strong>fresh and recovered</strong>, ideal for racing or key sessions.</p>
-                            <p>A negative TSB means fatigue exceeds fitness — you&rsquo;re in a <strong>training overload</strong> phase. Moderate negatives (−5 to −15) are normal during building blocks. Deeper negatives (&lt;−20) suggest you may need a deload week soon.</p>
-                            <p className="text-xs text-muted-foreground pt-1">Target race-day TSB: +5 to +15 (tapered and ready).</p>
+                            <p>{t.rich("tsbDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t.rich("tsbDialogP2", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p>{t.rich("tsbDialogP3", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                            <p className="text-xs text-muted-foreground pt-1">{t("tsbDialogP4")}</p>
                           </DialogDescription>
                         </DialogHeader>
                       </DialogContent>
@@ -946,22 +946,22 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
           {trackpointInsights.decoupling && (
             <Card><CardContent className="py-4">
               <div className="flex items-start justify-between mb-3">
-                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Heart className="h-3.5 w-3.5 text-red-500 inline" /> HR Decoupling</h2>
+                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Heart className="h-3.5 w-3.5 text-red-500 inline" /> {t("hrDecoupling")}</h2>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="What is HR Decoupling?">
+                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label={t("hrDecouplingInfo")}>
                       <Info className="h-3.5 w-3.5" />
                     </button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>HR Decoupling</DialogTitle>
+                      <DialogTitle>{t("hrDecouplingDialogTitle")}</DialogTitle>
                       <DialogDescription className="space-y-2 pt-2">
-                        <p>Heart rate decoupling measures how efficiently your heart rate responds during steady-state exercise. As you fatigue, your heart rate drifts upward (cardiac drift) to maintain the same output — this drift is &ldquo;decoupling.&rdquo;</p>
-                        <p><strong>Excellent (&lt;5%):</strong> Highly efficient aerobic system &mdash; your heart rate barely drifts.</p>
-                        <p><strong>Good (5&ndash;10%):</strong> Normal range for most athletes. Some drift is expected.</p>
-                        <p><strong>Elevated (&gt;10%):</strong> Significant drift &mdash; possible heat stress, dehydration, insufficient aerobic fitness, or overtraining.</p>
-                        <p className="text-xs text-muted-foreground pt-1">Calculated from&nbsp;HR&nbsp;vs.&nbsp;pace/power regression over the last 20&nbsp;minutes of steady-state efforts.</p>
+                        <p>{t("hrDecouplingDialogP1")}</p>
+                        <p>{t.rich("hrDecouplingDialogP2", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                        <p>{t.rich("hrDecouplingDialogP3", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                        <p>{t.rich("hrDecouplingDialogP4", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
+                        <p className="text-xs text-muted-foreground pt-1">{t("hrDecouplingDialogP5")}</p>
                       </DialogDescription>
                     </DialogHeader>
                   </DialogContent>
@@ -976,21 +976,21 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
           {trackpointInsights.efTrend && trackpointInsights.efTrend.length >= 2 && (
             <Card><CardContent className="py-4">
               <div className="flex items-start justify-between mb-3">
-                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Efficiency Factor</h2>
+                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">{t("efficiencyFactor")}</h2>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label="What is Efficiency Factor?">
+                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label={t("efInfo")}>
                       <Info className="h-3.5 w-3.5" />
                     </button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Efficiency Factor (EF)</DialogTitle>
+                      <DialogTitle>{t("efDialogTitle")}</DialogTitle>
                       <DialogDescription className="space-y-2 pt-2">
-                        <p>Efficiency Factor measures how much speed (or power) you produce per heart beat. It&rsquo;s calculated as pace (m/s) divided by heart rate for runs, or power (watts) divided by heart rate for rides.</p>
-                        <p>A rising EF over time means you&rsquo;re getting fitter — you can go faster at the same heart rate, or maintain the same pace at a lower heart rate. This is the hallmark of aerobic adaptation.</p>
-                        <p>Use it to track long-term fitness trends rather than day-to-day changes, since hydration, heat, fatigue, and caffeine all cause normal short-term variation.</p>
-                        <p className="text-xs text-muted-foreground pt-1">Tracked as a rolling weekly average using your steady-state efforts.</p>
+                        <p>{t("efDialogP1")}</p>
+                        <p>{t("efDialogP2")}</p>
+                        <p>{t("efDialogP3")}</p>
+                        <p className="text-xs text-muted-foreground pt-1">{t("efDialogP4")}</p>
                       </DialogDescription>
                     </DialogHeader>
                   </DialogContent>

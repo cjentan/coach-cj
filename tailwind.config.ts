@@ -6,13 +6,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: [
-          "var(--font-inter)",
-          "var(--font-noto-sans-sc)",
-          "var(--font-noto-sans-tc)",
-          "system-ui",
-          "sans-serif",
-        ],
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
