@@ -8,6 +8,8 @@ set -euo pipefail
 #   ./deploy.sh --build-only              # build locally, skip deploy
 #   ./deploy.sh --skip-build              # skip build, push existing image
 #   ./deploy.sh --context                 # use 'docker --context' instead of SSH pipe
+#   ./deploy.sh --prune                   # prune stale Docker images on remote after deploy
+#   ./deploy.sh --skip-build --prune      # push existing image, then prune
 #   ./deploy.sh --help                    # show this message
 
 REMOTE_USER="cjentan"
@@ -32,12 +34,14 @@ usage() {
 BUILD=true
 DEPLOY=true
 USE_CONTEXT=false
+PRUNE=false
 
 for arg in "$@"; do
   case "$arg" in
     --build-only)  DEPLOY=false      ;;
     --skip-build)  BUILD=false       ;;
     --context)     USE_CONTEXT=true  ;;
+    --prune)       PRUNE=true        ;;
     --help|-h)     usage             ;;
     *)             err "Unknown flag: $arg" ;;
   esac
@@ -85,7 +89,19 @@ else
   ok "Deploy complete (SSH pipe)"
 fi
 
-# ── 3. Verify ────────────────────────────────────────────────────────────────
+# ── 3. Prune stale images ────────────────────────────────────────────
+if [ "$PRUNE" = true ]; then
+  info "Pruning stale Docker images on $REMOTE_HOST..."
+  if [ "$USE_CONTEXT" = true ]; then
+    docker --context "$CONTEXT_NAME" image prune -af
+    ok "Prune complete (context)"
+  else
+    $SSH_CMD "$REMOTE_USER@$REMOTE_HOST" "docker image prune -af"
+    ok "Prune complete (SSH)"
+  fi
+fi
+
+# ── 4. Verify ────────────────────────────────────────────────────────────────
 info "Verifying deployment..."
 if [ "$USE_CONTEXT" = true ]; then
   docker --context "$CONTEXT_NAME" compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'
