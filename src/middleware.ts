@@ -1,12 +1,11 @@
-import { auth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 
-// Create the i18n middleware instance
+// Create the i18n middleware instance once (not inside auth wrapper)
 const intlMiddleware = createMiddleware(routing);
 
-export default auth((req) => {
+export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Bypass i18n for API routes, static files, and next internals
@@ -18,11 +17,11 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Run i18n middleware first (locale detection + redirect)
+  // 1. Run i18n middleware first (locale detection + redirect to prefixed URL)
   const intlResponse = intlMiddleware(req);
   if (intlResponse) return intlResponse;
 
-  // Detect current locale from URL (always-prefix mode)
+  // 2. Now apply auth rules using the locale-prefixed path
   const detectedLocale =
     routing.locales.find((l) => pathname.startsWith(`/${l}/`) || pathname === `/${l}`) ||
     routing.defaultLocale;
@@ -36,19 +35,14 @@ export default auth((req) => {
     effectivePath = "/";
   }
 
+  // Read session token directly from cookie (avoid auth() wrapper deadlock)
+  const sessionToken =
+    req.cookies.get("next-auth.session-token")?.value ||
+    req.cookies.get("__Secure-next-auth.session-token")?.value;
+  const isLoggedIn = !!sessionToken;
+
   const isAuthPage = effectivePath.startsWith("/auth/");
   const isPublic = effectivePath === "/";
-  const isLoggedIn = !!req.auth?.user;
-
-  // Set locale cookie from user's stored preference (logged-in users)
-  const userLocale = req.auth?.user?.locale;
-  const response = NextResponse.next();
-  if (userLocale && routing.locales.includes(userLocale as any)) {
-    response.cookies.set("NEXT_LOCALE", userLocale, {
-      maxAge: 60 * 60 * 24 * 365, // 1 year
-      path: "/",
-    });
-  }
 
   if (isAuthPage && isLoggedIn) {
     return NextResponse.redirect(new URL(`${localePrefix}/dashboard`, req.url));
@@ -57,8 +51,8 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(`${localePrefix}/auth/signin`, req.url));
   }
 
-  return response;
-});
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
