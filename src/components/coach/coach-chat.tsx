@@ -96,6 +96,7 @@ export default function CoachChat({ plan, onPlanApplied, initialNotes, initialNo
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -216,16 +217,16 @@ export default function CoachChat({ plan, onPlanApplied, initialNotes, initialNo
     try {
       const data = await coachApi("apply-suggestion", { suggestionId });
       if (data.success) {
-        setSuggestions((prev) => prev.map((s) =>
-          s.id === suggestionId ? { ...s, status: "applied" } : s
-        ));
+        setFeedback(t("applied"));
+        setTimeout(() => setFeedback(null), 4000);
+        setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
         // Trigger full dashboard reload — goals, plan, readiness etc.
         onPlanApplied();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to apply suggestion");
     }
-  }, [onPlanApplied]);
+  }, [onPlanApplied, t]);
 
   const dismissSuggestion = useCallback((suggestionId: string) => {
     setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
@@ -308,37 +309,43 @@ export default function CoachChat({ plan, onPlanApplied, initialNotes, initialNo
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={confirmClear ? "destructive" : "ghost"}
-              onClick={() => {
-                if (confirmClear) {
-                  clearAll();
-                } else {
-                  setConfirmClear(true);
-                  setTimeout(() => setConfirmClear(false), 3000);
-                }
-              }}
-              disabled={loading || analyzing}
-              title="Archive conversation and clear all plan weeks to start fresh"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span className="ml-1 hidden sm:inline">{confirmClear ? t("confirm") : t("clear")}</span>
-            </Button>
-            {hasMessages && messages.length >= 2 && (
-              <Button size="sm" variant="ghost" onClick={summarize} disabled={summarizing}>
-                {summarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                <span className="ml-1 hidden sm:inline">{t("summarize")}</span>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={confirmClear ? "destructive" : "ghost"}
+                onClick={() => {
+                  if (confirmClear) {
+                    clearAll();
+                  } else {
+                    setConfirmClear(true);
+                    setTimeout(() => setConfirmClear(false), 3000);
+                  }
+                }}
+                disabled={loading || analyzing}
+                title={t("resetPlanTitle")}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="ml-1 hidden sm:inline">{confirmClear ? t("resetPlanConfirm") : t("resetPlan")}</span>
               </Button>
-            )}
-            <Button size="sm" onClick={analyze} disabled={analyzing}>
-              {analyzing ? (
-                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analyzing...</>
-              ) : (
-                <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
+              {hasMessages && messages.length >= 2 && (
+                <Button size="sm" variant="ghost" onClick={summarize} disabled={summarizing}>
+                  {summarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  <span className="ml-1 hidden sm:inline">{t("summarize")}</span>
+                </Button>
               )}
-            </Button>
+              <Button size="sm" onClick={analyze} disabled={analyzing}>
+                {analyzing ? (
+                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Analyzing...</>
+                ) : (
+                  <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
+                )}
+              </Button>
+            </div>
+            {/* Confirmation explanation */}
+            {confirmClear && (
+              <p className="text-[11px] text-destructive text-right leading-tight">{t("resetPlanDetail")}</p>
+            )}
           </div>
         </div>
 
@@ -363,9 +370,9 @@ export default function CoachChat({ plan, onPlanApplied, initialNotes, initialNo
         {hasMessages && (
           <div ref={messagesContainerRef} onScroll={handleScroll} className="space-y-3 mb-4 max-h-[500px] overflow-y-auto">
             {/* Suggestion cards pinned at top */}
-            {suggestions.length > 0 && (
+            {suggestions.filter((s) => s.status === "pending").length > 0 && (
               <div className="space-y-2 mb-4">
-                {suggestions.map((s) => (
+                {suggestions.filter((s) => s.status === "pending").map((s) => (
                   <div key={s.id} className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -421,6 +428,14 @@ export default function CoachChat({ plan, onPlanApplied, initialNotes, initialNo
           <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded mb-3">
             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Success feedback */}
+        {feedback && (
+          <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 dark:bg-green-950/30 dark:text-green-400 border border-green-200 dark:border-green-800 p-3 rounded mb-3">
+            <Check className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{feedback}</span>
           </div>
         )}
 

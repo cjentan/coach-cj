@@ -456,12 +456,15 @@
     "sendHint": "Enter to send / Shift+Enter for new line",
     "analyze": "Analyze",
     "summarize": "Summarize",
-    "clear": "Clear",
-    "confirm": "Confirm?",
+    "resetPlan": "Reset Plan",
+    "resetPlanConfirm": "Reset Plan?",
+    "resetPlanTitle": "Delete all future weekly plans and archive this conversation",
+    "resetPlanDetail": "All future training weeks will be deleted and this conversation archived."
     "loading": "Loading coach...",
     "clickToAnalyze": "Click Analyze to get training insights from your AI coach.",
     "conversationSummary": "Conversation summary",
-    "thinking": "Thinking..."
+    "thinking": "Thinking...",
+    "applied": "Recommendation applied ✓"
   },
   "training": {
     "pace": "Pace",
