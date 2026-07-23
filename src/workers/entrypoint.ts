@@ -15,7 +15,8 @@ import { computePMC } from "../lib/pmc";
 import { detectFatigue } from "../lib/fatigue-detector";
 import { generateWeeklyPlan } from "../lib/plan-generator";
 import { getWeekStart } from "../lib/utils";
-import { analyze } from "../lib/ai-coach";
+import { analyze, analyzeActivityWorker } from "../lib/ai-coach";
+import { scheduleBatchAnalysis } from "../lib/activity-analysis-queue";
 import { getGarminClient, syncGarminActivities, syncGarminHealthData } from "../lib/garmin";
 import { getCorosClient, syncCorosActivities } from "../lib/coros";
 
@@ -26,6 +27,7 @@ const fatigueQueue = new Queue("fatigue-monitor", { connection });
 const sundayQueue = new Queue("sunday-review", { connection });
 const garminQueue = new Queue("garmin-sync", { connection });
 const corosQueue = new Queue("coros-sync", { connection });
+const analysisQueue = new Queue("activity-analysis", { connection });
 
 // ─── Fatigue Monitor Worker ─────────────────────────────
 const fatigueWorker = new Worker(
@@ -225,7 +227,7 @@ const garminWorker = new Worker(
         const [a, h] = await Promise.all([
           syncGarminActivities(client, userId, false, 90).catch((e) => {
             console.error(`[garmin-sync] activities error for ${userId}:`, e.message);
-            return 0;
+            return { count: 0, newActivityIds: [] };
           }),
           syncGarminHealthData(client, userId).catch((e) => {
             console.error(`[garmin-sync] health error for ${userId}:`, e.message);
@@ -233,9 +235,12 @@ const garminWorker = new Worker(
           }),
         ]);
 
-        activitiesImported += a;
+        activitiesImported += a.count;
         healthDaysSynced += h;
-        console.log(`[garmin-sync] User ${userId}: ${a} activities, ${h} health days`);
+        if (a.newActivityIds.length > 0) {
+          scheduleBatchAnalysis(a.newActivityIds, userId, a.count).catch(() => {});
+        }
+        console.log(`[garmin-sync] User ${userId}: ${a.count} activities, ${h} health days`);
       } catch (err) {
         errors++;
         console.error(`[garmin-sync] User ${userId}:`, (err as Error).message);
@@ -269,12 +274,15 @@ const corosWorker = new Worker(
         const a = await syncCorosActivities(client, userId, false).catch(
           (e) => {
             console.error(`[coros-sync] activities error for ${userId}:`, e.message);
-            return 0;
+            return { count: 0, newActivityIds: [] };
           }
         );
 
-        activitiesImported += a;
-        console.log(`[coros-sync] User ${userId}: ${a} activities`);
+        activitiesImported += a.count;
+        if (a.newActivityIds.length > 0) {
+          scheduleBatchAnalysis(a.newActivityIds, userId, a.count).catch(() => {});
+        }
+        console.log(`[coros-sync] User ${userId}: ${a.count} activities`);
       } catch (err) {
         errors++;
         console.error(`[coros-sync] User ${userId}:`, (err as Error).message);
@@ -284,6 +292,26 @@ const corosWorker = new Worker(
     return { usersChecked: users.length, activitiesImported, errors };
   },
   { connection }
+);
+
+// ─── Activity Analysis Worker ──────────────────────────
+const activityAnalysisWorker = new Worker(
+  "activity-analysis",
+  async (job: Job<{ activityId: string; userId: string }>) => {
+    const { activityId, userId } = job.data;
+    console.log(`[activity-analysis] Analyzing ${activityId} for user ${userId}`);
+
+    const result = await analyzeActivityWorker(userId, activityId);
+
+    if ("success" in result) {
+      console.log(`[activity-analysis] ✅ ${activityId}: analysis complete (${result.analysis.length} chars)`);
+    } else {
+      console.log(`[activity-analysis] ❌ ${activityId}: ${result.code} — ${result.error}`);
+    }
+
+    return result;
+  },
+  { connection, concurrency: 3 }
 );
 
 // ─── Scheduler (simple in-process cron-like scheduling) ──
@@ -387,11 +415,12 @@ async function scheduleRecurring() {
     await corosQueue.add("sync", {});
   }, 4 * 60 * 60 * 1000);
 
-  console.log("⚡ Workers started: fatigue-monitor, sunday-review, garmin-sync, coros-sync");
+  console.log("⚡ Workers started: fatigue-monitor, sunday-review, garmin-sync, coros-sync, activity-analysis");
   console.log("   Fatigue check: daily at 6am");
   console.log("   Weekly review: per-user schedule, checked every 10min");
   console.log("   Garmin sync: every 4 hours");
   console.log("   COROS sync: every 4 hours");
+  console.log("   Activity analysis: on-demand via BullMQ queue");
 }
 
 scheduleRecurring().catch(console.error);

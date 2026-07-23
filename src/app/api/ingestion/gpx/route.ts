@@ -23,6 +23,7 @@ export async function POST(req: Request) {
 
     const results: { filename: string; status: string; error?: string }[] = [];
     let imported = 0;
+    const newActivityIds: string[] = [];
     const affectedWeeks = new Set<string>();
 
     for (const file of files) {
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
               trackMaxLat: simplified.bbox?.maxLat ?? null,
               trackMinLng: simplified.bbox?.minLng ?? null,
               trackMaxLng: simplified.bbox?.maxLng ?? null,
+              analysisStatus: "pending",
             },
             update: {
               name: activity.name,
@@ -129,6 +131,8 @@ export async function POST(req: Request) {
               trackMaxLng: simplified.bbox?.maxLng ?? null,
             },
           });
+
+          newActivityIds.push(created.id);
 
           // Classify workout type from trackpoint data
           const workoutType = classifyWorkoutType({
@@ -163,6 +167,12 @@ export async function POST(req: Request) {
     // Snapshot all affected weeks
     for (const weekKey of Array.from(affectedWeeks)) {
       await snapshotWeek(session.user.id, new Date(weekKey)).catch(() => {});
+    }
+
+    // Queue activity analysis for newly imported activities (batch-size heuristic applies)
+    if (newActivityIds.length > 0) {
+      const { scheduleBatchAnalysis } = await import("@/lib/activity-analysis-queue");
+      scheduleBatchAnalysis(newActivityIds, session.user.id, imported).catch(() => {});
     }
 
     const successCount = results.filter((r) => r.status === "imported").length;

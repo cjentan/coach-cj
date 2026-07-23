@@ -180,6 +180,7 @@ export async function POST(req: Request) {
             calories: activity.calories,
             tss: activity.tss,
             rawJson: rawJson as any,
+            analysisStatus: "pending",
           },
           update: {
             type: activity.type,
@@ -217,6 +218,13 @@ export async function POST(req: Request) {
     // ── Recompute weekly snapshots ────────────────────────
     for (const weekKey of Array.from(affectedWeeks)) {
       await snapshotWeek(userId, new Date(weekKey)).catch(() => {});
+    }
+
+    // ── Queue activity analysis (batch-size heuristic) ───
+    const newActivityIds = imported.map((a) => a.id as string);
+    if (newActivityIds.length > 0) {
+      const { scheduleBatchAnalysis } = await import("@/lib/activity-analysis-queue");
+      scheduleBatchAnalysis(newActivityIds, userId, imported.length).catch(() => {});
     }
 
     const totalNew = imported.length;

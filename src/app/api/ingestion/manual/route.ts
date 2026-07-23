@@ -58,6 +58,7 @@ export async function POST(req: Request) {
         maxHr: data.maxHr || null,
         calories: data.calories || null,
         tss,
+        analysisStatus: "pending",
       },
     });
 
@@ -79,6 +80,10 @@ export async function POST(req: Request) {
 
     // Snapshot the affected week so trends stay current
     await snapshotWeek(session.user.id, getWeekStart(data.startDate)).catch(() => {});
+
+    // Queue analysis for the new activity
+    const { scheduleBatchAnalysis } = await import("@/lib/activity-analysis-queue");
+    scheduleBatchAnalysis([activity.id], session.user.id, 1).catch(() => {});
 
     return NextResponse.json(activity, { status: 201 });
   } catch (err) {

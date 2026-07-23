@@ -5,6 +5,7 @@ import {
   syncGarminActivities,
   syncGarminHealthData,
 } from "@/lib/garmin";
+import { scheduleBatchAnalysis } from "@/lib/activity-analysis-queue";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -27,10 +28,17 @@ export async function POST(req: Request) {
     const { fromDate, toDate } = await req.json().catch(() => ({}));
 
     // UI sync = full historical import, optionally filtered by date range
-    const [activitiesImported, healthDaysSynced] = await Promise.all([
+    const [activitiesResult, healthDaysSynced] = await Promise.all([
       syncGarminActivities(client, session.user.id, true, undefined, fromDate, toDate),
       syncGarminHealthData(client, session.user.id),
     ]);
+
+    const { count: activitiesImported, newActivityIds } = activitiesResult;
+
+    // Queue analysis for newly imported activities (batch-size heuristic applies)
+    if (newActivityIds.length > 0) {
+      scheduleBatchAnalysis(newActivityIds, session.user.id, activitiesImported).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

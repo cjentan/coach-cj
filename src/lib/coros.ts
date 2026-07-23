@@ -159,7 +159,7 @@ export async function syncCorosActivities(
   fullSync?: boolean,
   fromDate?: string | null,
   toDate?: string | null
-): Promise<number> {
+): Promise<{ count: number; newActivityIds: string[] }> {
   const session = await prisma.corosSession.findUnique({
     where: { userId },
   });
@@ -183,7 +183,7 @@ export async function syncCorosActivities(
     page++;
   }
 
-  if (activities.length === 0) return 0;
+  if (activities.length === 0) return { count: 0, newActivityIds: [] };
 
   // ── Filter to new activities ────────────────────────────
   let newActivities = activities;
@@ -207,10 +207,11 @@ export async function syncCorosActivities(
     });
   }
 
-  if (newActivities.length === 0) return 0;
+  if (newActivities.length === 0) return { count: 0, newActivityIds: [] };
 
   // ── Download & Process ──────────────────────────────────
   let imported = 0;
+  const newActivityIds: string[] = [];
 
   for (const corosActivity of newActivities) {
     const externalId = corosActivity.labelId;
@@ -300,7 +301,7 @@ export async function syncCorosActivities(
           trackPoints: parsed.trackPoints,
         });
 
-        await prisma.trainingLog.upsert({
+        const created = await prisma.trainingLog.upsert({
           where: {
             userId_externalId_source: {
               userId,
@@ -331,6 +332,7 @@ export async function syncCorosActivities(
             rawJson: rawJson as any,
             simplifiedTrackPoints: simplifiedTrackPoints as any,
             workoutType: workoutType || undefined,
+            analysisStatus: "pending",
           },
           update: {
             name,
@@ -349,6 +351,7 @@ export async function syncCorosActivities(
           },
         });
 
+        newActivityIds.push(created.id);
         imported++;
 
         // Snapshot the affected week
@@ -368,5 +371,5 @@ export async function syncCorosActivities(
     data: { lastSyncAt: new Date() },
   });
 
-  return imported;
+  return { count: imported, newActivityIds };
 }

@@ -96,7 +96,7 @@ function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ classNa
   );
 }
 
-function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, onAnalyze, isRace, isRaceDirty, onIsRaceChange }: {
+function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, analysisStatus, onAnalyze, isRace, isRaceDirty, onIsRaceChange }: {
   log: TrainingLog;
   remarksText: string;
   remarksDirty: boolean;
@@ -109,6 +109,7 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
   coachAnalysisText: string;
   analyzing: boolean;
   analyzeError: string | null;
+  analysisStatus: string | null;
   onAnalyze: () => void;
   isRace: boolean;
   isRaceDirty: boolean;
@@ -420,15 +421,28 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {analyzing ? (
+            {analyzing || analysisStatus === "processing" ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Analyzing activity...
+              </div>
+            ) : analysisStatus === "pending" ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analysis queued — results will appear here shortly.
               </div>
             ) : analyzeError ? (
               <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{analyzeError}</span>
+              </div>
+            ) : analysisStatus === "failed" ? (
+              <div className="text-center py-6">
+                <AlertCircle className="h-6 w-6 mx-auto mb-2 text-destructive opacity-60" />
+                <p className="text-sm text-destructive mb-3">Analysis failed. You can try again.</p>
+                <Button size="sm" onClick={onAnalyze}>
+                  <Brain className="h-4 w-4 mr-1" /> Retry Analysis
+                </Button>
               </div>
             ) : coachAnalysisText ? (
               <div className="text-sm whitespace-pre-line leading-relaxed">
@@ -483,6 +497,7 @@ export default function ActivityDetailPage() {
   const [coachAnalysisText, setCoachAnalysisText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<string | null>(null);
   const [isRace, setIsRace] = useState(false);
   const [isRaceDirty, setIsRaceDirty] = useState(false);
   const [similarRoutes, setSimilarRoutes] = useState<RouteMatch[]>([]);
@@ -512,6 +527,7 @@ export default function ActivityDetailPage() {
         setLog(l);
         setRemarksText(l.remarks || "");
         setCoachAnalysisText(l.coachAnalysis || "");
+        setAnalysisStatus(l.analysisStatus || null);
         setIsRace(l.isRace);
         setIsRaceDirty(false);
         setAnalyzeError(null);
@@ -740,6 +756,7 @@ export default function ActivityDetailPage() {
             coachAnalysisText={coachAnalysisText}
             analyzing={analyzing}
             analyzeError={analyzeError}
+            analysisStatus={analysisStatus}
             onAnalyze={handleAnalyze}
             isRace={isRace}
             isRaceDirty={isRaceDirty}

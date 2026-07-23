@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getCorosClient, syncCorosActivities } from "@/lib/coros";
+import { scheduleBatchAnalysis } from "@/lib/activity-analysis-queue";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -22,13 +23,18 @@ export async function POST(req: Request) {
 
     const { fromDate, toDate } = await req.json().catch(() => ({}));
 
-    const activitiesImported = await syncCorosActivities(
+    const { count: activitiesImported, newActivityIds } = await syncCorosActivities(
       client,
       session.user.id,
       true,
       fromDate,
       toDate
     );
+
+    // Queue analysis for newly imported activities (batch-size heuristic applies)
+    if (newActivityIds.length > 0) {
+      scheduleBatchAnalysis(newActivityIds, session.user.id, activitiesImported).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

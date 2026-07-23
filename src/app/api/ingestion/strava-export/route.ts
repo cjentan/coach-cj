@@ -142,6 +142,7 @@ export async function POST(req: Request) {
         let enriched = 0;
         let skipped = 0;
         const fileErrors: string[] = [];
+        const newActivityIds: string[] = [];
         const affectedWeeks = new Set<string>();
         let totalCsvRows = 0;
 
@@ -267,7 +268,7 @@ export async function POST(req: Request) {
                   affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
                   imported++;
                 } else {
-                  await prisma.trainingLog.create({
+                  const created = await prisma.trainingLog.create({
                     data: {
                       userId,
                       externalId: activity.externalId,
@@ -293,8 +294,10 @@ export async function POST(req: Request) {
                       trackMinLng: simplified.bbox?.minLng ?? null,
                       trackMaxLng: simplified.bbox?.maxLng ?? null,
                       workoutType: workoutType || undefined,
+                      analysisStatus: "pending",
                     },
                   });
+                  newActivityIds.push(created.id);
                   affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
                   imported++;
                 }
@@ -352,6 +355,14 @@ export async function POST(req: Request) {
             });
           }
           log("Snapshots complete");
+        }
+
+        // ── Phase 5: Queue activity analysis ──────────
+        if (newActivityIds.length > 0) {
+          const { scheduleBatchAnalysis } = await import("@/lib/activity-analysis-queue");
+          scheduleBatchAnalysis(newActivityIds, userId, imported).catch((err) => {
+            console.error(`[import] Failed to queue analysis:`, err);
+          });
         }
 
         // ── Final summary (skip if cancelled) ──────────

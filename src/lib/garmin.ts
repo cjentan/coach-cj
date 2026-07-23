@@ -267,7 +267,7 @@ export async function syncGarminActivities(
   lookbackDays?: number,
   fromDate?: string | null,
   toDate?: string | null
-): Promise<number> {
+): Promise<{ count: number; newActivityIds: string[] }> {
   const session = await prisma.garminSession.findUnique({
     where: { userId },
   });
@@ -311,7 +311,7 @@ export async function syncGarminActivities(
     );
   }
 
-  if (newActivities.length === 0) return 0;
+  if (newActivities.length === 0) return { count: 0, newActivityIds: [] };
 
   // Temp directory for downloaded FIT files
   const tmpDir = `/tmp/garmin-${userId}`;
@@ -319,6 +319,7 @@ export async function syncGarminActivities(
 
   const AdmZip = require("adm-zip");
   let imported = 0;
+  const newActivityIds: string[] = [];
 
   for (const garminActivity of newActivities) {
     const externalId = String(garminActivity.activityId);
@@ -427,7 +428,7 @@ export async function syncGarminActivities(
           trackPoints: parsed.trackPoints,
         });
 
-        await prisma.trainingLog.upsert({
+        const created = await prisma.trainingLog.upsert({
           where: {
             userId_externalId_source: {
               userId,
@@ -462,6 +463,7 @@ export async function syncGarminActivities(
             trackMinLng: simplified.bbox?.minLng ?? null,
             trackMaxLng: simplified.bbox?.maxLng ?? null,
             workoutType: workoutType || undefined,
+            analysisStatus: "pending",
           },
           update: {
             name,
@@ -484,6 +486,7 @@ export async function syncGarminActivities(
           },
         });
 
+        newActivityIds.push(created.id);
         imported++;
 
         // Snapshot the affected week
@@ -503,11 +506,10 @@ export async function syncGarminActivities(
     data: { lastSyncAt: new Date() },
   });
 
-  return imported;
+  return { count: imported, newActivityIds };
 }
 
 // ─── Health Data Sync ────────────────────────────────────
-
 /**
  * Sync daily health data for recent days.
  * Fetches HR, sleep, body battery, stress, HRV, and steps.

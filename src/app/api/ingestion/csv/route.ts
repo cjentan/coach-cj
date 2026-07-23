@@ -31,11 +31,12 @@ export async function POST(req: Request) {
 
     let imported = 0;
     let skipped = 0;
+    const newActivityIds: string[] = [];
     const affectedWeeks = new Set<string>();
 
     for (const activity of result.activities) {
       try {
-        await prisma.trainingLog.upsert({
+        const created = await prisma.trainingLog.upsert({
           where: {
             userId_externalId_source: {
               userId: session.user.id,
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
               source: "manual",
             },
           },
-          create: { ...activity, userId: session.user.id },
+          create: { ...activity, userId: session.user.id, analysisStatus: "pending" },
           update: {
             type: activity.type,
             subType: activity.subType,
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
             tss: activity.tss,
           },
         });
+        newActivityIds.push(created.id);
         affectedWeeks.add(getWeekStart(activity.startDate).toISOString());
         imported++;
       } catch {
@@ -69,6 +71,12 @@ export async function POST(req: Request) {
     // Snapshot all affected weeks
     for (const weekKey of Array.from(affectedWeeks)) {
       await snapshotWeek(session.user.id, new Date(weekKey)).catch(() => {});
+    }
+
+    // Queue activity analysis (batch-size heuristic applies)
+    if (newActivityIds.length > 0) {
+      const { scheduleBatchAnalysis } = await import("@/lib/activity-analysis-queue");
+      scheduleBatchAnalysis(newActivityIds, session.user.id, imported).catch(() => {});
     }
 
     return NextResponse.json({

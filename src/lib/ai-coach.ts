@@ -889,10 +889,47 @@ export async function analyzeActivity(
   // 12. Save to DB
   await prisma.trainingLog.update({
     where: { id: activityId },
-    data: { coachAnalysis: analysisText },
+    data: { coachAnalysis: analysisText, analysisStatus: "completed" },
   });
 
   return { success: true, analysis: analysisText };
+}
+
+/**
+ * Analyze a single activity — worker-friendly wrapper that also handles
+ * failure status updates. Same as analyzeActivity but catches errors
+ * and sets analysisStatus to "failed" instead of throwing.
+ */
+export async function analyzeActivityWorker(
+  userId: string,
+  activityId: string
+): Promise<{ success: true; analysis: string } | { error: string; code: string }> {
+  try {
+    // Mark as processing
+    await prisma.trainingLog.update({
+      where: { id: activityId },
+      data: { analysisStatus: "processing" },
+    });
+
+    const result = await analyzeActivity(userId, activityId);
+
+    if (!("success" in result)) {
+      // analyzeActivity only sets status on success — set failed for errors
+      await prisma.trainingLog.update({
+        where: { id: activityId },
+        data: { analysisStatus: "failed" },
+      });
+    }
+
+    return result;
+  } catch (err) {
+    await prisma.trainingLog.update({
+      where: { id: activityId },
+      data: { analysisStatus: "failed" },
+    }).catch(() => {}); // ignore if update fails
+
+    return { error: (err as Error).message, code: "WORKER_FAILED" };
+  }
 }
 
 // ── Conversation management ────────────────────────────
