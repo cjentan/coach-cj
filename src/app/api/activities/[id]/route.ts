@@ -46,12 +46,20 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const parsed = z.object({ remarks: z.string().nullable() }).safeParse(body);
+  const parsed = z.object({
+    remarks: z.string().nullable(),
+    isRace: z.boolean().optional(),
+  }).safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+
+  const updateData: Record<string, unknown> = { remarks: parsed.data.remarks };
+  if (parsed.data.isRace !== undefined) {
+    updateData.isRace = parsed.data.isRace;
+  }
 
   const log = await prisma.trainingLog.update({
     where: { id: params.id, userId: session.user.id },
-    data: { remarks: parsed.data.remarks },
+    data: updateData,
   });
 
   return NextResponse.json(log);

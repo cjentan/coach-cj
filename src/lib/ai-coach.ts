@@ -813,6 +813,7 @@ export async function analyzeActivity(
     `## Activity`,
     `Name: ${activity.name}`,
     `Type: ${activity.type}${activity.subType ? ` (${activity.subType})` : ""}`,
+    `Is race: ${activity.isRace ? "Yes" : "No"}`,
     `Date: ${activity.startDate.toISOString().split("T")[0]}`,
     activity.distanceMeters ? `Distance: ${(activity.distanceMeters / 1000).toFixed(2)}km` : null,
     `Duration: ${formatDuration(activity.durationSeconds)}`,

@@ -34,7 +34,7 @@ interface RouteMatch {
 
 interface TrainingLog {
   id: string; type: string; subType: string | null; name: string; description: string | null; remarks: string | null;
-  coachAnalysis: string | null;
+  coachAnalysis: string | null; isRace: boolean;
   startDate: string; durationSeconds: number; distanceMeters: number | null;
   elevationGainMeters: number | null; averageHr: number | null; maxHr: number | null;
   averagePower: number | null; normalizedPower: number | null; calories: number | null; tss: number | null;
@@ -96,7 +96,7 @@ function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ classNa
   );
 }
 
-function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, onAnalyze }: {
+function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, onAnalyze, isRace, isRaceDirty, onIsRaceChange }: {
   log: TrainingLog;
   remarksText: string;
   remarksDirty: boolean;
@@ -110,6 +110,9 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
   analyzing: boolean;
   analyzeError: string | null;
   onAnalyze: () => void;
+  isRace: boolean;
+  isRaceDirty: boolean;
+  onIsRaceChange: (value: boolean) => void;
 }) {
   const router = useRouter();
   const pace = log.distanceMeters && log.distanceMeters > 0
@@ -380,8 +383,23 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-primary" /> Training Remarks
-              {saved && <span className="text-xs text-green-600 font-normal">Saved</span>}
-              {remarksDirty && <span className="text-xs text-muted-foreground font-normal">Saving...</span>}
+              <span className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => onIsRaceChange(!isRace)}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
+                    isRace
+                      ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400"
+                      : "bg-muted border-transparent text-muted-foreground hover:bg-muted/80"
+                  }`}
+                  disabled={isRaceDirty}
+                >
+                  <Target className="h-3 w-3" />
+                  {isRace ? "Race" : "Not a race"}
+                </button>
+                {isRaceDirty && <span className="text-xs text-muted-foreground">...</span>}
+                {saved && <span className="text-xs text-green-600 font-normal">Saved</span>}
+                {remarksDirty && <span className="text-xs text-muted-foreground font-normal">Saving...</span>}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -465,6 +483,8 @@ export default function ActivityDetailPage() {
   const [coachAnalysisText, setCoachAnalysisText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [isRace, setIsRace] = useState(false);
+  const [isRaceDirty, setIsRaceDirty] = useState(false);
   const [similarRoutes, setSimilarRoutes] = useState<RouteMatch[]>([]);
   const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroupInfo | null>(null);
   const touchRef = useRef<{ startX: number; startY: number } | null>(null);
@@ -492,6 +512,8 @@ export default function ActivityDetailPage() {
         setLog(l);
         setRemarksText(l.remarks || "");
         setCoachAnalysisText(l.coachAnalysis || "");
+        setIsRace(l.isRace);
+        setIsRaceDirty(false);
         setAnalyzeError(null);
         setRemarksDirty(false);
         setSaved(false);
@@ -533,6 +555,14 @@ export default function ActivityDetailPage() {
     });
   }, [id]);
 
+  const saveIsRace = useCallback(async (value: boolean) => {
+    await fetch(`/api/activities/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isRace: value }),
+    });
+  }, [id]);
+
   function handleRemarksChange(text: string) {
     setRemarksText(text);
     setRemarksDirty(true);
@@ -544,6 +574,14 @@ export default function ActivityDetailPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }, 800);
+  }
+
+  function handleIsRaceChange(value: boolean) {
+    setIsRace(value);
+    setIsRaceDirty(true);
+    saveIsRace(value).then(() => {
+      setIsRaceDirty(false);
+    });
   }
 
   // Analyze with AI Coach
@@ -703,6 +741,9 @@ export default function ActivityDetailPage() {
             analyzing={analyzing}
             analyzeError={analyzeError}
             onAnalyze={handleAnalyze}
+            isRace={isRace}
+            isRaceDirty={isRaceDirty}
+            onIsRaceChange={handleIsRaceChange}
           />
         </div>
 

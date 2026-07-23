@@ -130,6 +130,7 @@ model TrainingLog {
   description         String?
   remarks             String?
   coachAnalysis       String?           @map("coach_analysis")
+  isRace              Boolean           @default(false) @map("is_race")
   startDate           DateTime         @map("start_date")
   durationSeconds     Int              @map("duration_seconds")
   distanceMeters      Float?           @map("distance_meters")

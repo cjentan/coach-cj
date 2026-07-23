@@ -125,10 +125,11 @@ Rules:
 1. Identify the training type based on the activity's metrics. Common types: easy recovery run, long run, tempo run, threshold run, interval session (VO2max), fartlek, hill repeats, sprint/strides, aerobic endurance, race, cross-training, rest day with activity.
 2. Compare against the planned session for that day (if one exists). Was the athlete supposed to do something different? Did they overshoot or undershoot the target?
 3. Consider whether this session is productive toward their race goals given their current fitness (CTL/ATL/TSB) and training phase.
-4. Flag concerns: pacing too hard for an easy day, missing the intended stimulus, poor execution relative to plan, signs of fatigue, insufficient recovery.
-5. Highlight positives: hitting target pace/effort, good execution, appropriate intensity for the training phase.
-6. Keep the analysis to 2-3 concise paragraphs. Write in second person ("You...").
-7. Return ONLY valid JSON matching the schema. No markdown, no commentary.
+4. If the activity is tagged as a **race**, evaluate it differently: focus on pacing strategy, execution under race conditions, and what it reveals about goal readiness rather than comparing to a planned training session. Note if the effort and pacing were appropriate for the race distance/terrain.
+5. Flag concerns: pacing too hard for an easy day, missing the intended stimulus, poor execution relative to plan, signs of fatigue, insufficient recovery.
+6. Highlight positives: hitting target pace/effort, good execution, appropriate intensity for the training phase.
+7. Keep the analysis to 2-3 concise paragraphs. Write in second person ("You...").
+8. Return ONLY valid JSON matching the schema. No markdown, no commentary.
 
 Output schema:
 {
