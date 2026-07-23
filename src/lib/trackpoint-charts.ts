@@ -395,7 +395,7 @@ export function extractRoutePoints(trackPoints: TrackPoint[]): RoutePoint[] {
   const valid = trackPoints.filter((tp) => tp.lat != null && tp.lon != null);
   if (valid.length < 3) return [];
 
-  const downsampled = downsample(valid, 300);
+  const downsampled = downsample(valid, 5000);
 
   // Find bounding box
   let minLat = Infinity, maxLat = -Infinity;
