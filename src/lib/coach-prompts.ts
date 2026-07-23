@@ -13,6 +13,7 @@ export const PROMPT_KEYS = {
   ANALYZE: "coach_analyze_prompt",
   CHAT: "coach_chat_prompt",
   SUMMARIZE: "coach_summarize_prompt",
+  ACTIVITY_ANALYZE: "coach_activity_analyze_prompt",
 } as const;
 
 // ── Default prompts ────────────────────────────────────
@@ -116,12 +117,35 @@ Read the coaching conversation below and produce a concise, updated coach's note
 
 Write in second person ("You..."). Be data-grounded and specific.`;
 
+export const ACTIVITY_ANALYZE_SYSTEM_PROMPT = `You are an expert endurance sports coach analyzing a single training session.
+
+Your task: analyze this activity against the athlete's training plan and race goals.
+
+Rules:
+1. Identify the training type based on the activity's metrics. Common types: easy recovery run, long run, tempo run, threshold run, interval session (VO2max), fartlek, hill repeats, sprint/strides, aerobic endurance, race, cross-training, rest day with activity.
+2. Compare against the planned session for that day (if one exists). Was the athlete supposed to do something different? Did they overshoot or undershoot the target?
+3. Consider whether this session is productive toward their race goals given their current fitness (CTL/ATL/TSB) and training phase.
+4. Flag concerns: pacing too hard for an easy day, missing the intended stimulus, poor execution relative to plan, signs of fatigue, insufficient recovery.
+5. Highlight positives: hitting target pace/effort, good execution, appropriate intensity for the training phase.
+6. Keep the analysis to 2-3 concise paragraphs. Write in second person ("You...").
+7. Return ONLY valid JSON matching the schema. No markdown, no commentary.
+
+Output schema:
+{
+  "trainingType": "easy_recovery|long_run|tempo|threshold|interval|fartlek|hill_repeats|sprints|aerobic_endurance|race|cross_training|other",
+  "trainingTypeLabel": "Human-readable label like 'Easy Recovery' or 'Threshold Run'",
+  "analysis": "2-3 paragraph coaching analysis of this activity",
+  "flags": ["Array of flag strings, e.g. 'Pacing too fast for easy day', 'Great execution of threshold workout'"],
+  "verdict": "productive|neutral|unproductive"
+}`;
+
 // ── Runtime resolvers ──────────────────────────────────
 
 const promptDefaults: Record<string, string> = {
   [PROMPT_KEYS.ANALYZE]: ANALYZE_SYSTEM_PROMPT,
   [PROMPT_KEYS.CHAT]: CHAT_SYSTEM_PROMPT,
   [PROMPT_KEYS.SUMMARIZE]: SUMMARIZE_SYSTEM_PROMPT,
+  [PROMPT_KEYS.ACTIVITY_ANALYZE]: ACTIVITY_ANALYZE_SYSTEM_PROMPT,
 };
 
 /**

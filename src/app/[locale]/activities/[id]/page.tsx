@@ -10,7 +10,7 @@ import { format } from "date-fns";
 import {
   Activity, Clock, Mountain, Route, Heart, Zap, ArrowLeft, ArrowRight,
   ChevronLeft, ChevronRight, MessageSquare, Trash2, TrendingUp, BarChart3, Flame,
-  Copy, AlertTriangle, Target, Check,
+  Copy, AlertTriangle, Target, Check, Brain, Loader2, AlertCircle,
 } from "lucide-react";
 import { TrackPoint } from "@/lib/gpx-parser";
 import {
@@ -34,6 +34,7 @@ interface RouteMatch {
 
 interface TrainingLog {
   id: string; type: string; subType: string | null; name: string; description: string | null; remarks: string | null;
+  coachAnalysis: string | null;
   startDate: string; durationSeconds: number; distanceMeters: number | null;
   elevationGainMeters: number | null; averageHr: number | null; maxHr: number | null;
   averagePower: number | null; normalizedPower: number | null; calories: number | null; tss: number | null;
@@ -95,7 +96,7 @@ function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ classNa
   );
 }
 
-function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete }: {
+function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, onAnalyze }: {
   log: TrainingLog;
   remarksText: string;
   remarksDirty: boolean;
@@ -105,6 +106,10 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
   duplicateGroup: DuplicateGroupInfo | null;
   onRemarksChange: (text: string) => void;
   onDelete: () => void;
+  coachAnalysisText: string;
+  analyzing: boolean;
+  analyzeError: string | null;
+  onAnalyze: () => void;
 }) {
   const router = useRouter();
   const pace = log.distanceMeters && log.distanceMeters > 0
@@ -389,6 +394,51 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
           </CardContent>
         </Card>
 
+        {/* Coach Analysis — read-only, populated by AI Coach */}
+        <Card className="mt-6 border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Brain className="h-4 w-4 text-primary" /> Coach Analysis
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analyzing ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing activity...
+              </div>
+            ) : analyzeError ? (
+              <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{analyzeError}</span>
+              </div>
+            ) : coachAnalysisText ? (
+              <div className="text-sm whitespace-pre-line leading-relaxed">
+                {coachAnalysisText.split("\n").map((line, i) => {
+                  if (i === 0 && line.startsWith("**")) {
+                    return <p key={i} className="font-semibold mb-2">{line.replace(/\*\*/g, "")}</p>;
+                  }
+                  if (line.startsWith("**Flags:**")) {
+                    return <p key={i} className="font-semibold mt-3 mb-1">{line.replace(/\*\*/g, "")}</p>;
+                  }
+                  if (line.startsWith("- ")) {
+                    return <p key={i} className="text-muted-foreground ml-3">{line}</p>;
+                  }
+                  return <p key={i}>{line}</p>;
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm text-muted-foreground mb-3">No coach analysis yet. Analyze this activity against your training plan to get insights on training type, performance, and goal alignment.</p>
+                <Button size="sm" onClick={onAnalyze}>
+                  <Brain className="h-4 w-4 mr-1" /> Analyze with Coach
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {log.description && log.description !== log.remarks && (
           <div className="mt-6">
             <h3 className="font-semibold mb-2">Original Description</h3>
@@ -412,6 +462,9 @@ export default function ActivityDetailPage() {
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [coachAnalysisText, setCoachAnalysisText] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [similarRoutes, setSimilarRoutes] = useState<RouteMatch[]>([]);
   const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroupInfo | null>(null);
   const touchRef = useRef<{ startX: number; startY: number } | null>(null);
@@ -438,6 +491,8 @@ export default function ActivityDetailPage() {
         const l = data.log || data;
         setLog(l);
         setRemarksText(l.remarks || "");
+        setCoachAnalysisText(l.coachAnalysis || "");
+        setAnalyzeError(null);
         setRemarksDirty(false);
         setSaved(false);
         setNeighbors({ prev: data.prev ?? null, next: data.next ?? null });
@@ -490,6 +545,25 @@ export default function ActivityDetailPage() {
       setTimeout(() => setSaved(false), 2000);
     }, 800);
   }
+
+  // Analyze with AI Coach
+  const handleAnalyze = useCallback(async () => {
+    setAnalyzing(true);
+    setAnalyzeError(null);
+    try {
+      const res = await fetch("/api/dashboard/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "analyze-activity", activityId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      setCoachAnalysisText(data.analysis);
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
+    }
+    setAnalyzing(false);
+  }, [id]);
 
   // Carousel navigation — use preloaded data when available, fetch if not
   const navigateTo = useCallback((newId: string, preloadedLog?: TrainingLog | null) => {
@@ -625,6 +699,10 @@ export default function ActivityDetailPage() {
             duplicateGroup={duplicateGroup}
             onRemarksChange={handleRemarksChange}
             onDelete={handleDelete}
+            coachAnalysisText={coachAnalysisText}
+            analyzing={analyzing}
+            analyzeError={analyzeError}
+            onAnalyze={handleAnalyze}
           />
         </div>
 

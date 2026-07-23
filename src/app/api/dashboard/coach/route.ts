@@ -9,6 +9,7 @@ import {
   startNewConversation,
   summarizeConversation,
   clearContext,
+  analyzeActivity,
 } from "@/lib/ai-coach";
 
 export async function POST(request: Request) {
@@ -118,6 +119,23 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: result.error, code: result.code }, { status });
       }
       return NextResponse.json(result);
+    }
+
+    case "analyze-activity": {
+      const activityId = body.activityId as string | undefined;
+      if (!activityId) {
+        return NextResponse.json({ error: "activityId is required" }, { status: 400 });
+      }
+
+      const activityResult = await analyzeActivity(userId, activityId);
+      if ("error" in activityResult) {
+        const status =
+          activityResult.code === "NOT_FOUND" ? 404
+          : activityResult.code === "NOT_CONFIGURED" ? 503
+          : 500;
+        return NextResponse.json({ error: activityResult.error, code: activityResult.code }, { status });
+      }
+      return NextResponse.json(activityResult);
     }
 
     default:

@@ -456,17 +456,15 @@
     "sendHint": "Enter 发送 / Shift+Enter 换行",
     "analyze": "分析",
     "summarize": "总结",
-    "clear": "清除",
-    "confirm": "确认？",
+    "resetPlan": "重置计划",
+    "resetPlanConfirm": "重置计划？",
+    "resetPlanTitle": "删除所有未来训练周计划并归档此对话",
+    "resetPlanDetail": "所有未来训练周将被删除，此对话将被归档。",
     "loading": "教练加载中...",
     "clickToAnalyze": "点击分析获取AI教练的训练洞察。",
     "conversationSummary": "对话摘要",
     "thinking": "思考中...",
-    "applied": "建议已应用 ✓",
-    "resetPlan": "重置计划",
-    "resetPlanConfirm": "重置计划？",
-    "resetPlanTitle": "删除所有未来训练周计划并归档此对话",
-    "resetPlanDetail": "所有未来训练周将被删除，此对话将被归档。"
+    "applied": "建议已应用 ✓"
   },
   "training": {
     "pace": "配速",

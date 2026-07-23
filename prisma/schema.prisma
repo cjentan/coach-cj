@@ -129,6 +129,7 @@ model TrainingLog {
   name                String
   description         String?
   remarks             String?
+  coachAnalysis       String?           @map("coach_analysis")
   startDate           DateTime         @map("start_date")
   durationSeconds     Int              @map("duration_seconds")
   distanceMeters      Float?           @map("distance_meters")

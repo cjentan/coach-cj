@@ -456,17 +456,15 @@
     "sendHint": "Enter 傳送 / Shift+Enter 換行",
     "analyze": "分析",
     "summarize": "總結",
-    "clear": "清除",
-    "confirm": "確認？",
+    "resetPlan": "重設計劃",
+    "resetPlanConfirm": "重設計劃？",
+    "resetPlanTitle": "刪除所有未來訓練週計劃並歸檔此對話",
+    "resetPlanDetail": "所有未來訓練週將被刪除，此對話將被歸檔。",
     "loading": "教練載入中...",
     "clickToAnalyze": "點擊分析獲取AI教練的訓練洞察。",
     "conversationSummary": "對話摘要",
     "thinking": "思考中...",
-    "applied": "建議已套用 ✓",
-    "resetPlan": "重設計劃",
-    "resetPlanConfirm": "重設計劃？",
-    "resetPlanTitle": "刪除所有未來訓練週計劃並歸檔此對話",
-    "resetPlanDetail": "所有未來訓練週將被刪除，此對話將被歸檔。"
+    "applied": "建議已套用 ✓"
   },
   "training": {
     "pace": "配速",

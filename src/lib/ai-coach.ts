@@ -16,7 +16,7 @@ import { ask, chatWithTools, resolveUserLlmConfig, isLlmConfigured } from "./llm
 import type { LlmMessage } from "./llm";
 import { ALL_COACH_TOOLS, executeTool } from "./ai-coach-tools";
 import { gatherTrainingContext } from "./training-context";
-import { getWeekStart, formatDistance } from "./utils";
+import { getWeekStart, formatDistance, formatDuration } from "./utils";
 import { resolvePrompt, PROMPT_KEYS } from "./coach-prompts";
 
 // ── Zod schemas ────────────────────────────────────────
@@ -89,6 +89,10 @@ async function getChatPrompt(): Promise<string> {
 
 async function getSummarizePrompt(): Promise<string> {
   return resolvePrompt(PROMPT_KEYS.SUMMARIZE);
+}
+
+async function getActivityAnalyzePrompt(): Promise<string> {
+  return resolvePrompt(PROMPT_KEYS.ACTIVITY_ANALYZE);
 }
 
 // ── Helpers ────────────────────────────────────────────
@@ -731,6 +735,163 @@ export async function applySuggestion(
   });
 
   return { success: true, plan: updatedPlan as unknown as Record<string, unknown> };
+}
+
+// ── Per-activity analysis ──────────────────────────────
+
+const ActivityAnalysisResultSchema = z.object({
+  trainingType: z.enum([
+    "easy_recovery", "long_run", "tempo", "threshold", "interval",
+    "fartlek", "hill_repeats", "sprints", "aerobic_endurance",
+    "race", "cross_training", "other",
+  ]),
+  trainingTypeLabel: z.string().min(1).max(60),
+  analysis: z.string().min(1),
+  flags: z.array(z.string()),
+  verdict: z.enum(["productive", "neutral", "unproductive"]),
+});
+
+/**
+ * Analyze a single activity against the athlete's training plan and goals.
+ * Stores the analysis result in TrainingLog.coachAnalysis.
+ */
+export async function analyzeActivity(
+  userId: string,
+  activityId: string
+): Promise<{ success: true; analysis: string } | { error: string; code: string }> {
+  // 1. Load activity
+  const activity = await prisma.trainingLog.findUnique({
+    where: { id: activityId },
+  });
+
+  if (!activity || activity.userId !== userId) {
+    return { error: "Activity not found.", code: "NOT_FOUND" };
+  }
+
+  // 2. Resolve LLM config
+  const llmConfig = await resolveUserLlmConfig(userId);
+  if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) {
+    return { error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.", code: "NOT_CONFIGURED" };
+  }
+
+  // 3. Gather training context
+  const ctx = await gatherTrainingContext(userId);
+
+  // 4. Find the week this activity belongs to and the matching planned session
+  const activityWeekStart = getWeekStart(activity.startDate);
+  const activityDayOfWeek = activity.startDate.getDay(); // 0=Sun, 1=Mon, ...
+  let plannedSession: string | null = null;
+
+  // Find weekly plan for the activity's week
+  const weekPlan = await prisma.weeklyPlan.findUnique({
+    where: { userId_weekStartDate: { userId, weekStartDate: activityWeekStart } },
+  });
+
+  if (weekPlan?.plannedSessions) {
+    const sessions = weekPlan.plannedSessions as Array<Record<string, unknown>>;
+    const matching = sessions.find((s) => s.dayOfWeek === activityDayOfWeek);
+    if (matching) {
+      plannedSession = [
+        `Type: ${matching.type}`,
+        matching.description ? `Description: ${matching.description}` : null,
+        matching.targetDistance ? `Target distance: ${(matching.targetDistance as number) / 1000}km` : null,
+        matching.targetDuration ? `Target duration: ${formatDuration(matching.targetDuration as number)}` : null,
+        matching.targetElevation ? `Target elevation: ${Math.round(matching.targetElevation as number)}m` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
+
+  // 5. Build pace string
+  const paceStr = activity.distanceMeters && activity.distanceMeters > 0 && activity.durationSeconds > 0
+    ? `${Math.floor(activity.durationSeconds / 60 / (activity.distanceMeters / 1000))}:${String(Math.round((activity.durationSeconds / (activity.distanceMeters / 1000)) % 60)).padStart(2, "0")}/km`
+    : null;
+
+  // 6. Build activity summary
+  const activitySummary = [
+    `## Activity`,
+    `Name: ${activity.name}`,
+    `Type: ${activity.type}${activity.subType ? ` (${activity.subType})` : ""}`,
+    `Date: ${activity.startDate.toISOString().split("T")[0]}`,
+    activity.distanceMeters ? `Distance: ${(activity.distanceMeters / 1000).toFixed(2)}km` : null,
+    `Duration: ${formatDuration(activity.durationSeconds)}`,
+    activity.elevationGainMeters ? `Elevation gain: ${Math.round(activity.elevationGainMeters)}m` : null,
+    paceStr ? `Average pace: ${paceStr}` : null,
+    activity.averageHr ? `Average HR: ${Math.round(activity.averageHr)} bpm` : null,
+    activity.maxHr ? `Max HR: ${Math.round(activity.maxHr)} bpm` : null,
+    activity.averagePower ? `Average power: ${Math.round(activity.averagePower)}W` : null,
+    activity.tss ? `TSS: ${Math.round(activity.tss)}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // 7. Build planned session summary
+  const planSummary = plannedSession
+    ? `## Planned Session for That Day\n${plannedSession}`
+    : "## Planned Session for That Day\nNo specific plan set for this day.";
+
+  // 8. Build context summary (focused on what's relevant)
+  const goalsStr = ctx.goals.length > 0
+    ? ctx.goals.map((g) => `- ${g.name} (${formatDistance(g.distanceMeters)}, target ${g.targetDate})`).join("\n")
+    : "No goals set.";
+
+  const recentWeeksStr = ctx.recentWeeks
+    .map((w) => `- ${w.label}: ${formatDistance(w.volumeMeters)}, ${w.activityCount} activities`)
+    .join("\n");
+
+  const planWeeksStr = ctx.planWeeks.length > 0
+    ? ctx.planWeeks.map((pw) => {
+        const vol = pw.targetVolumeMeters ? `${formatDistance(pw.targetVolumeMeters)}, ` : "";
+        return `- Week of ${pw.weekStartDate}: ${vol}${pw.sessionCount} session(s)`;
+      }).join("\n")
+    : "No upcoming plan weeks.";
+
+  const contextStr = [
+    `## Athlete Context`,
+    `### Race Goals\n${goalsStr}`,
+    `### Fitness\nCTL: ${ctx.pmc.ctl}, ATL: ${ctx.pmc.atl}, TSB: ${ctx.pmc.tsb} (${ctx.pmc.tsbTrend})`,
+    `### Recent Training (last 4 weeks)\n${recentWeeksStr}`,
+    `### Current Week\nVolume: ${formatDistance(ctx.currentWeek.volumeMeters)}, Activities: ${ctx.currentWeek.activityCount}`,
+    `### Upcoming Training Plan\n${planWeeksStr}`,
+  ].join("\n\n");
+
+  // 9. Call LLM
+  const systemPrompt = `${await getActivityAnalyzePrompt()}\n\n${contextStr}`;
+  const userPrompt = `${activitySummary}\n\n${planSummary}\n\nAnalyze this activity against the athlete's training plan and goals.`;
+
+  const result = await ask(systemPrompt, userPrompt, {
+    temperature: 0.3,
+    maxTokens: 1024,
+    jsonMode: true,
+    apiKey: llmConfig.apiKey,
+    baseUrl: llmConfig.baseUrl,
+    model: llmConfig.model,
+  });
+
+  if (!result) {
+    return { error: "AI coach returned no response. The model may be unavailable.", code: "LLM_FAILED" };
+  }
+
+  // 10. Parse and validate
+  let parsed: z.infer<typeof ActivityAnalysisResultSchema>;
+  try {
+    parsed = ActivityAnalysisResultSchema.parse(JSON.parse(sanitizeJsonText(result)));
+  } catch {
+    return { error: "AI coach returned invalid data.", code: "PARSE_FAILED" };
+  }
+
+  // 11. Build final analysis text
+  const flagsStr = parsed.flags.length > 0 ? `\n\n**Flags:**\n- ${parsed.flags.join("\n- ")}` : "";
+  const analysisText = `**${parsed.trainingTypeLabel}** · ${parsed.verdict === "productive" ? "✅ Productive" : parsed.verdict === "neutral" ? "➖ Neutral" : "⚠️ Unproductive"}${flagsStr}\n\n${parsed.analysis}`;
+
+  // 12. Save to DB
+  await prisma.trainingLog.update({
+    where: { id: activityId },
+    data: { coachAnalysis: analysisText },
+  });
+
+  return { success: true, analysis: analysisText };
 }
 
 // ── Conversation management ────────────────────────────

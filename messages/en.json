@@ -459,7 +459,7 @@
     "resetPlan": "Reset Plan",
     "resetPlanConfirm": "Reset Plan?",
     "resetPlanTitle": "Delete all future weekly plans and archive this conversation",
-    "resetPlanDetail": "All future training weeks will be deleted and this conversation archived."
+    "resetPlanDetail": "All future training weeks will be deleted and this conversation archived.",
     "loading": "Loading coach...",
     "clickToAnalyze": "Click Analyze to get training insights from your AI coach.",
     "conversationSummary": "Conversation summary",

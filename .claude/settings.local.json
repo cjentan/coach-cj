@@ -32,7 +32,14 @@
       "Read(//home/cjentan/Downloads/**)",
       "Bash(docker exec *)",
       "Bash(find /home/cjentan -name \"strava_export\" -type d 2>/dev/null | head -5)",
-      "Read(//home/cjentan/**)"
+      "Read(//home/cjentan/**)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(ssh-keygen -l -f ~/.ssh/id_ed25519)",
+      "Bash(ssh -vi ~/.ssh/id_ed25519 git@github.com)",
+      "Bash(python3 *)"
     ]
   }
 }
