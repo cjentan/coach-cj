@@ -9,51 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistance, formatDuration } from "@/lib/utils";
+import type { PlanDay, PlanDayActual, PlanDayPlanned, PlanWeekData } from "@/lib/training-plan-types";
 import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database, Info, ChevronLeft, AlertCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useDashboardPrefs } from "@/hooks/use-dashboard-prefs";
-
-interface PlanDayActual {
-  type: string;
-  name: string;
-  distanceMeters: number | null;
-  elevationGainMeters: number | null;
-  durationSeconds: number;
-  activityId: string;
-  source: string;
-}
-
-interface PlanDayPlanned {
-  type: string;
-  description: string;
-  targetDistance: number | null;
-  targetElevation: number | null;
-  targetDuration: number | null;
-  changedAt?: string;
-  changeReason?: string;
-}
-
-interface PlanDay {
-  date: string;
-  dayLabel: string;
-  dayOfWeek: number;
-  planned: PlanDayPlanned | null;
-  actual: PlanDayActual | null;
-  isPast: boolean;
-  isToday: boolean;
-}
-
-interface PlanData {
-  weekStart: string;
-  weekEnd: string;
-  days: PlanDay[];
-  targetVolumeMeters?: number;
-  targetElevationMeters?: number;
-  adjustments?: string[];
-  coachNotes?: string;
-}
 
 interface ReadinessData {
   score: number; label: string; detail: string; volumeAdherence: number;
@@ -138,7 +99,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [goals, setGoals] = useState<GoalSummary[]>([]);
   const [readiness, setReadiness] = useState<ReadinessData | null>(null);
-  const [plan, setPlan] = useState<PlanData | null>(null);
+  const [plan, setPlan] = useState<PlanWeekData | null>(null);
   const [pmc, setPmc] = useState<PmcData | null>(null);
   const [pmcHistory, setPmcHistory] = useState<PmcHistoryPoint[]>([]);
   const [intensityDist, setIntensityDist] = useState<{

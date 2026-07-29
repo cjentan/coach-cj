@@ -10,6 +10,12 @@
 import { ActivityType, ActivitySubType } from "@prisma/client";
 import { ParsedFileActivity, TrackPoint } from "./gpx-parser";
 import { generateBaseName } from "./activity-naming";
+import {
+  computePowerTss,
+  computeHrTssEstimate,
+  estimateTss,
+} from "@/lib/training-math";
+import { mapFitSport } from "./sport-mappings";
 
 // fit-file-parser has no TypeScript types, so we use require-style import
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -59,73 +65,8 @@ interface FitData {
   records?: FitRecord[];
 }
 
-const SPORT_MAP: Record<string, ActivityType> = {
-  running: "run",
-  trail_running: "run",
-  cycling: "ride",
-  mountain_biking: "ride",
-  swimming: "swim",
-  hiking: "hike",
-  walking: "walk",
-  training: "workout",
-  strength_training: "workout",
-  generic: "other",
-  all: "other",
-};
-
-const SUB_SPORT_MAP: Record<string, ActivitySubType | null> = {
-  running: null,
-  trail: "trail_running",
-  trail_running: "trail_running",
-  cycling: null,
-  mountain_biking: "mountain_biking",
-  gravel_cycling: "gravel_cycling",
-  road_cycling: "road_cycling",
-  indoor_cycling: "indoor_cycling",
-  swimming: null,
-  hiking: null,
-  walking: null,
-  training: null,
-  strength_training: "strength_training",
-  yoga: "yoga",
-  elliptical: "elliptical",
-  stair_stepper: "stair_stepper",
-  pilates: "pilates",
-  crossfit: "crossfit",
-  rowing: "rowing",
-  rock_climbing: "rock_climbing",
-  surfing: "surfing",
-  stand_up_paddling: "stand_up_paddling",
-  kayaking: "kayaking",
-  canoeing: "canoeing",
-  ice_skating: "ice_skating",
-  inline_skating: "inline_skating",
-  nordic_skiing: "nordic_skiing",
-  alpine_skiing: "alpine_skiing",
-  backcountry_skiing: "backcountry_skiing",
-  snowboarding: "snowboarding",
-  snowshoeing: "snowshoeing",
-  soccer: "soccer",
-  tennis: "tennis",
-  golf: "golf",
-  wheelchair: "wheelchair",
-  generic: null,
-  all: null,
-};
-
-function mapFitSport(sport?: string, subSport?: string): ActivityType {
-  const sportKey = (sport || "").toLowerCase();
-  const subKey = (subSport || "").toLowerCase();
-  // Use the sport as the primary determinant; fall back to sub_sport
-  // only when the sport isn't recognized (e.g. sport="generic", sub_sport="walking").
-  // This prevents sub_sport="generic" wiping out a valid sport like "cycling".
-  return SPORT_MAP[sportKey] || SPORT_MAP[subKey] || "other";
-}
-
-function mapFitSubSport(subSport?: string): ActivitySubType | null {
-  const subKey = (subSport || "").toLowerCase();
-  return SUB_SPORT_MAP[subKey] ?? null;
-}
+// Mapping tables moved to shared module: src/lib/sport-mappings.ts
+// Use mapFitSport() instead of SPORT_MAP/SUB_SPORT_MAP directly.
 
 export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
   return new Promise((resolve, reject) => {
@@ -157,8 +98,8 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           : undefined;
 
         for (const session of sessions) {
-          const sportType = mapFitSport(session.sport, session.sub_sport);
-          const subType = mapFitSubSport(session.sub_sport);
+          const { type: sportType, subType: mappedSubType } = mapFitSport(session.sport, session.sub_sport);
+          const subType = mappedSubType ?? null;
           const startTime = session.start_time
             ? new Date(session.start_time)
             : new Date();
@@ -182,20 +123,17 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           const calories = session.total_calories || null;
 
           // TSS estimate
-          const hours = duration / 3600;
           let tss: number | null = null;
 
           // Running power data is notoriously unreliable (estimated power, variable terrain).
           // Skip the power formula for running/trail — use HR-based estimate instead.
           const isRunningSport = sportType === "run";
           if (!isRunningSport && normalizedPower && avgPower && avgPower > 0) {
-            const intensity = normalizedPower / avgPower;
-            tss = Math.round((duration * normalizedPower * intensity) / (avgPower * 36));
+            tss = computePowerTss(duration, normalizedPower, avgPower);
           } else if (avgHr && maxHr && maxHr > 0) {
-            const intensity = avgHr / maxHr;
-            tss = Math.round((duration * intensity * intensity) / 36);
+            tss = computeHrTssEstimate(duration, avgHr, maxHr);
           } else {
-            tss = Math.round(hours * 50);
+            tss = estimateTss(duration);
           }
 
           // Cap per-activity TSS to prevent absurd values from ultra-long efforts
@@ -328,8 +266,7 @@ function computeFromFitRecords(records: FitRecord[], localTimestamp?: Date): Par
     ? Math.round(powerValues.reduce((a, b) => a + b, 0) / powerValues.length)
     : null;
 
-  const hours = duration / 3600;
-  const tss = Math.round(hours * 50);
+  const tss = estimateTss(duration);
 
   return {
     name: generateBaseName("other", null, startTime, undefined, localTimestamp),

@@ -13,6 +13,12 @@
  */
 
 import { TrackPoint } from "./gpx-parser";
+import {
+  computeNormalizedPower as sharedComputeNormalizedPower,
+  computeNormalizedPowerFloat,
+  computeHrTssEstimate,
+  estimateTss,
+} from "@/lib/training-math";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -252,16 +258,7 @@ export function computePowerMetrics(
   const maxPower = Math.max(...powers);
 
   // Normalized Power®: 4th root of mean of 30s rolling 4th-power averages
-  let normalizedPower: number | null = null;
-  if (powers.length >= 30) {
-    const rolling30s: number[] = [];
-    for (let i = 29; i < powers.length; i++) {
-      const slice = powers.slice(i - 29, i + 1);
-      rolling30s.push(slice.reduce((a, b) => a + b, 0) / 30);
-    }
-    const meanFourth = rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) / rolling30s.length;
-    normalizedPower = Math.round(Math.pow(meanFourth, 0.25));
-  }
+  const normalizedPower = sharedComputeNormalizedPower(powers);
 
   // Estimate FTP if not provided: 95% of best 20-minute power
   const estimatedFtp = ftp || (() => {
@@ -412,7 +409,7 @@ export function computeEfficiencyFactor(
 
   if (avgPower > 0) {
     // NP / HR
-    const np = computeNormalizedPowerSimple(powers);
+    const np = computeNormalizedPowerFloat(powers);
     ef = Math.round((np / avgHr) * 100) / 100;
     if (weightKg && weightKg > 0) {
       efWkg = Math.round((np / weightKg / avgHr) * 100) / 100;
@@ -426,20 +423,6 @@ export function computeEfficiencyFactor(
   }
 
   return { ef, efWkg };
-}
-
-function computeNormalizedPowerSimple(powers: number[]): number {
-  if (powers.length < 30) {
-    // Not enough for 30s rolling — use straight average
-    return powers.reduce((a, b) => a + b, 0) / powers.length;
-  }
-  const rolling30s: number[] = [];
-  for (let i = 29; i < powers.length; i++) {
-    const slice = powers.slice(i - 29, i + 1);
-    rolling30s.push(slice.reduce((a, b) => a + b, 0) / 30);
-  }
-  const meanFourth = rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) / rolling30s.length;
-  return Math.pow(meanFourth, 0.25);
 }
 
 // ─── Enhanced TSS (trackpoint-aware, replaces summary estimate) ──
@@ -466,12 +449,10 @@ export function computeBestTss(trackPoints: TrackPoint[] | null, avgHr: number |
   }
 
   // Fallback to simple estimate
-  const hours = durationSeconds / 3600;
   if (avgHr && maxHr && maxHr > 0) {
-    const intensity = avgHr / maxHr;
-    return Math.round((durationSeconds * intensity * intensity) / 36);
+    return computeHrTssEstimate(durationSeconds, avgHr, maxHr);
   }
-  return Math.round(hours * 50);
+  return estimateTss(durationSeconds);
 }
 
 // ─── Batch: extract all metrics from rawJson ────────────────

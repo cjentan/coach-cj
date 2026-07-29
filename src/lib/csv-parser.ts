@@ -9,6 +9,8 @@
  *   Average Watts, Max Watts, ...
  */
 import { ActivityType, ActivitySubType, ActivitySource } from "@prisma/client";
+import { computeHrTssEstimate, estimateTss } from "@/lib/training-math";
+import { mapStravaSport } from "./sport-mappings";
 
 export interface ParsedCsvActivity {
   externalId: string;
@@ -37,55 +39,8 @@ export interface CsvParseResult {
   headers: string[];
 }
 
-const TYPE_MAP: Record<string, ActivityType> = {
-  "Run": "run", "TrailRun": "run", "Trail Run": "run", "VirtualRun": "run", "Virtual Run": "run",
-  "Ride": "ride", "VirtualRide": "ride", "Virtual Ride": "ride",
-  "Swim": "swim", "Hike": "hike", "Walk": "walk", "Workout": "workout",
-  "WeightTraining": "workout", "Weight Training": "workout", "Yoga": "workout", "Other": "other",
-  "Rock Climbing": "other", "Surfing": "other", "Stand Up Paddling": "other",
-  "Kayaking": "other", "Canoeing": "other", "Rowing": "other",
-  "Crossfit": "workout", "Elliptical": "workout", "StairStepper": "workout",
-  "Ice Skating": "other", "Inline Skating": "other", "Nordic Ski": "other",
-  "Alpine Ski": "other", "Backcountry Ski": "other", "Snowboard": "other",
-  "Snowshoe": "other", "Soccer": "other", "Tennis": "other", "Golf": "other",
-  "Wheelchair": "other", "Handcycle": "ride",
-};
-
-const SUB_TYPE_MAP: Record<string, ActivitySubType | null> = {
-  "Run": null,
-  "TrailRun": "trail_running", "Trail Run": "trail_running",
-  "VirtualRun": "virtual_run", "Virtual Run": "virtual_run",
-  "Ride": null,
-  "VirtualRide": "virtual_ride", "Virtual Ride": "virtual_ride",
-  "Swim": null,
-  "Hike": null,
-  "Walk": null,
-  "Workout": null,
-  "WeightTraining": "strength_training", "Weight Training": "strength_training",
-  "Yoga": "yoga",
-  "Crossfit": "crossfit",
-  "Elliptical": "elliptical",
-  "StairStepper": "stair_stepper",
-  "Rock Climbing": "rock_climbing",
-  "Surfing": "surfing",
-  "Stand Up Paddling": "stand_up_paddling",
-  "Kayaking": "kayaking",
-  "Canoeing": "canoeing",
-  "Rowing": "rowing",
-  "Ice Skating": "ice_skating",
-  "Inline Skating": "inline_skating",
-  "Nordic Ski": "nordic_skiing",
-  "Alpine Ski": "alpine_skiing",
-  "Backcountry Ski": "backcountry_skiing",
-  "Snowboard": "snowboarding",
-  "Snowshoe": "snowshoeing",
-  "Soccer": "soccer",
-  "Tennis": "tennis",
-  "Golf": "golf",
-  "Wheelchair": "wheelchair",
-  "Handcycle": "handcycle",
-  "Other": null,
-};
+// Mapping tables moved to shared module: src/lib/sport-mappings.ts
+// Use mapStravaSport() instead of TYPE_MAP/SUB_TYPE_MAP directly.
 
 // Flexible column finder — case-insensitive, trims, handles ".1" duplicates
 function findCol(header: string[], ...names: string[]): number {
@@ -238,7 +193,7 @@ export function parseStravaCsv(content: string): CsvParseResult {
       }
 
       const rawType = typeIdx >= 0 ? cols[typeIdx] : "Other";
-      const type = TYPE_MAP[rawType] || "other";
+      const { type, subType: mappedSubType } = mapStravaSport(rawType);
 
       // Duration: prefer Moving Time, fall back to Elapsed Time
       let durationSec = 0;
@@ -260,19 +215,17 @@ export function parseStravaCsv(content: string): CsvParseResult {
       const calories = calIdx >= 0 ? parseNum(cols[calIdx]) : null;
 
       // TSS estimate
-      const hours = durationSec / 3600;
       let tss: number | null = null;
       if (avgHr && maxHr && (type === "run" || type === "ride")) {
-        const intensity = avgHr / maxHr;
-        tss = Math.round((durationSec * intensity * intensity) / 36);
+        tss = computeHrTssEstimate(durationSec, avgHr, maxHr);
       } else {
-        tss = Math.round(hours * 50);
+        tss = estimateTss(durationSec);
       }
 
       const rawFilename = filenameIdx >= 0 ? (cols[filenameIdx] || "").trim() : "";
       const filename = rawFilename && rawFilename.includes("/") ? rawFilename : null;
 
-      const subType = SUB_TYPE_MAP[rawType] ?? null;
+      const subType = mappedSubType ?? null;
 
       activities.push({
         externalId: idIdx >= 0 ? cols[idIdx] : `csv-${i}`,

@@ -8,6 +8,7 @@
 import { prisma } from "./prisma";
 import { computePMC } from "./pmc";
 import { computeBestTss } from "./trackpoint-metrics";
+import { estimateTss } from "@/lib/training-math";
 import { getWeekStart } from "./utils";
 
 /** Snapshots the given week's metrics for the user. Idempotent (upsert). */
@@ -102,7 +103,7 @@ export async function snapshotWeek(
             log.maxHr,
             log.durationSeconds,
           )
-        : log.tss || Math.round((log.durationSeconds / 3600) * 50);
+        : log.tss || estimateTss(log.durationSeconds);
     weeklyTss += tss;
   }
   weeklyTss = Math.round(weeklyTss);
@@ -111,7 +112,7 @@ export async function snapshotWeek(
   const tssByDate: Record<string, number> = {};
   for (const log of pmcLogs) {
     const dateKey = log.startDate.toISOString().split("T")[0];
-    const tss = log.tss || Math.round((log.durationSeconds / 3600) * 50);
+    const tss = log.tss || estimateTss(log.durationSeconds);
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + tss;
   }
 

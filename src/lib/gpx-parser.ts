@@ -26,6 +26,13 @@
 import { ActivityType, ActivitySubType, ActivitySource } from "@prisma/client";
 import { generateBaseName } from "./activity-naming";
 import { haversine } from "./utils";
+import {
+  computeNormalizedPower,
+  computePowerTss,
+  computeHrTssEstimate,
+  estimateTss,
+} from "@/lib/training-math";
+import { inferFromName } from "./sport-mappings";
 
 export interface TrackPoint {
   lat: number | null;
@@ -393,47 +400,29 @@ function computeFromPoints(points: TrackPoint[], name: string, laps: LapData[]):
   const maxPower = powerValues.length > 0 ? Math.max(...powerValues) : null;
 
   // Normalized Power® (NP): 4th root of the mean of the 4th powers over 30s rolling averages
-  let normalizedPower: number | null = null;
-  if (powerValues.length >= 30) {
-    // 30-second rolling average of power
-    const rolling30s: number[] = [];
-    for (let i = 29; i < powerValues.length; i++) {
-      const slice = powerValues.slice(i - 29, i + 1);
-      rolling30s.push(slice.reduce((a, b) => a + b, 0) / 30);
-    }
-    const meanFourth = rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) / rolling30s.length;
-    normalizedPower = Math.round(Math.pow(meanFourth, 0.25));
-  }
+  const normalizedPower = computeNormalizedPower(powerValues);
 
   // TSS estimate
-  const hours = durationSeconds / 3600;
   let tss: number | null = null;
   if (normalizedPower && avgPower && avgPower > 0) {
-    // Cycling TSS: (duration_sec × NP × IF) / (FTP × 3600) × 100
-    // Simplified: IF = NP / avgPower (since we don't have FTP)
-    const intensity = normalizedPower / avgPower;
-    tss = Math.round((durationSeconds * normalizedPower * intensity) / (avgPower * 36));
+    // Cycling TSS: uses avgPower as FTP proxy
+    tss = computePowerTss(durationSeconds, normalizedPower, avgPower);
   } else if (avgHr && maxHr && maxHr > 0) {
     // HR-based TSS
-    const intensity = avgHr / maxHr;
-    tss = Math.round((durationSeconds * intensity * intensity) / 36);
+    tss = computeHrTssEstimate(durationSeconds, avgHr, maxHr);
   } else {
-    tss = Math.round(hours * 50);
+    tss = estimateTss(durationSeconds);
   }
 
   // Cap per-activity TSS to prevent absurd values from ultra-long efforts
-  if (tss !== null) {
-    tss = Math.min(tss, 500);
-  }
+  tss = Math.min(tss, 500);
 
-  const sportType = mapGpxType(name);
-
-  const sportSubType = mapGpxSubType(name);
+  const { type: sportType, subType: sportSubType } = inferFromName(name);
 
   return {
     name,
     type: sportType,
-    subType: sportSubType,
+    subType: sportSubType ?? null,
     startDate: firstTime || new Date(),
     durationSeconds,
     distanceMeters: totalDistance > 0 ? Math.round(totalDistance) : null,
@@ -453,42 +442,8 @@ function computeFromPoints(points: TrackPoint[], name: string, laps: LapData[]):
   };
 }
 
-function mapGpxType(name: string): ActivityType {
-  const lower = name.toLowerCase();
-  if (lower.includes("ride") || lower.includes("bike") || lower.includes("cycling")) return "ride";
-  if (lower.includes("swim")) return "swim";
-  if (lower.includes("hike")) return "hike";
-  if (lower.includes("walk")) return "walk";
-  if (lower.includes("workout") || lower.includes("strength") || lower.includes("gym")) return "workout";
-  return "run"; // default
-}
-
-function mapGpxSubType(name: string): ActivitySubType | null {
-  const lower = name.toLowerCase();
-  if (lower.includes("trail")) return "trail_running";
-  if (lower.includes("treadmill")) return "treadmill";
-  if (lower.includes("track")) return "trail_running";
-  if (lower.includes("virtual") && (lower.includes("run") || lower.includes("race"))) return "virtual_run";
-  if (lower.includes("mountain") || lower.includes("mtb")) return "mountain_biking";
-  if (lower.includes("gravel")) return "gravel_cycling";
-  if (lower.includes("road")) return "road_cycling";
-  if (lower.includes("indoor") || lower.includes("trainer")) return "indoor_cycling";
-  if (lower.includes("virtual") && lower.includes("ride")) return "virtual_ride";
-  if (lower.includes("open water")) return "open_water";
-  if (lower.includes("pool") || lower.includes("lap")) return "lap_swimming";
-  if (lower.includes("strength") || lower.includes("weight") || lower.includes("gym")) return "strength_training";
-  if (lower.includes("yoga")) return "yoga";
-  if (lower.includes("crossfit")) return "crossfit";
-  if (lower.includes("elliptical")) return "elliptical";
-  if (lower.includes("stair")) return "stair_stepper";
-  if (lower.includes("pilates")) return "pilates";
-  if (lower.includes("row")) return "rowing";
-  if (lower.includes("rock climb")) return "rock_climbing";
-  if (lower.includes("surf")) return "surfing";
-  if (lower.includes("kayak")) return "kayaking";
-  if (lower.includes("canoe")) return "canoeing";
-  return null;
-}
+// Mapping moved to shared module: src/lib/sport-mappings.ts
+// Use inferFromName() instead of mapGpxType/mapGpxSubType directly.
 
 /** Detect file type and parse accordingly.
  */
