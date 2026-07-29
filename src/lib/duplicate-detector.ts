@@ -309,7 +309,7 @@ interface ScoredResult {
   reason: string;
 }
 
-function scorePair(
+export function scorePair(
   a: { startDate: Date; durationSeconds: number; distanceMeters: number | null; type: string; source: string },
   b: { startDate: Date; durationSeconds: number; distanceMeters: number | null; type: string; source: string },
   cfg: DuplicateDetectionConfig,

@@ -30,3 +30,10 @@ activities.csv
 # IDE
 .vscode/
 .idea/coverage/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Coverage
+coverage/
