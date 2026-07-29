@@ -397,8 +397,8 @@ export async function POST(request: NextRequest) {
         await tx.garminSession.create({
           data: {
             id: uuid(), userId,
-            oauth1Token: garminSession.oauth1Token,
-            oauth2Token: garminSession.oauth2Token,
+            oauth1Token: garminSession.oauth1Token as any,
+            oauth2Token: garminSession.oauth2Token as any,
             displayName: garminSession.displayName ?? null,
             garminUserId: garminSession.garminUserId ?? null,
             lastSyncAt: garminSession.lastSyncAt ? new Date(garminSession.lastSyncAt) : null,
