@@ -386,7 +386,7 @@ export async function GET() {
     string,
     { weekStart: Date; days: Map<number, PlanDayActual> }
   >();
-  for (const [dateStr, dateLogs] of logsByDate) {
+  for (const [dateStr, dateLogs] of Array.from(logsByDate)) {
     if (planDates.has(dateStr)) continue; // already covered by a planned week
 
     const best = dateLogs[0];
@@ -410,7 +410,7 @@ export async function GET() {
 
   // Convert orphan weeks to PlanWeekData (full 7-day array, only actual days populated)
   const orphanWeeks: PlanWeekData[] = [];
-  for (const [, wd] of orphanWeeksMap) {
+  for (const [, wd] of Array.from(orphanWeeksMap)) {
     const we = new Date(wd.weekStart);
     we.setDate(we.getDate() + 6);
     const days: PlanDay[] = [];

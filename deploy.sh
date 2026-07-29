@@ -83,7 +83,7 @@ else
   docker save coach-app:latest coach-worker:latest | gzip -1 | $SSH_CMD "$REMOTE_USER@$REMOTE_HOST" \
     "docker load && \
      cd $REMOTE_DIR && \
-     docker compose up -d"
+     docker compose up -d --force-recreate"
 
   ok "Deploy complete (SSH pipe)"
 fi
