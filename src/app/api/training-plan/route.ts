@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart } from "@/lib/utils";
-import { clearContext } from "@/lib/ai-coach";
+import { clearContext } from "@/lib/ai-conversation";
 import { PHASE_COLORS, SHORT_DAY_NAMES } from "@/lib/constants";
 import type {
   TrainingPlanResponse,

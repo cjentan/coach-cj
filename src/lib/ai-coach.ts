@@ -108,14 +108,6 @@ export interface ChatOptions {
   signal?: AbortSignal;
 }
 
-export interface ConversationListItem {
-  id: string;
-  title: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
-}
 
 // ── System prompts (resolved from DB with hardcoded fallback) ──
 
@@ -351,121 +343,100 @@ const StartInterviewResponseSchema = z.object({
   proposal: PlanProposalSchema,
 });
 
-// ── Coach notes evolution ──────────────────────────────
-
 /**
- * Summarize the full conversation into updated coach notes.
- * This is called when the user wants to finalize their coaching conversation,
- * or automatically when suggestions are applied.
+ * Find or create an active conversation for the user.
+ * Updates the context snapshot on existing conversations.
  */
-export async function summarizeConversation(
-  conversationId: string,
+async function findOrCreateConversation(
   userId: string,
+  ctx: Awaited<ReturnType<typeof gatherTrainingContext>>,
   locale = "en"
-): Promise<{ summary: string } | { error: string; code: string }> {
-  const conv = await prisma.coachConversation.findUnique({
-    where: { id: conversationId },
-    include: {
-      messages: {
-        where: { role: { not: "system" } },
-        orderBy: { createdAt: "asc" },
+) {
+  let conv = await prisma.coachConversation.findFirst({
+    where: { userId, status: "active" },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (conv) {
+    const summaryText = buildContextSummary(ctx, locale);
+    conv = await prisma.coachConversation.update({
+      where: { id: conv.id },
+      data: {
+        contextSnapshot: { summaryText },
+        updatedAt: new Date(),
       },
-      suggestions: {
-        where: { status: "applied" },
-        orderBy: { createdAt: "asc" },
+    });
+  } else {
+    const summaryText = buildContextSummary(ctx, locale);
+    conv = await prisma.coachConversation.create({
+      data: {
+        userId,
+        title: `Analysis — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+        status: "active",
+        contextSnapshot: { summaryText },
       },
-    },
-  });
-
-  if (!conv || conv.userId !== userId) {
-    return { error: "Conversation not found.", code: "NOT_FOUND" };
+    });
   }
 
-  const llmConfig = await resolveUserLlmConfig(userId);
-  if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) {
-    return { error: "AI coach is not configured.", code: "NOT_CONFIGURED" };
-  }
-
-  // Build a condensed thread for the LLM to summarize
-  let thread = "## Coaching Conversation Thread\n\n";
-  for (const m of conv.messages) {
-    thread += `${m.role === "user" ? "Athlete" : "Coach"}: ${m.content.slice(0, 500)}\n\n`;
-  }
-
-  if (conv.suggestions.length > 0) {
-    thread += "## Applied Changes\n";
-    for (const s of conv.suggestions) {
-      thread += `- ${s.title}: ${s.description}\n`;
-    }
-    thread += "\n";
-  }
-
-  const langInstruction = getLanguageInstruction(locale);
-  const systemPrompt = `${langInstruction}${await getSummarizePrompt()}`;
-
-  const summary = await ask(systemPrompt, thread, {
-    temperature: 0.3,
-    maxTokens: 1024,
-    apiKey: llmConfig.apiKey,
-    baseUrl: llmConfig.baseUrl,
-    model: llmConfig.model,
-  });
-
-  if (!summary) {
-    return { error: "Failed to generate summary.", code: "LLM_FAILED" };
-  }
-
-  // Replace the conversation thread with just the summary.
-  // Delete all old messages and pending suggestions, then
-  // create a single summary message.
-  await prisma.coachMessage.deleteMany({
-    where: { conversationId },
-  });
-  await prisma.coachSuggestion.deleteMany({
-    where: { conversationId, status: "pending" },
-  });
-
-  const summaryHeader = locale === "zh-CN"
-    ? "📋 **对话摘要**\n\n"
-    : locale === "zh-TW"
-      ? "📋 **對話摘要**\n\n"
-      : "📋 **Conversation Summary**\n\n";
-  const summaryFooter = locale === "zh-CN"
-    ? "\n\n---\n*详细对话已浓缩为摘要。发送新消息继续教练指导。*"
-    : locale === "zh-TW"
-      ? "\n\n---\n*詳細對話已濃縮為摘要。發送新消息繼續教練指導。*"
-      : "\n\n---\n*The detailed conversation has been condensed into this summary. Start a new message to continue coaching.*";
-
-  await prisma.coachMessage.create({
-    data: {
-      conversationId,
-      role: "assistant",
-      content: `${summaryHeader}${summary}${summaryFooter}`,
-    },
-  });
-
-  // Update the context snapshot to reflect the summarized state
-  const ctx = await gatherTrainingContext(userId);
-  const summaryText = buildContextSummary(ctx, locale);
-  await prisma.coachConversation.update({
-    where: { id: conversationId },
-    data: {
-      contextSnapshot: { summaryText, lastSummary: summary },
-      updatedAt: new Date(),
-    },
-  });
-
-  // Persist the updated summary as the latest coach notes
-  await persistLegacyNotes(userId, summary, ctx);
-
-  return { summary };
+  return conv;
 }
 
 /**
- * Build a page-context summary string from the given page context.
- * Fetches additional data (activity, goal) as needed and returns
- * a markdown section the LLM can reference. Returns null (no section)
- * when there's nothing specific to report.
+ * Persist legacy coach notes to WeeklyPlan and AnalysisReport.
+ * Called after analyze() completes so the data is available for
+ * display in the dashboard and training plan pages.
+ */
+async function persistLegacyNotes(
+  userId: string,
+  analysis: string,
+  ctx: Awaited<ReturnType<typeof gatherTrainingContext>>
+) {
+  const now = new Date();
+  const weekStart = getWeekStart(now);
+
+  try {
+    await prisma.weeklyPlan.upsert({
+      where: { userId_weekStartDate: { userId, weekStartDate: weekStart } },
+      create: {
+        userId,
+        weekStartDate: weekStart,
+        coachNotes: analysis,
+        plannedSessions: ctx.weeklyPlan?.plannedSessions
+          ? structuredClone(ctx.weeklyPlan.plannedSessions) as any
+          : [],
+        adjustments: ctx.weeklyPlan?.adjustments || [],
+      },
+      update: { coachNotes: analysis, generatedAt: now },
+    });
+  } catch { /* ignore upsert errors */ }
+
+  try {
+    await prisma.analysisReport.create({
+      data: {
+        userId,
+        reportType: "coach_notes",
+        triggeredBy: "manual",
+        inputSnapshot: {
+          goals: ctx.goals.length,
+          dailyHealthAvailable: !!ctx.dailyHealth,
+          pmcSnapshot: { ctl: ctx.pmc.ctl, atl: ctx.pmc.atl, tsb: ctx.pmc.tsb },
+          weekVolume: ctx.currentWeek.volumeMeters,
+        },
+        outputContent: analysis,
+      },
+    });
+  } catch { /* ignore analysis report errors */ }
+}
+
+// ── Main service ───────────────────────────────────────
+
+/**
+ * Run a full training analysis: generate coach notes + plan suggestions.
+ * Creates a new conversation or appends to an active one.
+ */
+/**
+ * Build a contextual summary string for the current page the athlete is viewing.
+ * Used by analyze() and chat() to provide the LLM with page-aware context.
  */
 async function buildPageContextSummary(
   pageContext: PageContext,
@@ -545,12 +516,6 @@ async function buildPageContextSummary(
   }
 }
 
-// ── Main service ───────────────────────────────────────
-
-/**
- * Run a full training analysis: generate coach notes + plan suggestions.
- * Creates a new conversation or appends to an active one.
- */
 export async function analyze(
   userId: string,
   conversationId?: string,
@@ -1997,233 +1962,3 @@ export async function analyzeActivityWorker(
   }
 }
 
-// ── Conversation management ────────────────────────────
-
-export async function listConversations(userId: string): Promise<{ conversations: ConversationListItem[] }> {
-  const conversations = await prisma.coachConversation.findMany({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-    take: 20,
-    include: {
-      _count: { select: { messages: true } },
-    },
-  });
-
-  return {
-    conversations: conversations.map((c) => ({
-      id: c.id,
-      title: c.title,
-      status: c.status,
-      createdAt: c.createdAt.toISOString(),
-      updatedAt: c.updatedAt.toISOString(),
-      messageCount: c._count.messages,
-    })),
-  };
-}
-
-export async function getConversation(
-  conversationId: string,
-  userId: string
-): Promise<{
-  conversation: {
-    id: string; title: string | null; status: string;
-    contextSnapshot: unknown;
-    messages: Array<{ id: string; role: string; content: string; suggestionId: string | null; createdAt: string }>;
-    suggestions: Array<{ id: string; type: string; title: string; description: string; status: string; changes: unknown }>;
-  };
-} | { error: string; code: string }> {
-  const conv = await prisma.coachConversation.findUnique({
-    where: { id: conversationId },
-    include: {
-      messages: { orderBy: { createdAt: "asc" } },
-      suggestions: { orderBy: { createdAt: "desc" } },
-    },
-  });
-
-  if (!conv || conv.userId !== userId) {
-    return { error: "Conversation not found.", code: "NOT_FOUND" };
-  }
-
-  return {
-    conversation: {
-      id: conv.id,
-      title: conv.title,
-      status: conv.status,
-      contextSnapshot: conv.contextSnapshot,
-      messages: conv.messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        suggestionId: m.suggestionId,
-        createdAt: m.createdAt.toISOString(),
-      })),
-      suggestions: conv.suggestions.map((s) => ({
-        id: s.id,
-        type: s.suggestionType,
-        title: s.title,
-        description: s.description,
-        status: s.status,
-        changes: s.changes,
-      })),
-    },
-  };
-}
-
-export async function startNewConversation(userId: string): Promise<{ conversationId: string }> {
-  // Archive any active conversation
-  await prisma.coachConversation.updateMany({
-    where: { userId, status: "active" },
-    data: { status: "archived" },
-  });
-
-  const conv = await prisma.coachConversation.create({
-    data: { userId, title: null, status: "active" },
-  });
-
-  return { conversationId: conv.id };
-}
-
-/**
- * Clear the athlete's coaching context — archive current conversation,
- * start a fresh one, and delete all existing weekly plans so the
- * LLM builds a new plan from scratch.
- */
-export async function clearContext(userId: string): Promise<{ conversationId: string }> {
-  const now = new Date();
-  const weekStart = getWeekStart(now);
-
-  // Find the nearest active goal (or 12 weeks out)
-  const nearestGoal = await prisma.raceGoal.findFirst({
-    where: { userId, status: "active" },
-    orderBy: { targetDate: "asc" },
-    select: { targetDate: true },
-  });
-  const planEndDate = nearestGoal?.targetDate ?? new Date(now.getTime() + 84 * 86400000);
-
-  // Delete all existing weekly plans from now until the plan horizon
-  await prisma.weeklyPlan.deleteMany({
-    where: {
-      userId,
-      weekStartDate: { gte: weekStart, lte: planEndDate },
-    },
-  });
-
-  // Archive all active conversations and create a fresh one
-  await prisma.coachConversation.updateMany({
-    where: { userId, status: "active" },
-    data: { status: "archived" },
-  });
-
-  const conv = await prisma.coachConversation.create({
-    data: { userId, title: null, status: "active" },
-  });
-
-  return { conversationId: conv.id };
-}
-
-// ── Internal helpers ───────────────────────────────────
-
-async function findOrCreateConversation(
-  userId: string,
-  ctx: Awaited<ReturnType<typeof gatherTrainingContext>>,
-  locale = "en"
-) {
-  // Try to find an active conversation
-  let conv = await prisma.coachConversation.findFirst({
-    where: { userId, status: "active" },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  if (conv) {
-    // Update its context snapshot
-    const summaryText = buildContextSummary(ctx, locale);
-    conv = await prisma.coachConversation.update({
-      where: { id: conv.id },
-      data: {
-        contextSnapshot: { summaryText },
-        updatedAt: new Date(),
-      },
-    });
-  } else {
-    // Create new
-    const summaryText = buildContextSummary(ctx, locale);
-    conv = await prisma.coachConversation.create({
-      data: {
-        userId,
-        title: `Analysis — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-        status: "active",
-        contextSnapshot: { summaryText },
-      },
-    });
-  }
-
-  return conv;
-}
-
-async function persistLegacyNotes(
-  userId: string,
-  analysis: string,
-  ctx: Awaited<ReturnType<typeof gatherTrainingContext>>
-) {
-  const now = new Date();
-  const weekStart = getWeekStart(now);
-
-  // Persist to WeeklyPlan.coachNotes
-  try {
-    await prisma.weeklyPlan.upsert({
-      where: { userId_weekStartDate: { userId, weekStartDate: weekStart } },
-      create: {
-        userId,
-        weekStartDate: weekStart,
-        coachNotes: analysis,
-        plannedSessions: ctx.weeklyPlan?.plannedSessions
-          ? structuredClone(ctx.weeklyPlan.plannedSessions) as any
-          : [],
-        adjustments: ctx.weeklyPlan?.adjustments || [],
-      },
-      update: { coachNotes: analysis, generatedAt: now },
-    });
-  } catch { /* ignore upsert errors */ }
-
-  // Create AnalysisReport
-  try {
-    await prisma.analysisReport.create({
-      data: {
-        userId,
-        reportType: "coach_notes",
-        triggeredBy: "manual",
-        inputSnapshot: {
-          goals: ctx.goals.length,
-          dailyHealthAvailable: !!ctx.dailyHealth,
-          pmcSnapshot: { ctl: ctx.pmc.ctl, atl: ctx.pmc.atl, tsb: ctx.pmc.tsb },
-          weekVolume: ctx.currentWeek.volumeMeters,
-        },
-        outputContent: analysis,
-        reasoning: {
-          dataDrivers: [
-            `CTL: ${Math.round(ctx.pmc.ctl)}`,
-            `TSB: ${Math.round(ctx.pmc.tsb)}`,
-            `Readiness: ${ctx.readinessScore}/100`,
-            ...(ctx.dailyHealth ? [`Sleep: ${ctx.dailyHealth.sleepAvg}min`, `HRV: ${ctx.dailyHealth.hrvAvg}ms`] : []),
-          ],
-          strengths: [],
-          concerns: [],
-          keyDecisions: [],
-        },
-        metrics: {
-          ctl: Math.round(ctx.pmc.ctl),
-          atl: Math.round(ctx.pmc.atl),
-          tsb: Math.round(ctx.pmc.tsb),
-          readinessScore: ctx.readinessScore,
-          volumeAdherence: ctx.volumeAdherence,
-          consistency: ctx.consistencyScore,
-          ...(ctx.dailyHealth ? {
-            sleepAvg: ctx.dailyHealth.sleepAvg,
-            hrvAvg: ctx.dailyHealth.hrvAvg,
-            restingHrAvg: ctx.dailyHealth.restingHrAvg,
-          } : {}),
-        },
-      },
-    });
-  } catch { /* ignore report errors */ }
-}

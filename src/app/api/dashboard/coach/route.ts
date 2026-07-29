@@ -6,13 +6,15 @@ import {
   startInterview,
   approvePlanProposal,
   applySuggestion,
+  analyzeActivity,
+} from "@/lib/ai-coach";
+import {
   listConversations,
   getConversation,
   startNewConversation,
   summarizeConversation,
   clearContext,
-  analyzeActivity,
-} from "@/lib/ai-coach";
+} from "@/lib/ai-conversation";
 import { type PageContext } from "@/lib/page-context";
 
 // Allow up to 2 minutes for LLM-powered actions (start-interview, approve-plan, etc.)
