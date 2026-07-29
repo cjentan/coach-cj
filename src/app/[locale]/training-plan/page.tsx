@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -120,6 +120,11 @@ export default function TrainingPlanPage() {
   // ── Clear plan ──────────────────────────────────────────
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const clearTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { if (clearTimer.current) clearTimeout(clearTimer.current); };
+  }, []);
 
   const clearPlan = useCallback(async () => {
     if (clearing) return;
@@ -199,7 +204,7 @@ export default function TrainingPlanPage() {
                 clearPlan();
               } else {
                 setConfirmClear(true);
-                setTimeout(() => setConfirmClear(false), 3000);
+                clearTimer.current = setTimeout(() => setConfirmClear(false), 3000);
               }
             }}
             disabled={clearing}

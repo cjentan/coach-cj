@@ -106,6 +106,8 @@ export type ChatProgressEvent = PhaseProgressEvent | StatusEvent | ToolCallEvent
 export interface ChatOptions {
   onProgress?: (event: ChatProgressEvent) => void;
   signal?: AbortSignal;
+  /** Pre-built training context to avoid re-fetching from DB. */
+  trainingContext?: Awaited<ReturnType<typeof gatherTrainingContext>>;
 }
 
 
@@ -1287,7 +1289,7 @@ export async function chat(
   const conversation = await prisma.coachConversation.findUnique({
     where: { id: conversationId },
     include: {
-      messages: { orderBy: { createdAt: "asc" } },
+      messages: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   });
 
@@ -1301,7 +1303,7 @@ export async function chat(
   }
 
   // 2. Gather fresh training context (always current, not the stale snapshot)
-  const ctx = await gatherTrainingContext(userId);
+  const ctx = options?.trainingContext ?? await gatherTrainingContext(userId);
   let freshContextSummary = buildContextSummary(ctx, locale);
 
   // Append page context if available
@@ -1322,7 +1324,7 @@ export async function chat(
   });
 
   const langInstruction = getLanguageInstruction(locale);
-  const recentMessages = conversation.messages.slice(-20);
+  const recentMessages = conversation.messages.reverse();
   const llmMessages: LlmMessage[] = [
     { role: "system", content: `${langInstruction}${await getChatPrompt()}\n\n## Current Training Context\n${freshContextSummary}` },
   ];
@@ -1477,10 +1479,15 @@ export async function chat(
       const result = await executeTool(toolCall.function.name, args, userId, toolProgressCb);
       console.error(`[AI-COACH] Tool result: success=${result.success}, message="${result.message?.slice(0, 100)}"`);
 
+      const resultContent = JSON.stringify(result);
+      const trimmedContent = resultContent.length > 2000
+        ? resultContent.slice(0, 2000) + "... [truncated]"
+        : resultContent;
+
       llmMessages.push({
         role: "tool",
         tool_call_id: toolCall.id,
-        content: JSON.stringify(result),
+        content: trimmedContent,
       });
 
       // Fire progress callback after a training phase is saved

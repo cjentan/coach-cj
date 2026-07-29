@@ -118,6 +118,7 @@ export interface TrainingContext {
 export async function gatherTrainingContext(userId: string): Promise<TrainingContext> {
   const now = new Date();
   const weekStart = getWeekStart(now);
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400_000);
 
   // ── Single batch of parallel queries ────────────────
   const [
@@ -131,7 +132,7 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
   ] = await Promise.all([
     // Last 90 days of logs for PMC + weekly aggregates
     prisma.trainingLog.findMany({
-      where: { userId, mergedIntoId: null },
+      where: { userId, mergedIntoId: null, startDate: { gte: ninetyDaysAgo } },
       orderBy: { startDate: "asc" },
       select: {
         startDate: true,
@@ -371,37 +372,31 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
 
   // ── Best previous performances for each goal ─────────
   // For each goal, find the fastest activity at a similar distance
-  const bestPerformances = new Map<string, TrainingContext["goals"][number]["bestPrevious"]>();
-  for (const goal of goals) {
-    if (!goal.distanceMeters || goal.distanceMeters <= 0) continue;
+  const bestPerformanceResults = await Promise.all(
+    goals.map(async (goal) => {
+      if (!goal.distanceMeters || goal.distanceMeters <= 0) return { goalId: goal.id, result: null };
 
-    // Look for activities within ±10% of goal distance
-    const minDist = goal.distanceMeters * 0.9;
-    const maxDist = goal.distanceMeters * 1.1;
+      // Look for activities within ±10% of goal distance
+      const minDist = goal.distanceMeters * 0.9;
+      const maxDist = goal.distanceMeters * 1.1;
 
-    const candidates = await prisma.trainingLog.findMany({
-      where: {
-        userId,
-        mergedIntoId: null,
-        distanceMeters: { gte: minDist, lte: maxDist },
-        durationSeconds: { gte: 600 }, // at least 10 min
-      },
-      orderBy: { startDate: "desc" },
-      select: {
-        name: true,
-        startDate: true,
-        distanceMeters: true,
-        durationSeconds: true,
-      },
-    });
-
-    if (candidates.length > 0) {
-      // Find the fastest (best pace) — smallest duration per meter
-      const best = candidates.reduce((a, b) => {
-        const paceA = a.durationSeconds / a.distanceMeters!;
-        const paceB = b.durationSeconds / b.distanceMeters!;
-        return paceA < paceB ? a : b;
+      const best = await prisma.trainingLog.findFirst({
+        where: {
+          userId,
+          mergedIntoId: null,
+          distanceMeters: { gte: minDist, lte: maxDist },
+          durationSeconds: { gte: 600 }, // at least 10 min
+        },
+        orderBy: { durationSeconds: "asc" },
+        select: {
+          name: true,
+          startDate: true,
+          distanceMeters: true,
+          durationSeconds: true,
+        },
       });
+
+      if (!best) return { goalId: goal.id, result: null };
 
       const pacePerKm = best.distanceMeters && best.distanceMeters > 0
         ? (best.durationSeconds / (best.distanceMeters / 1000))
@@ -410,14 +405,22 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
       const mins = Math.floor(pacePerKm / 60);
       const secs = Math.round(pacePerKm % 60);
 
-      bestPerformances.set(goal.id, {
-        timeSeconds: best.durationSeconds,
-        pacePerKm: `${mins}:${secs.toString().padStart(2, "0")} /km`,
-        date: best.startDate.toISOString().split("T")[0],
-        activityName: best.name,
-        distanceMeters: best.distanceMeters || 0,
-      });
-    }
+      return {
+        goalId: goal.id,
+        result: {
+          timeSeconds: best.durationSeconds,
+          pacePerKm: `${mins}:${secs.toString().padStart(2, "0")} /km`,
+          date: best.startDate.toISOString().split("T")[0],
+          activityName: best.name,
+          distanceMeters: best.distanceMeters || 0,
+        },
+      };
+    })
+  );
+
+  const bestPerformances = new Map<string, TrainingContext["goals"][number]["bestPrevious"]>();
+  for (const { goalId, result } of bestPerformanceResults) {
+    if (result) bestPerformances.set(goalId, result);
   }
 
   // ── Assemble result ─────────────────────────────────

@@ -39,6 +39,7 @@ export async function summarizeConversation(
       messages: {
         where: { role: { not: "system" } },
         orderBy: { createdAt: "asc" },
+        take: 100,
       },
       suggestions: {
         where: { status: "applied" },
@@ -128,7 +129,7 @@ export async function getConversation(
   const conv = await prisma.coachConversation.findUnique({
     where: { id: conversationId },
     include: {
-      messages: { orderBy: { createdAt: "asc" } },
+      messages: { orderBy: { createdAt: "asc" }, take: 50 },
       suggestions: { orderBy: { createdAt: "desc" } },
     },
   });

@@ -6,12 +6,10 @@
  * Large batches (first-time import, > 5) → skip; user triggers on-demand.
  */
 import { Queue } from "bullmq";
-import { getRedisConnection } from "./redis";
+import { redisConnection as connection } from "./redis-connection";
 
 const BATCH_THRESHOLD = 5;
 const QUEUE_NAME = "activity-analysis";
-
-const connection = getRedisConnection();
 
 export const analysisQueue = new Queue(QUEUE_NAME, { connection });
 
@@ -43,19 +41,31 @@ export async function scheduleBatchAnalysis(
 
   if (activityIds.length === 0) return;
 
+  const { prisma } = await import("./prisma");
+
+  // Filter out already-completed activities
+  const existingActivities = await prisma.trainingLog.findMany({
+    where: { id: { in: activityIds } },
+    select: { id: true, analysisStatus: true },
+  });
+  const pendingIds = existingActivities
+    .filter((a) => a.analysisStatus !== "completed")
+    .map((a) => a.id);
+
+  if (pendingIds.length === 0) return;
+
   console.log(
-    `[analysis-queue] Enqueuing analysis for ${activityIds.length} activities (batch size ${totalBatchSize})`
+    `[analysis-queue] Enqueuing analysis for ${pendingIds.length} activities (batch size ${totalBatchSize})`
   );
 
   // Set status to pending so the frontend can show a queued state
-  const { prisma } = await import("./prisma");
   await prisma.trainingLog.updateMany({
-    where: { id: { in: activityIds } },
+    where: { id: { in: pendingIds } },
     data: { analysisStatus: "pending" },
   });
 
   // Enqueue one job per activity
-  for (const activityId of activityIds) {
+  for (const activityId of pendingIds) {
     await analysisQueue.add("analyze", { activityId, userId });
   }
 }
@@ -68,6 +78,13 @@ export async function scheduleActivityAnalysis(
   userId: string
 ): Promise<void> {
   const { prisma } = await import("./prisma");
+
+  const existing = await prisma.trainingLog.findUnique({
+    where: { id: activityId },
+    select: { analysisStatus: true },
+  });
+  if (!existing || existing.analysisStatus === "completed") return;
+
   await prisma.trainingLog.update({
     where: { id: activityId },
     data: { analysisStatus: "pending" },

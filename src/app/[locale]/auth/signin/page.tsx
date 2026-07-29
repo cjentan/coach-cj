@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "@/i18n/routing";
 import Link from "next/link";
@@ -20,6 +20,11 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false);
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
   const [forgotMsg, setForgotMsg] = useState("");
+  const forgotMsgTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { if (forgotMsgTimer.current) clearTimeout(forgotMsgTimer.current); };
+  }, []);
 
   useEffect(() => {
     fetch("/api/auth/email-status")
@@ -52,7 +57,7 @@ export default function SignInPage() {
   function handleForgotClick() {
     if (!emailConfigured) {
       setForgotMsg(t("forgotNotEnabled"));
-      setTimeout(() => setForgotMsg(""), 4000);
+      forgotMsgTimer.current = setTimeout(() => setForgotMsg(""), 4000);
     }
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 
 export type TextSize = "normal" | "large" | "xlarge";
 
@@ -44,8 +44,10 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
     setTextSizeState(size);
   }, []);
 
+  const value = useMemo(() => ({ textSize, setTextSize }), [textSize, setTextSize]);
+
   return (
-    <AccessibilityContext.Provider value={{ textSize, setTextSize }}>
+    <AccessibilityContext.Provider value={value}>
       {children}
     </AccessibilityContext.Provider>
   );

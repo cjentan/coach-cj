@@ -2,30 +2,39 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: Request) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      createdAt: true,
-      _count: {
-        select: {
-          trainingLogs: true,
-          raceGoals: true,
-          bodyMetrics: true,
-          fatigueAlerts: true,
+  const { searchParams } = new URL(request.url);
+  const skip = Math.max(0, parseInt(searchParams.get("skip") || "0"));
+  const take = Math.min(100, Math.max(1, parseInt(searchParams.get("take") || "50")));
+
+  const [users, totalUsers] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        _count: {
+          select: {
+            trainingLogs: true,
+            raceGoals: true,
+            bodyMetrics: true,
+            fatigueAlerts: true,
+          },
         },
+        bodyMetrics: { orderBy: { recordedAt: "desc" }, take: 1, select: { weightKg: true, recordedAt: true } },
+        trainingLogs: { orderBy: { startDate: "desc" }, take: 1, select: { startDate: true, name: true } },
       },
-      bodyMetrics: { orderBy: { recordedAt: "desc" }, take: 1, select: { weightKg: true, recordedAt: true } },
-      trainingLogs: { orderBy: { startDate: "desc" }, take: 1, select: { startDate: true, name: true } },
-    },
-  });
+    }),
+    prisma.user.count(),
+  ]);
 
   const mapped = users.map((u) => {
     return {
@@ -47,7 +56,7 @@ export async function GET() {
 
   return NextResponse.json({
     summary: {
-      totalUsers: users.length,
+      totalUsers,
       totalActivities: users.reduce((sum, u) => sum + u._count.trainingLogs, 0),
     },
     users: mapped,

@@ -208,36 +208,48 @@ export default function ActivitiesPage() {
     types: string[]; sources: string[]; subTypes: string[];
   }>({ types: [], sources: [], subTypes: [] });
 
-  function loadAll() {
+  function loadAll(cancelledRef?: { current: boolean }) {
     setLoading(true);
     Promise.all([
       fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
       fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
       fetch("/api/activities/filter-options").then(r => r.json()),
     ]).then(([logsData, stats, opts]) => {
+      if (cancelledRef?.current) return;
       if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
       const bars = stats.months || stats.weeks;
       if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
       if (opts.types) setFilterOptions(opts);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => {
+      if (!cancelledRef?.current) setLoading(false);
+    });
   }
 
   const [total, setTotal] = useState(0);
 
   // Load on mount
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    const cancelledRef = { current: false };
+    loadAll(cancelledRef);
+    return () => { cancelledRef.current = true; };
+  }, []);
 
   // Reload when filters, month, or view mode change
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     Promise.all([
       fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
       fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
     ]).then(([logsData, stats]) => {
+      if (cancelled) return;
       if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
       const bars = stats.months || stats.weeks;
       if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [avgTypeFilter, avgSourceFilter, dateFrom, dateTo, monthOffset, viewMode]);
 
   // ── Sync position state to URL ─────────────────────────────

@@ -72,6 +72,11 @@ export async function POST(request: Request) {
             } catch { /* stream may have closed */ }
           };
 
+          request.signal.addEventListener("abort", () => {
+            try { controller.close(); } catch {}
+          }, { once: true });
+          if (request.signal.aborted) return;
+
           try {
             const result = await startInterview(userId, {
               onProgress: (event) => {
@@ -149,6 +154,11 @@ export async function POST(request: Request) {
             }
           };
 
+          request.signal.addEventListener("abort", () => {
+            try { controller.close(); } catch {}
+          }, { once: true });
+          if (request.signal.aborted) return;
+
           try {
             const result = await chat(
               conversationId!, userId, message!,
@@ -208,6 +218,11 @@ export async function POST(request: Request) {
               // Stream may have closed
             }
           };
+
+          request.signal.addEventListener("abort", () => {
+            try { controller.close(); } catch {}
+          }, { once: true });
+          if (request.signal.aborted) return;
 
           try {
             const result = await approvePlanProposal(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -95,6 +95,15 @@ export default function AdminPage() {
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const timeoutIds = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  useEffect(() => {
+    return () => {
+      timeoutIds.current.forEach(clearTimeout);
+      timeoutIds.current.clear();
+    };
+  }, []);
+
   // ── Prompt settings state ──
   const [prompts, setPrompts] = useState<Array<{
     key: string; label: string; description: string;
@@ -152,7 +161,7 @@ export default function AdminPage() {
         body: JSON.stringify({ key, value }),
       });
       setPromptsSaved((p) => ({ ...p, [key]: true }));
-      setTimeout(() => setPromptsSaved((p) => ({ ...p, [key]: false })), 2500);
+      timeoutIds.current.add(setTimeout(() => setPromptsSaved((p) => ({ ...p, [key]: false })), 2500));
     } catch { /* ignore */ }
     setPromptsSaving((p) => ({ ...p, [key]: false }));
   };
@@ -200,7 +209,7 @@ export default function AdminPage() {
   function copyLink(link: string, userId: string) {
     navigator.clipboard.writeText(link);
     setCopied(userId);
-    setTimeout(() => setCopied(null), 2000);
+    timeoutIds.current.add(setTimeout(() => setCopied(null), 2000));
   }
 
   async function saveEmailSettings() {
@@ -219,7 +228,7 @@ export default function AdminPage() {
         return;
       }
       setEmailSaved(true);
-      setTimeout(() => setEmailSaved(false), 3000);
+      timeoutIds.current.add(setTimeout(() => setEmailSaved(false), 3000));
     } catch {
       setEmailError("Network error");
     } finally {

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computePMC } from "@/lib/pmc";
+import { cache } from "react";
+
+const cachedComputePMC = cache(computePMC);
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -50,7 +53,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const pmcResults = computePMC(filledInput);
+  const pmcResults = cachedComputePMC(filledInput);
 
   // Build time-series arrays for charting
   const series = pmcResults.map((r) => ({

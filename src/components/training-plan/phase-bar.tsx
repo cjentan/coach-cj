@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useEffect } from "react";
+import { memo, useMemo, useRef, useEffect } from "react";
 import type { TrainingPlanPhase } from "@/lib/training-plan-types";
 import { startOfMonth, isWithinInterval, parseISO } from "date-fns";
 
@@ -64,7 +64,7 @@ export function PhaseBar({ phases, currentMonth, onPhaseClick }: PhaseBarProps) 
 }
 
 /** Single phase pill button. */
-function PhaseButton({
+const PhaseButton = memo(function PhaseButton({
   phase,
   isActive,
   onClick,
@@ -99,7 +99,7 @@ function PhaseButton({
       </span>
     </button>
   );
-}
+});
 
 function formatShortDate(iso: string): string {
   const d = parseISO(iso);

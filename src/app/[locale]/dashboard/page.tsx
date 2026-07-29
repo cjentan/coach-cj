@@ -219,6 +219,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
   }, [goals, pmc, stats, readiness]);
 
   useEffect(() => {
+    let cancelled = false;
     if (status === "unauthenticated") {
       router.push("/auth/signin");
     } else if (status === "authenticated") {
@@ -226,26 +227,30 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
       fetch("/api/settings/onboarding")
         .then((r) => r.json())
         .then((data) => {
+          if (cancelled) return;
           if (!data.onboardingCompleted) {
             router.push("/onboarding");
           } else {
             loadAll();
           }
         })
-        .catch(() => loadAll());
+        .catch(() => { if (!cancelled) loadAll(); });
     }
+    return () => { cancelled = true; };
   }, [status, router]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
+    let cancelled = false;
     const pmcDays = Math.min(timeframeDays, 365);
     fetchPmcHistory(pmcDays);
     const weeks = Math.max(1, Math.ceil(timeframeDays / 7));
     const grouping = timeframeDays > 90 ? "month" : "week";
     fetch(`/api/dashboard/trends?weeks=${weeks}&grouping=${grouping}`)
-      .then((r) => r.ok ? r.json() : null).then((d) => d?.trends && setTrends(d.trends)).catch(() => {});
+      .then((r) => r.ok ? r.json() : null).then((d) => { if (!cancelled && d?.trends) setTrends(d.trends); }).catch(() => {});
     fetch(`/api/dashboard/intensity-distribution?days=${pmcDays}`)
-      .then((r) => r.ok ? r.json() : null).then((d) => d?.distribution && setIntensityDist(d.distribution)).catch(() => {});
+      .then((r) => r.ok ? r.json() : null).then((d) => { if (!cancelled && d?.distribution) setIntensityDist(d.distribution); }).catch(() => {});
+    return () => { cancelled = true; };
   }, [status, timeframeDays, fetchPmcHistory]);
 
   // ─── Helper components ─────────────────────────────────────────────

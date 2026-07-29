@@ -9,7 +9,7 @@
  * 4. coros-sync — syncs activities from COROS Training Hub
  */
 import { Queue, Worker, Job } from "bullmq";
-import { getRedisConnection } from "../lib/redis";
+import { redisConnection as connection } from "../lib/redis-connection";
 import { prisma } from "../lib/prisma";
 import { computePMC } from "../lib/pmc";
 import { detectFatigue } from "../lib/fatigue-detector";
@@ -20,7 +20,7 @@ import { scheduleBatchAnalysis } from "../lib/activity-analysis-queue";
 import { getGarminClient, syncGarminActivities, syncGarminHealthData } from "../lib/garmin";
 import { getCorosClient, syncCorosActivities } from "../lib/coros";
 
-const connection = getRedisConnection();
+
 
 // ─── Queues ─────────────────────────────────────────────
 const fatigueQueue = new Queue("fatigue-monitor", { connection });
@@ -322,11 +322,18 @@ async function scheduleRecurring() {
   }, 24 * 60 * 60 * 1000);
 
   // Per-user weekly review scheduler — checks every 10 minutes
-  const processedReviews = new Set<string>(); // userId:weekStart to prevent duplicates
+  const processedReviews = new Map<string, number>(); // userId:weekStart → timestamp to prevent duplicates
 
   setInterval(async () => {
     try {
       const now = new Date();
+
+      // Prune entries older than 14 days
+      const cutoff = Date.now() - 14 * 86400000;
+      processedReviews.forEach((ts, key) => {
+        if (ts < cutoff) processedReviews.delete(key);
+      });
+
       const dayOfWeek = now.getDay();
 
       const users = await prisma.user.findMany({
@@ -382,7 +389,7 @@ async function scheduleRecurring() {
           }
 
           await sundayQueue.add("review", { userId: user.id });
-          processedReviews.add(key);
+          processedReviews.set(key, Date.now());
           continue;
         }
 
@@ -398,7 +405,7 @@ async function scheduleRecurring() {
         if (existing) continue; // already generated
 
         await sundayQueue.add("review", { userId: user.id });
-        processedReviews.add(key);
+        processedReviews.set(key, Date.now());
       }
     } catch (err) {
       console.error("Review scheduler error:", (err as Error).message);

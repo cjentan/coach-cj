@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, type ComponentType } from "react";
+import { useState, useMemo, useCallback, memo, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -289,7 +289,7 @@ export function CalendarView({
 
 // ── DayCell (desktop grid) ──────────────────────────────
 
-function DayCell({
+const DayCell = memo(function DayCell({
   day,
   planDay,
   inMonth,
@@ -412,7 +412,7 @@ function DayCell({
       )}
     </button>
   );
-}
+});
 
 // ── WeekListView (mobile) ───────────────────────────────
 

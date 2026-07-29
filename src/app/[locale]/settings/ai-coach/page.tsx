@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,11 @@ function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTransl
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings/analysis")
@@ -71,7 +76,7 @@ function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTransl
       const res = await fetch("/api/settings/analysis", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error("Failed");
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      savedTimer.current = setTimeout(() => setSaved(false), 2000);
     } catch { setError(t("saveError")); }
     setSaving(false);
   }
@@ -172,6 +177,11 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
   const [hasServerDefault, setHasServerDefault] = useState(false);
   const [showLlmKey, setShowLlmKey] = useState(false);
   const [loading, setLoading] = useState(true);
+  const llmSavedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { if (llmSavedTimer.current) clearTimeout(llmSavedTimer.current); };
+  }, []);
 
   // Test state
   const [prompt, setPrompt] = useState("");
@@ -273,7 +283,7 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
             await fetch("/api/settings/llm", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ llmApiKey: llmApiKey || undefined, llmBaseUrl: llmBaseUrl || undefined, llmModel: llmModel || undefined, llmProvider: llmProvider || undefined }) });
             setHasStoredKey(!!llmApiKey || llmProvider === "ollama");
             setLlmSaved(true);
-            setTimeout(() => setLlmSaved(false), 2500);
+            llmSavedTimer.current = setTimeout(() => setLlmSaved(false), 2500);
           }}
         >
           {llmSaved ? <><Check className="h-4 w-4 mr-2" /> {t("saved")}</> : t("saveSettings")}

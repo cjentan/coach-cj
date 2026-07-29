@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -71,6 +71,7 @@ function TrainingContextSection({ t, common }: { t: ReturnType<typeof useTransla
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -79,6 +80,10 @@ function TrainingContextSection({ t, common }: { t: ReturnType<typeof useTransla
       .then((data) => { setTc(data.trainingContext || ""); setLoading(false); })
       .catch(() => setLoading(false));
   }, [status]);
+
+  useEffect(() => {
+    return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
+  }, []);
 
   async function handleSave() {
     setSaving(true); setError(""); setSaved(false);
@@ -89,7 +94,7 @@ function TrainingContextSection({ t, common }: { t: ReturnType<typeof useTransla
       });
       if (!res.ok) throw new Error("Failed");
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      savedTimer.current = setTimeout(() => setSaved(false), 3000);
     } catch { setError(t("contextSaveFailed")); }
     setSaving(false);
   }

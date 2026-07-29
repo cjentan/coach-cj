@@ -209,6 +209,13 @@ export default function CoachChat({
     };
   }, []);
 
+  // Cap messages at 100 to prevent unbounded memory growth
+  useEffect(() => {
+    if (messages.length > 100) {
+      setMessages(prev => prev.length > 100 ? prev.slice(-80) : prev);
+    }
+  }, [messages.length]);
+
   // Clear stale suggestions when plan loads and no training plan exists
   useEffect(() => {
     if (!hasExistingPlan && suggestions.length > 0) {

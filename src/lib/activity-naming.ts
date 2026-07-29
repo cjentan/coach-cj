@@ -35,6 +35,17 @@ const CACHE_FILE = path.join(process.cwd(), "data", "geocode-cache.json");
 
 /** In-memory geocode cache: "lat,lon" → area name */
 const memCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 1000;
+function cacheGet(key: string): string | undefined {
+  return cacheGet(key);
+}
+function cacheSet(key: string, value: string): void {
+  if (memCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = memCache.keys().next().value;
+    if (firstKey !== undefined) memCache.delete(firstKey);
+  }
+  cacheSet(key, value);
+}
 
 /** Whether the JSON cache has been loaded into memCache yet */
 let jsonCacheLoaded = false;
@@ -268,7 +279,7 @@ function loadJsonCache(): void {
       const data = JSON.parse(raw);
       for (const [key, value] of Object.entries(data)) {
         if (typeof value === "string") {
-          memCache.set(key, value);
+          cacheSet(key, value);
         }
       }
     }
@@ -331,7 +342,7 @@ export async function resolveAreaName(
 
   // 1. In-memory cache
   loadJsonCache();
-  const cached = memCache.get(key);
+  const cached = cacheGet(key);
   if (cached !== undefined) return cached;
 
   // 2. Nominatim API (rate-limited to 1 req/sec)

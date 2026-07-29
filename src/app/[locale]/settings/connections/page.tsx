@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -257,6 +257,11 @@ function ApiKeysSection({ t, common }: { t: ReturnType<typeof useTranslations>; 
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); };
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings/api-keys").then((r) => r.json()).then((data) => { setApiKeys(data.keys || []); setLoading(false); });
@@ -345,7 +350,7 @@ function ApiKeysSection({ t, common }: { t: ReturnType<typeof useTranslations>; 
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <code className="flex-1 p-2 rounded bg-muted font-mono text-xs break-all select-all">{showKey ? newlyCreatedKey.rawKey : "•".repeat(48)}</code>
               <Button variant="outline" size="sm" onClick={() => setShowKey(!showKey)}>{showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
-              <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(newlyCreatedKey.rawKey); setCopied(true); setTimeout(() => setCopied(false), 3000); }}>{copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}</Button>
+              <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(newlyCreatedKey.rawKey); setCopied(true); copiedTimer.current = setTimeout(() => setCopied(false), 3000); }}>{copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}</Button>
             </div>
             <p className="text-xs text-destructive font-medium">{t("keyWarning")}</p>
             <div className="space-y-2">

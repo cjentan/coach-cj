@@ -50,7 +50,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       averageHr: true,
       maxHr: true,
       tss: true,
-      rawJson: true,
     },
   });
 
@@ -72,7 +71,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const scored: Scored[] = [];
 
   for (const c of candidates) {
-    const cRaw = c.rawJson as Record<string, unknown> | null;
+    // Fetch rawJson individually — avoids loading 30 large blobs in the main query
+    const rawLog = await prisma.trainingLog.findUnique({
+      where: { id: c.id },
+      select: { rawJson: true },
+    });
+    const cRaw = rawLog?.rawJson as Record<string, unknown> | null;
     const cPoints = cRaw?.trackPoints as RoutePoint[] | undefined;
     if (!cPoints || cPoints.length < 5) continue;
 

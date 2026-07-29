@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, AlertCircle } from "lucide-react";
@@ -76,7 +76,7 @@ interface CoachMessageListProps {
 
 // ── Component ─────────────────────────────────────────────
 
-export default function CoachMessageList({
+const CoachMessageList = memo(function CoachMessageList({
   variant,
   messages,
   suggestions,
@@ -278,4 +278,6 @@ export default function CoachMessageList({
       )}
     </>
   );
-}
+});
+
+export default CoachMessageList;

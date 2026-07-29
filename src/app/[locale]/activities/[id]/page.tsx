@@ -18,6 +18,7 @@ export default function ActivityDetailPage() {
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout>>();
   const [coachAnalysisText, setCoachAnalysisText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -134,6 +135,14 @@ export default function ActivityDetailPage() {
     };
   }, [id, analyzing, analysisStatus, coachAnalysisText]);
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    };
+  }, []);
+
   // Auto-save remarks with debounce
   const saveRemarks = useCallback(async (text: string) => {
     await fetch(`/api/activities/${id}`, {
@@ -160,7 +169,7 @@ export default function ActivityDetailPage() {
       await saveRemarks(text);
       setRemarksDirty(false);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      feedbackTimer.current = setTimeout(() => setSaved(false), 2000);
     }, 800);
   }
 

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getMonthStart, getMonthEnd } from "@/lib/utils";
 import { computePMC } from "@/lib/pmc";
+import { computeReadinessScore } from "@/lib/training-health";
 
 interface PeriodStats {
   weeklyDistance: number;
@@ -50,11 +51,7 @@ export async function GET() {
 
   // Single batch of parallel queries — covers all dashboard data
   const [
-    recentLogs,
-    statsWeekLogs,
-    lastWeekLogs,
-    monthLogs,
-    lastMonthLogs,
+    weekLogs,
     pmcLogs,
     goals,
     bodyMetrics,
@@ -62,7 +59,7 @@ export async function GET() {
     maxHrLog,
     latestAnalysisReport,
   ] = await Promise.all([
-    // Recent logs (for display)
+    // This week's logs — merged display + stats query
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
       orderBy: { startDate: "desc" },
@@ -73,31 +70,11 @@ export async function GET() {
         tss: true, remarks: true, workoutType: true,
       },
     }),
-    // Stats — this week
-    prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
-      select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
-    }),
-    // Stats — last week
-    prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: lastWeekStart, lt: weekStart }, mergedIntoId: null },
-      select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
-    }),
-    // Stats — this month
-    prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: monthStart }, mergedIntoId: null },
-      select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
-    }),
-    // Stats — last month
-    prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: lastMonthStart, lte: lastMonthEnd }, mergedIntoId: null },
-      select: { distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
-    }),
-    // PMC — last 90 days (stored TSS only, no rawJson)
+    // PMC — last 90 days (wider select to derive other periods in JS)
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: ninetyDaysAgo }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
-      select: { startDate: true, tss: true, durationSeconds: true },
+      select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
     }),
     // Active goals
     prisma.raceGoal.findMany({
@@ -135,6 +112,17 @@ export async function GET() {
     }),
   ]);
 
+  // Derive last-week, this-month, and last-month logs from the 90-day PMC data
+  const lastWeekLogs = pmcLogs.filter(
+    (l) => l.startDate >= lastWeekStart && l.startDate < weekStart
+  );
+  const monthLogs = pmcLogs.filter(
+    (l) => l.startDate >= monthStart
+  );
+  const lastMonthLogs = pmcLogs.filter(
+    (l) => l.startDate >= lastMonthStart && l.startDate <= lastMonthEnd
+  );
+
   // ── Stats ─────────────────────────────────────────────────────────
   const daysThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / 86400000));
   const daysLastMonth = Math.max(1, new Date(now.getFullYear(), now.getMonth(), 0).getDate());
@@ -145,13 +133,13 @@ export async function GET() {
   const estimatedMaxHr = maxHrLog?.maxHr || null;
 
   const stats = {
-    weeklyDistance: aggregateLogs(statsWeekLogs, 7).weeklyDistance,
-    weeklyElevation: aggregateLogs(statsWeekLogs, 7).weeklyElevation,
-    weeklyDuration: aggregateLogs(statsWeekLogs, 7).weeklyDuration,
-    weeklyCount: aggregateLogs(statsWeekLogs, 7).weeklyCount,
-    weeklyTss: aggregateLogs(statsWeekLogs, 7).weeklyTss,
-    avgDailyTss: aggregateLogs(statsWeekLogs, 7).avgDailyTss,
-    avgHr: aggregateLogs(statsWeekLogs, 7).avgHr,
+    weeklyDistance: aggregateLogs(weekLogs, 7).weeklyDistance,
+    weeklyElevation: aggregateLogs(weekLogs, 7).weeklyElevation,
+    weeklyDuration: aggregateLogs(weekLogs, 7).weeklyDuration,
+    weeklyCount: aggregateLogs(weekLogs, 7).weeklyCount,
+    weeklyTss: aggregateLogs(weekLogs, 7).weeklyTss,
+    avgDailyTss: aggregateLogs(weekLogs, 7).avgDailyTss,
+    avgHr: aggregateLogs(weekLogs, 7).avgHr,
     activeGoals: goalCount,
     latestWeight,
     latestRestingHr,
@@ -218,84 +206,33 @@ export async function GET() {
   });
 
   // ── TSS for readiness computation ─────────────────────────────────
-  const weeklyTss = statsWeekLogs.reduce((sum, l) => sum + (l.tss || 50), 0);
+  const weeklyTss = weekLogs.reduce((sum, l) => sum + (l.tss || 50), 0);
 
   // ── Readiness ─────────────────────────────────────────────────────
-  // Simplified readiness computation (same logic as original)
-  const weeklyVolume = statsWeekLogs.reduce((sum, l) => sum + (l.distanceMeters || 0), 0);
-  const weeklyElevation = statsWeekLogs.reduce((sum, l) => sum + (l.elevationGainMeters || 0), 0);
-  const weeklyDuration = statsWeekLogs.reduce((sum, l) => sum + (l.durationSeconds || 0), 0);
+  const readinessResult = computeReadinessScore({
+    weeklyVolumeMeters: weekLogs.reduce((sum, l) => sum + (l.distanceMeters || 0), 0),
+    weeklyTss,
+    weekStartDate: weekStart,
+    primaryGoal: goals[0] || null,
+    activityLogs: weekLogs,
+  });
 
-  let volumeAdherence = 50;
-  const primaryGoal = goals[0];
-  if (primaryGoal) {
-    const weeksUntil = Math.max(1, Math.ceil((primaryGoal.targetDate.getTime() - now.getTime()) / (7 * 86400000)));
-    const targetWeekly = primaryGoal.distanceMeters / (weeksUntil * 0.7);
-    volumeAdherence = Math.min(100, Math.round((weeklyVolume / Math.max(1, targetWeekly)) * 100));
-  } else {
-    const avgWeeklyVolume = statsWeekLogs.length > 0
-      ? statsWeekLogs.reduce((sum, l) => sum + (l.distanceMeters || 0), 0)
-      : 0;
-    if (avgWeeklyVolume > 0) {
-      volumeAdherence = Math.min(100, 75);
-    }
-  }
-
-  const elapsedDays = Math.max(1, Math.min(7, Math.ceil((now.getTime() - weekStart.getTime()) / 86400000)));
-  const activeDays = new Set(statsWeekLogs.map((l) => l.startDate.toISOString().split("T")[0])).size;
-  const consistencyScore = Math.min(100, Math.round((activeDays / elapsedDays) * 100));
-
-  const restBalance = Math.max(0, 100 - Math.min(100, Math.round((weeklyTss / 700) * 100)));
-
-  const weeklyVolumes: number[] = [];
-  for (let w = 3; w >= 0; w--) {
-    const start = new Date(now.getTime() - (w + 1) * 7 * 86400000);
-    const end = new Date(now.getTime() - w * 7 * 86400000);
-    const wLogs = pmcLogs.filter((l) => l.startDate >= start && l.startDate < end);
-    weeklyVolumes.push(wLogs.reduce((s, l) => s + (l.durationSeconds || 0), 0));
-  }
-  const n = weeklyVolumes.length;
-  const xMean = (n - 1) / 2;
-  const yMean = weeklyVolumes.reduce((s, v) => s + v, 0) / n;
-  let num = 0, den = 0;
-  for (let i = 0; i < n; i++) {
-    num += (i - xMean) * (weeklyVolumes[i] - yMean);
-    den += (i - xMean) * (i - xMean);
-  }
-  const slope = den > 0 ? num / den : 0;
-  const trendPct = yMean > 0 ? Math.round((slope / yMean) * 100) : 0;
-  const absTrend = Math.abs(trendPct);
-  let trendScore: number;
-  if (absTrend <= 5) trendScore = 100;
-  else if (absTrend <= 15) trendScore = 100 - (absTrend - 5) * 2;
-  else if (absTrend <= 30) trendScore = 80 - (absTrend - 15) * 1;
-  else trendScore = Math.max(30, 65 - (absTrend - 30) * 0.5);
-  trendScore = Math.round(trendScore);
-
-  let fatiguePenalty = 0;
-  if (weeklyTss > 700) fatiguePenalty = 20;
-  else if (weeklyTss > 500) fatiguePenalty = 10;
-  else if (weeklyTss > 350) fatiguePenalty = 5;
-
-  let readinessScore = Math.max(0, Math.min(100, Math.round(
-    volumeAdherence * 0.40 + consistencyScore * 0.25 + restBalance * 0.20 + trendScore * 0.15 - fatiguePenalty
-  )));
   let readinessLabel: string;
   let readinessDetail: string;
-  if (readinessScore >= 70) { readinessLabel = "On Track"; readinessDetail = "Your training trajectory is aligned with your goals."; }
-  else if (readinessScore >= 50) { readinessLabel = "Needs Attention"; readinessDetail = "Adjust volume or consistency to get back on track."; }
+  if (readinessResult.readinessScore >= 70) { readinessLabel = "On Track"; readinessDetail = "Your training trajectory is aligned with your goals."; }
+  else if (readinessResult.readinessScore >= 50) { readinessLabel = "Needs Attention"; readinessDetail = "Adjust volume or consistency to get back on track."; }
   else { readinessLabel = "Off Track"; readinessDetail = "Significant adjustments needed to reach your race goals."; }
 
   const readiness = {
-    score: readinessScore,
+    score: readinessResult.readinessScore,
     label: readinessLabel,
     detail: readinessDetail,
-    volumeAdherence,
+    volumeAdherence: readinessResult.volumeAdherence,
   };
 
   // ── Response ──────────────────────────────────────────────────────
   return NextResponse.json({
-    logs: recentLogs,
+    logs: weekLogs,
     stats,
     goals: goalSummaries,
     readiness,
