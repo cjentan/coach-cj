@@ -671,7 +671,7 @@ export async function analyze(
         suggestionType: s.type,
         title: s.title,
         description: s.description,
-        changes: JSON.parse(JSON.stringify(s.changes)),
+        changes: structuredClone(s.changes) as any,
         status: "pending",
       },
     });
@@ -709,7 +709,8 @@ export async function analyze(
 export async function startInterview(
   userId: string,
   options?: ChatOptions,
-  locale = "en"
+  locale = "en",
+  pageContext?: PageContext | null,
 ): Promise<{ conversationId: string; response: string; proposal: z.infer<typeof PlanProposalSchema> | null; needsGoal?: boolean } | { error: string; code: string }> {
   // 1. Resolve LLM config
   const llmConfig = await resolveUserLlmConfig(userId);
@@ -720,7 +721,15 @@ export async function startInterview(
   // 2. Gather training context
   options?.onProgress?.({ type: "status", message: "Loading your training data from recent activities..." });
   const ctx = await gatherTrainingContext(userId);
-  const contextStr = buildContextSummary(ctx, locale);
+  let contextStr = buildContextSummary(ctx, locale);
+
+  // Append page context if available (e.g. user was on a specific activity/goal page)
+  if (pageContext) {
+    const pageStr = await buildPageContextSummary(pageContext, userId, locale);
+    if (pageStr) {
+      contextStr += `\n\n## Page Context\n${pageStr}`;
+    }
+  }
 
   // 3. Archive old active conversation and create a fresh one
   await prisma.coachConversation.updateMany({
@@ -1760,7 +1769,7 @@ export async function applySuggestion(
 
   // Upsert plan
   const updateData: Record<string, unknown> = {
-    plannedSessions: JSON.parse(JSON.stringify(sessions)),
+    plannedSessions: structuredClone(sessions) as any,
     overridesExisting: true,
     generatedAt: now,
     adjustments: [
@@ -1918,7 +1927,10 @@ export async function analyzeActivity(
   let parsed: z.infer<typeof ActivityAnalysisResultSchema>;
   try {
     parsed = ActivityAnalysisResultSchema.parse(JSON.parse(sanitizeJsonText(result)));
-  } catch {
+  } catch (firstErr) {
+    console.error("[activity-analyze] First parse failed. Raw LLM response:", result?.substring(0, 2000));
+    console.error("[activity-analyze] First parse error:", (firstErr as Error).message);
+
     // Retry once with stricter instruction
     const retry = await ask(
       systemPrompt,
@@ -1928,7 +1940,9 @@ export async function analyzeActivity(
     if (!retry) return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     try {
       parsed = ActivityAnalysisResultSchema.parse(JSON.parse(sanitizeJsonText(retry)));
-    } catch {
+    } catch (retryErr) {
+      console.error("[activity-analyze] Retry parse also failed. Raw LLM response:", retry?.substring(0, 2000));
+      console.error("[activity-analyze] Retry parse error:", (retryErr as Error).message);
       return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     }
   }
@@ -2163,7 +2177,7 @@ async function persistLegacyNotes(
         weekStartDate: weekStart,
         coachNotes: analysis,
         plannedSessions: ctx.weeklyPlan?.plannedSessions
-          ? JSON.parse(JSON.stringify(ctx.weeklyPlan.plannedSessions))
+          ? structuredClone(ctx.weeklyPlan.plannedSessions) as any
           : [],
         adjustments: ctx.weeklyPlan?.adjustments || [],
       },

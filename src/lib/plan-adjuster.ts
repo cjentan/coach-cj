@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { ask, isLlmConfigured } from "./llm";
 import { formatDistance } from "./utils";
+import { SHORT_DAY_NAMES } from "./constants";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -131,8 +132,6 @@ Output schema:
 
 // ── Prompt Builder ─────────────────────────────────────
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 function buildUserMessage(
   currentPlan: CurrentPlan,
   userPrompt: string,
@@ -153,7 +152,7 @@ function buildUserMessage(
     const dist = s.targetDistance ? formatDistance(s.targetDistance) : "—";
     const vert = s.targetElevation ? formatDistance(s.targetElevation) : "—";
     const facility = s.facility ? `, ${s.facility}` : "";
-    msg += `${DAY_NAMES[s.dayOfWeek]}: ${s.description}, ${dist}, ${vert} D+${facility}\n`;
+    msg += `${SHORT_DAY_NAMES[s.dayOfWeek]}: ${s.description}, ${dist}, ${vert} D+${facility}\n`;
   }
 
   if (currentPlan.adjustments.length > 0) {

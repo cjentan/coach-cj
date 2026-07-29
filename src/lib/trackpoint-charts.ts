@@ -5,6 +5,7 @@
  * chart-ready data for Recharts, splits tables, and route maps.
  */
 import { TrackPoint } from "./gpx-parser";
+import { haversine } from "./utils";
 
 // ─── Downsampling ────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ export function computeElevationProfile(trackPoints: TrackPoint[]): ElevationPoi
       cumDist = tp.distance;
     } else if (tp.lat != null && tp.lon != null) {
       if (lastLat != null) {
-        cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon) * 1000;
+        cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon);
       }
       lastLat = tp.lat;
       lastLon = tp.lon;
@@ -166,7 +167,7 @@ export function computeHrProfile(trackPoints: TrackPoint[]): HrPoint[] {
       cumDist = tp.distance;
     } else if (tp.lat != null && tp.lon != null) {
       if (lastLat != null) {
-        cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon) * 1000;
+        cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon);
       }
       lastLat = tp.lat;
       lastLon = tp.lon;
@@ -199,7 +200,7 @@ export function computePaceProfile(trackPoints: TrackPoint[]): PacePoint[] {
       if (tp.distance != null) {
         cumDist = tp.distance;
       } else if (tp.lat != null && tp.lon != null) {
-        if (lastLat != null) cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon) * 1000;
+        if (lastLat != null) cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon);
         lastLat = tp.lat;
         lastLon = tp.lon;
       }
@@ -229,7 +230,7 @@ export function computePaceProfile(trackPoints: TrackPoint[]): PacePoint[] {
     if (tp.distance != null) {
       cumDist = tp.distance;
     } else if (tp.lat != null && tp.lon != null) {
-      if (lastLat != null) cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon) * 1000;
+      if (lastLat != null) cumDist += haversine(lastLat, lastLon!, tp.lat, tp.lon);
       lastLat = tp.lat;
       lastLon = tp.lon;
     }
@@ -525,24 +526,6 @@ export function extractLaps(rawJson: Record<string, unknown> | null): LapSummary
   }));
 }
 
-// ─── Haversine distance ──────────────────────────────────────
-
-function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth radius in km
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180;
-}
-
 // ─── Formatting helpers ──────────────────────────────────────
 
 export function formatSplitPace(paceMinPerKm: number | null, type?: string): string {
@@ -595,7 +578,7 @@ function buildCoordMap(trackPoints: TrackPoint[]): {
     if (hasDist && tp.distance != null) {
       cumDist = tp.distance;
     } else if (tp.lat != null && tp.lon != null && lastLat != null && lastLon != null) {
-      cumDist += haversine(lastLat, lastLon, tp.lat, tp.lon) * 1000;
+      cumDist += haversine(lastLat, lastLon, tp.lat, tp.lon);
     }
     lastLat = tp.lat ?? lastLat;
     lastLon = tp.lon ?? lastLon;

@@ -49,12 +49,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const parsed = z.object({
     remarks: z.string().nullable(),
     isRace: z.boolean().optional(),
+    clearAnalysis: z.boolean().optional(),
   }).safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
   const updateData: Record<string, unknown> = { remarks: parsed.data.remarks };
   if (parsed.data.isRace !== undefined) {
     updateData.isRace = parsed.data.isRace;
+  }
+  if (parsed.data.clearAnalysis) {
+    updateData.coachAnalysis = null;
+    updateData.analysisStatus = null;
   }
 
   const log = await prisma.trainingLog.update({

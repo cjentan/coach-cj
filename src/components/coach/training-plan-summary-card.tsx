@@ -2,18 +2,7 @@
 
 import { Check, Calendar, TrendingUp, Brain } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-
-// ── Phase colours (mirrors PlanProposalCard) ──────────────
-
-const PHASE_COLORS: Record<string, string> = {
-  Base: "#3b82f6",
-  Build: "#f59e0b",
-  Peak: "#ef4444",
-  Taper: "#22c55e",
-  Race: "#a855f7",
-  Recovery: "#06b6d4",
-  Rebuild: "#06b6d4",
-};
+import { PHASE_COLORS } from "@/lib/constants";
 
 // ── Types ────────────────────────────────────────────────
 

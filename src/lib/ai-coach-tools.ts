@@ -638,7 +638,7 @@ async function executeUpdateWeeklyPlan(
         validSessions.push(s);
       }
     }
-    updateData.plannedSessions = JSON.parse(JSON.stringify(validSessions));
+    updateData.plannedSessions = structuredClone(validSessions) as any;
   }
 
   if (targetVolumeMeters !== undefined) updateData.targetVolumeMeters = targetVolumeMeters;
@@ -672,7 +672,7 @@ async function executeUpdateWeeklyPlan(
     await prisma.weeklyPlan.create({
       data: {
         userId, weekStartDate: weekStart,
-        plannedSessions: validSessions ? JSON.parse(JSON.stringify(validSessions)) : [],
+        plannedSessions: validSessions ? structuredClone(validSessions) as any : [],
         targetVolumeMeters: targetVolumeMeters ?? undefined,
         targetElevationMeters: targetElevationMeters ?? undefined,
         targetDurationSeconds: targetDurationSeconds ?? undefined,
@@ -799,13 +799,13 @@ export async function executeCreateTrainingPhase(
       history.push(adjEntry);
 
       const updateData: Record<string, unknown> = {
-        plannedSessions: JSON.parse(JSON.stringify(validSessions)),
+        plannedSessions: structuredClone(validSessions) as any,
         targetVolumeMeters: targetVolumeMeters ?? undefined,
         targetElevationMeters: targetElevationMeters ?? undefined,
         coachNotes: coachNotes ?? undefined,
         overridesExisting: true,
         generatedAt: now,
-        adjustmentHistory: JSON.parse(JSON.stringify(history)),
+        adjustmentHistory: structuredClone(history) as any,
         adjustments: [
           `🏋️ ${phaseName} W${week.weekNumber}: ${coachNotes || `${validSessions.length} session(s)`}`,
           ...(existingPlan.adjustments || []),
@@ -820,13 +820,13 @@ export async function executeCreateTrainingPhase(
       const createData: Record<string, unknown> = {
         userId,
         weekStartDate: weekStart,
-        plannedSessions: JSON.parse(JSON.stringify(validSessions)),
+        plannedSessions: structuredClone(validSessions) as any,
         targetVolumeMeters: targetVolumeMeters ?? undefined,
         targetElevationMeters: targetElevationMeters ?? undefined,
         coachNotes: coachNotes ?? undefined,
         overridesExisting: true,
         generatedAt: now,
-        adjustmentHistory: JSON.parse(JSON.stringify([adjEntry])),
+        adjustmentHistory: structuredClone([adjEntry]) as any,
         adjustments: [`🏋️ ${phaseName} W${week.weekNumber}: ${coachNotes || `${validSessions.length} session(s)`}`],
       };
 

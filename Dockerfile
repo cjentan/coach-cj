@@ -29,8 +29,8 @@ RUN npm run build
 # Compile worker TypeScript for the background job container
 RUN npx tsc -p tsconfig.worker.json
 
-# Stage 3: Runner
-FROM node:20-slim AS runner
+# Stage 3a: App runner — Next.js standalone output with traced node_modules only
+FROM node:20-slim AS app-runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,29 +38,56 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgif7 librsvg2-2 libjpeg62-turbo \
     && rm -rf /var/lib/apt/lists/*
 
-# Next.js standalone output
-COPY --from=builder /app/public ./public
+# Next.js standalone output — includes a traced node_modules (62 MB) with
+# only the packages the server actually needs at runtime (prisma client +
+# engine, canvas, react, next, bcryptjs, etc.). This replaces the previous
+# 740 MB full node_modules copy, saving ~680 MB in the final image.
 COPY --from=builder /app/.next/standalone ./
+
+# Static assets (CSS/JS chunks) — not inside .next/standalone, the server
+# resolves them relative to cwd as `.next/static/`
 COPY --from=builder /app/.next/static ./.next/static
 
-# Compiled worker (from tsc)
-COPY --from=builder /app/dist-workers ./dist-workers
+# Public assets (favicon, manifest, icons, etc.)
+COPY --from=builder /app/public ./public
 
-# Prisma client
+# Prisma migration files (needed by prisma migrate deploy in entrypoint)
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Full node_modules for worker dependencies (bullmq, ioredis, etc.)
-COPY --from=builder /app/node_modules ./node_modules
+# Install prisma CLI globally so the entrypoint can run migrations.
+# Pin to v5 to match the project's Prisma version — v7 dropped datasource.url support in schema.
+RUN npm install -g prisma@5
 
-# Entrypoint script (runs prisma migrate before starting)
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# Ensure the data directory is writable for the geocode cache
 RUN mkdir -p /app/data && chmod 777 /app/data
-
 USER node
 EXPOSE 3000
 ENV PORT=3000
 ENTRYPOINT ["./docker-entrypoint.sh"]
+
+# Stage 3b: Worker runner — production-pruned node_modules for background jobs
+FROM node:20-slim AS worker-runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Worker compiled output
+COPY --from=builder /app/dist-workers ./dist-workers
+
+# Prisma for DB access
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# All dependencies, then strip devDependencies (typescript, tailwindcss,
+# @types, etc.) — only production deps like bullmq, ioredis, @prisma/client
+# survive for the worker runtime.
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+RUN npm prune --production
+
+USER node
+ENTRYPOINT ["node", "dist-workers/workers/entrypoint.js"]

@@ -76,7 +76,7 @@ export async function POST(request: Request) {
                 sendEvent(event.type, event);
               },
               signal: request.signal,
-            }, locale);
+            }, locale, body.pageContext as PageContext | undefined);
 
             if ("error" in result) {
               sendEvent("error", { error: result.error, code: result.code });

@@ -11,6 +11,8 @@ export interface RoutePoint {
   lon: number;
 }
 
+import { haversine } from "./utils";
+
 export interface RouteMatch {
   id: string;
   name: string;
@@ -44,19 +46,7 @@ export function simplifyTrack(points: RoutePoint[], maxPoints: number = 60): Rou
 // ─── Distance between two points (meters) ─────────────────────
 
 function pointDistance(a: RoutePoint, b: RoutePoint): number {
-  const R = 6371000;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const sinLat = Math.sin(dLat / 2);
-  const sinLon = Math.sin(dLon / 2);
-  const aVal =
-    sinLat * sinLat +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinLon * sinLon;
-  return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
-}
-
-function toRad(deg: number): number {
-  return (deg * Math.PI) / 180;
+  return haversine(a.lat, a.lon, b.lat, b.lon);
 }
 
 // ─── Minimum distance from point to track ─────────────────────

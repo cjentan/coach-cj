@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner
+      target: app-runner
     container_name: coach-app
     ports:
       - "3000:3000"
@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runner
+      target: worker-runner
     container_name: coach-worker
     entrypoint: ["node", "dist-workers/workers/entrypoint.js"]
     environment:

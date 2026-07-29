@@ -473,12 +473,31 @@
     "applied": "Recommendation applied ✓",
     "floatingButton": "AI Coach",
     "closePanel": "Close chat",
-
     "readyToBuild": "Ready to build your training plan?",
     "interviewIntro": "I'll ask you a few questions to understand your goals, schedule, and preferences before designing a personalized plan.",
     "createPlanButton": "Create Training Plan",
     "startingInterview": "Starting interview...",
     "followUpHint": "You can then ask follow-up questions or request plan adjustments.",
+    "pageGreeting": {
+      "dashboard": "Here's your training dashboard. I can analyze your recent data, check your readiness, or answer questions about your training.",
+      "trainingPlan": "Reviewing your training plan. Need to adjust upcoming sessions, swap days, or discuss periodization?",
+      "activityDetail": "Looking at this activity. I can analyze the effort, compare it to recent training, or discuss how it fits your goals.",
+      "activityList": "Browsing your activity log. Want to discuss trends, recent volume, or specific training patterns?",
+      "goalDetail": "Reviewing your goal. I can assess readiness, discuss pacing strategy, or adjust your plan.",
+      "goalList": "Viewing your race goals. I can help refine them or discuss how to adjust training accordingly.",
+      "bodyMetrics": "Checking body metrics. I can discuss trends, recovery, or how these relate to your training load.",
+      "availability": "Managing your schedule. I can help plan training around your availability.",
+      "default": "Hi! I'm your AI coach. I can help with training plans, analyze your activities, or answer fitness questions."
+    },
+    "quickActions": {
+      "analyzeWorkout": "Analyze this workout",
+      "checkStatus": "Check training status",
+      "analyzeTrends": "Analyze recent trends",
+      "reviewPlan": "Review plan",
+      "adjustWeek": "Adjust this week",
+      "assessReadiness": "Assess readiness",
+      "askQuestion": "Ask a question"
+    },
     "apply": "Apply",
     "dismiss": "Dismiss",
     "activity": "Activity",
@@ -487,7 +506,6 @@
     "weeksCount": "{count} week{count, plural, one {} other {s}}",
     "sessionsCount": "{count} session{count, plural, one {} other {s}}",
     "processing": "Processing...",
-
     "proposalTitle": "Plan Proposal",
     "proposalVolume": "Volume",
     "proposalCurrent": "Current",
@@ -500,7 +518,6 @@
     "proposalWeeksToTrain": "{count} {count, plural, one {week} other {weeks}} to train",
     "proposalWeeksCount": "{count} w{count, plural, one {} other {s}}",
     "proposalPhasesCount": "{count} phase{count, plural, one {} other {s}}",
-
     "toolCreatePhase": "Creating training phase",
     "toolUpdatePlan": "Updating weekly plan",
     "toolManageGoals": "Managing race goals",
@@ -557,13 +574,6 @@
     "resetPlan": "Reset Plan",
     "resetPlanConfirm": "Reset Plan?",
     "resetPlanDetail": "All future training weeks will be deleted and this conversation archived."
-  },
-  "map": {
-    "heatmap": "Heatmap",
-    "activityType": "Activity Type",
-    "from": "From",
-    "to": "To",
-    "build": "Build my heatmap"
   },
   "settings": {
     "general": {
@@ -776,7 +786,7 @@
       "description": "Export all your data as a .tar.gz archive, or restore from a previous backup to a new account.",
       "backupCard": {
         "title": "Download Backup",
-        "description": "Export all your data — activities, goals, settings, GPS data, and more — as a compressed archive (.tar.gz).",
+        "description": "Export all your data — activities, goals, body metrics, health data, weekly assessments, coach conversations, analysis reports, and integration sessions — as a compressed archive (.tar.gz).",
         "preparing": "Preparing your backup...",
         "preparingHint": "This may take a minute depending on the amount of data. The download link will appear here when it's ready.",
         "failed": "Backup failed",
@@ -784,7 +794,7 @@
         "ready": "Backup ready",
         "created": "Created {timestamp}",
         "download": "Download",
-        "includedData": "The backup includes: activities, GPS track data (one file per activity), race goals, facilities, body metrics, training schedule, weekly assessments, weekly plans, fatigue alerts, daily health data, analysis reports, API keys, AI provider credentials, and Garmin Connect integration tokens.",
+        "includedData": "The backup includes: activities, GPS track data, race goals, duplicate groups, body metrics, daily health data, weekly assessments, weekly plans, fatigue alerts, analysis reports, coach conversations, API keys, AI provider credentials, Garmin Connect integration tokens, and COROS session tokens.",
         "requestBackup": "Request Backup",
         "requestFailed": "Backup request failed",
         "startFailed": "Failed to start backup",

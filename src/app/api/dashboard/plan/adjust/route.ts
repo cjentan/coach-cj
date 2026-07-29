@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         (sum, s) => sum + s.targetDuration,
         0
       ),
-      plannedSessions: JSON.parse(JSON.stringify(result.plan.plannedSessions)),
+      plannedSessions: structuredClone(result.plan.plannedSessions) as any,
       adjustments: updatedAdjustments,
       trajectoryAssessment: existingPlan.trajectoryAssessment,
       overridesExisting: true,
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
         (sum, s) => sum + s.targetDuration,
         0
       ),
-      plannedSessions: JSON.parse(JSON.stringify(result.plan.plannedSessions)),
+      plannedSessions: structuredClone(result.plan.plannedSessions) as any,
       adjustments: updatedAdjustments,
       overridesExisting: true,
       generatedAt: new Date(),

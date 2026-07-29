@@ -184,7 +184,11 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           // TSS estimate
           const hours = duration / 3600;
           let tss: number | null = null;
-          if (normalizedPower && avgPower && avgPower > 0) {
+
+          // Running power data is notoriously unreliable (estimated power, variable terrain).
+          // Skip the power formula for running/trail — use HR-based estimate instead.
+          const isRunningSport = sportType === "run";
+          if (!isRunningSport && normalizedPower && avgPower && avgPower > 0) {
             const intensity = normalizedPower / avgPower;
             tss = Math.round((duration * normalizedPower * intensity) / (avgPower * 36));
           } else if (avgHr && maxHr && maxHr > 0) {
@@ -192,6 +196,12 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
             tss = Math.round((duration * intensity * intensity) / 36);
           } else {
             tss = Math.round(hours * 50);
+          }
+
+          // Cap per-activity TSS to prevent absurd values from ultra-long efforts
+          // that would inflate CTL/ATL and break coach analysis
+          if (tss !== null) {
+            tss = Math.min(tss, 500);
           }
 
           const sportName = (session.sport || "Activity")

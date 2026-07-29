@@ -10,6 +10,11 @@ const ALL_TYPES = [
   "weeklyAssessments",
   "weeklyPlans",
   "fatigueAlerts",
+  "dailyHealth",
+  "analysisReports",
+  "apiKeys",
+  "duplicateGroups",
+  "coachData",
 ] as const;
 
 export async function DELETE(request: NextRequest) {
@@ -40,11 +45,16 @@ export async function DELETE(request: NextRequest) {
   const operations: Prisma.PrismaPromise<any>[] = [];
 
   if (types.includes("trainingLogs")) operations.push(prisma.trainingLog.deleteMany({ where: { userId } }));
+  if (types.includes("duplicateGroups")) operations.push(prisma.duplicateGroup.deleteMany({ where: { userId } }));
   if (types.includes("raceGoals")) operations.push(prisma.raceGoal.deleteMany({ where: { userId } }));
   if (types.includes("bodyMetrics")) operations.push(prisma.bodyMetric.deleteMany({ where: { userId } }));
+  if (types.includes("dailyHealth")) operations.push(prisma.dailyHealth.deleteMany({ where: { userId } }));
   if (types.includes("weeklyAssessments")) operations.push(prisma.weeklyAssessment.deleteMany({ where: { userId } }));
   if (types.includes("weeklyPlans")) operations.push(prisma.weeklyPlan.deleteMany({ where: { userId } }));
   if (types.includes("fatigueAlerts")) operations.push(prisma.fatigueAlert.deleteMany({ where: { userId } }));
+  if (types.includes("analysisReports")) operations.push(prisma.analysisReport.deleteMany({ where: { userId } }));
+  if (types.includes("apiKeys")) operations.push(prisma.apiKey.deleteMany({ where: { userId } }));
+  if (types.includes("coachData")) operations.push(prisma.coachConversation.deleteMany({ where: { userId } }));
 
   const results = await prisma.$transaction(operations);
 

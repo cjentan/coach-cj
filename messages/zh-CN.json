@@ -473,12 +473,31 @@
     "applied": "建议已应用 ✓",
     "floatingButton": "AI 教练",
     "closePanel": "关闭聊天",
-
     "readyToBuild": "准备好创建你的训练计划了吗？",
     "interviewIntro": "我会问你几个问题来了解你的目标、时间安排和偏好，然后为你设计个性化计划。",
     "createPlanButton": "创建训练计划",
     "startingInterview": "开始访谈中...",
     "followUpHint": "然后你可以提出后续问题或请求调整计划。",
+    "pageGreeting": {
+      "dashboard": "这是你的训练仪表板。我可以分析你的近期数据、查看准备状态，或回答关于训练的问题。",
+      "trainingPlan": "查看训练计划中。需要调整即将到来的训练、调换日期，或讨论周期化安排？",
+      "activityDetail": "查看此活动。我可以分析训练效果、与近期训练对比，或讨论如何符合你的目标。",
+      "activityList": "浏览活动记录中。想讨论趋势、近期训练量，或特定训练模式？",
+      "goalDetail": "查看目标中。我可以评估准备程度、讨论配速策略，或调整你的计划。",
+      "goalList": "查看比赛目标中。我可以帮你完善目标，或讨论如何调整训练。",
+      "bodyMetrics": "查看身体指标中。我可以讨论趋势、恢复状况，或这些指标与训练负荷的关系。",
+      "availability": "管理时间安排中。我可以根据你的可用时间来规划训练。",
+      "default": "你好！我是你的AI教练。我可以帮你制定训练计划、分析活动，或回答关于健身的问题。"
+    },
+    "quickActions": {
+      "analyzeWorkout": "分析此训练",
+      "checkStatus": "查看训练状态",
+      "analyzeTrends": "分析近期趋势",
+      "reviewPlan": "查看计划",
+      "adjustWeek": "调整本周",
+      "assessReadiness": "评估准备程度",
+      "askQuestion": "提问"
+    },
     "apply": "应用",
     "dismiss": "忽略",
     "activity": "活动",
@@ -487,7 +506,6 @@
     "weeksCount": "{count}周",
     "sessionsCount": "{count}次训练",
     "processing": "处理中...",
-
     "proposalTitle": "计划提案",
     "proposalVolume": "训练量",
     "proposalCurrent": "当前",
@@ -500,7 +518,6 @@
     "proposalWeeksToTrain": "距离比赛还有{count}周",
     "proposalWeeksCount": "{count}周",
     "proposalPhasesCount": "{count}个阶段",
-
     "toolCreatePhase": "正在创建训练阶段",
     "toolUpdatePlan": "正在更新每周计划",
     "toolManageGoals": "正在管理比赛目标",
@@ -557,13 +574,6 @@
     "resetPlan": "重置计划",
     "resetPlanConfirm": "确定重置?",
     "resetPlanDetail": "所有未来的训练周将被删除，此对话将被存档。"
-  },
-  "map": {
-    "heatmap": "热力图",
-    "activityType": "活动类型",
-    "from": "从",
-    "to": "至",
-    "build": "生成热力图"
   },
   "settings": {
     "general": {
@@ -784,7 +794,7 @@
         "ready": "备份已就绪",
         "created": "创建于 {timestamp}",
         "download": "下载",
-        "includedData": "备份包括：活动、GPS 轨迹数据（每个活动一个文件）、比赛目标、设施、身体指标、训练日程、每周评估、每周计划、疲劳警报、每日健康数据、分析报告、API 密钥、AI 提供商凭据和 Garmin Connect 集成令牌。",
+        "includedData": "备份包括：活动、GPS 轨迹数据、比赛目标、重复分组、身体指标、每日健康数据、每周评估、每周计划、疲劳警报、分析报告、教练对话、API 密钥、AI 提供商凭据、Garmin Connect 和 COROS 会话令牌。",
         "requestBackup": "请求备份",
         "requestFailed": "备份请求失败",
         "startFailed": "启动备份失败",

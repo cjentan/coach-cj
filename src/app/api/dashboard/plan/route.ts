@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { generateWeeklyPlan } from "@/lib/plan-generator";
 import type { PlannedSession } from "@/lib/plan-generator";
 import { getWeekStart } from "@/lib/utils";
+import { SHORT_DAY_NAMES } from "@/lib/constants";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -22,8 +23,6 @@ export async function GET(request: Request) {
   // Sunday of the target week
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
-
-  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
   // Build week dates
   const weekDates: Date[] = [];
@@ -175,7 +174,7 @@ export async function GET(request: Request) {
 
     days.push({
       date: dateStr,
-      dayLabel: DAY_NAMES[dow],
+      dayLabel: SHORT_DAY_NAMES[dow],
       dayOfWeek: dow,
       planned,
       actual,

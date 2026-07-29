@@ -35,8 +35,6 @@ export interface PlanOutput {
   trajectoryAssessment: string;
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
 export function generateWeeklyPlan(input: PlanInput): PlanOutput {
   const primaryGoal = input.goals.sort((a, b) => {
     if (a.priority !== b.priority) return a.priority === "A" ? -1 : 1;

@@ -11,69 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ACTIVITY_TYPES, SUB_TYPE_OPTIONS } from "@/lib/constants";
 import {
-  Activity, Bike, Waves, Mountain, Footprints, Dumbbell,
   Upload, FileType, Pencil, CheckCircle2, XCircle, AlertCircle, Loader2,
 } from "lucide-react";
-
-// ── Shared constants ───────────────────────────────────────────────────
-
-const ACTIVITY_TYPES = [
-  { value: "run", label: "Run", icon: Activity },
-  { value: "ride", label: "Ride", icon: Bike },
-  { value: "swim", label: "Swim", icon: Waves },
-  { value: "hike", label: "Hike", icon: Mountain },
-  { value: "walk", label: "Walk", icon: Footprints },
-  { value: "workout", label: "Workout", icon: Dumbbell },
-  { value: "other", label: "Other", icon: Activity },
-];
-
-const SUB_TYPE_OPTIONS: Record<string, { value: string; label: string }[]> = {
-  run: [
-    { value: "trail_running", label: "Trail Running" },
-    { value: "treadmill", label: "Treadmill" },
-    { value: "virtual_run", label: "Virtual Run" },
-  ],
-  ride: [
-    { value: "mountain_biking", label: "Mountain Biking" },
-    { value: "gravel_cycling", label: "Gravel Cycling" },
-    { value: "road_cycling", label: "Road Cycling" },
-    { value: "indoor_cycling", label: "Indoor Cycling" },
-    { value: "virtual_ride", label: "Virtual Ride" },
-    { value: "handcycle", label: "Handcycle" },
-  ],
-  swim: [
-    { value: "open_water", label: "Open Water" },
-    { value: "lap_swimming", label: "Lap Swimming" },
-  ],
-  workout: [
-    { value: "strength_training", label: "Strength Training" },
-    { value: "crossfit", label: "CrossFit" },
-    { value: "yoga", label: "Yoga" },
-    { value: "elliptical", label: "Elliptical" },
-    { value: "stair_stepper", label: "Stair Stepper" },
-    { value: "pilates", label: "Pilates" },
-  ],
-  other: [
-    { value: "rock_climbing", label: "Rock Climbing" },
-    { value: "surfing", label: "Surfing" },
-    { value: "stand_up_paddling", label: "Stand Up Paddling" },
-    { value: "kayaking", label: "Kayaking" },
-    { value: "canoeing", label: "Canoeing" },
-    { value: "rowing", label: "Rowing" },
-    { value: "ice_skating", label: "Ice Skating" },
-    { value: "inline_skating", label: "Inline Skating" },
-    { value: "nordic_skiing", label: "Nordic Skiing" },
-    { value: "alpine_skiing", label: "Alpine Skiing" },
-    { value: "backcountry_skiing", label: "Backcountry Skiing" },
-    { value: "snowboarding", label: "Snowboarding" },
-    { value: "snowshoeing", label: "Snowshoeing" },
-    { value: "soccer", label: "Soccer" },
-    { value: "tennis", label: "Tennis" },
-    { value: "golf", label: "Golf" },
-    { value: "wheelchair", label: "Wheelchair" },
-  ],
-};
 
 interface FileResult {
   filename: string;

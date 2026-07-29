@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
   const analysisReports = readJson(tmpDir, "analysis_reports.json");
   const apiKeys = readJson(tmpDir, "api_keys.json");
   const garminSession = readJsonSingle(tmpDir, "garmin_session.json");
+  const corosSession = readJsonSingle(tmpDir, "coros_session.json");
+  const coachConversations = readJson(tmpDir, "coach_conversations.json");
 
   if (!settings) {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -134,6 +136,8 @@ export async function POST(request: NextRequest) {
             llmBaseUrl: s.llmBaseUrl ?? null,
             llmModel: s.llmModel ?? null,
             llmApiKey: s.llmApiKey ?? null,
+            onboardingCompleted: s.onboardingCompleted ?? false,
+            dashboardPrefs: s.dashboardPrefs ?? undefined,
           },
         });
       }
@@ -150,6 +154,8 @@ export async function POST(request: NextRequest) {
       await tx.analysisReport.deleteMany({ where: { userId } });
       await tx.apiKey.deleteMany({ where: { userId } });
       await tx.garminSession.deleteMany({ where: { userId } });
+      await tx.corosSession.deleteMany({ where: { userId } });
+      await tx.coachConversation.deleteMany({ where: { userId } });
 
       // ── 6. Build ID maps for entities with foreign keys ──────────
       const duplicateGroupIdMap = buildIdMap(duplicateGroups.map((g: any) => g.id));
@@ -184,6 +190,9 @@ export async function POST(request: NextRequest) {
             name: l.name,
             description: l.description ?? null,
             remarks: l.remarks ?? null,
+            coachAnalysis: l.coachAnalysis ?? null,
+            analysisStatus: l.analysisStatus ?? null,
+            isRace: l.isRace ?? false,
             startDate: new Date(l.startDate),
             durationSeconds: l.durationSeconds,
             distanceMeters: l.distanceMeters ?? null,
@@ -196,6 +205,11 @@ export async function POST(request: NextRequest) {
             tss: l.tss ?? null,
             workoutType: l.workoutType ?? null,
             rawJson: rawJsonMap.get(l.id) ?? undefined,
+            simplifiedTrackPoints: l.simplifiedTrackPoints ?? undefined,
+            trackMinLat: l.trackMinLat ?? null,
+            trackMaxLat: l.trackMaxLat ?? null,
+            trackMinLng: l.trackMinLng ?? null,
+            trackMaxLng: l.trackMaxLng ?? null,
             duplicateGroupId: l.duplicateGroupId ? (duplicateGroupIdMap.get(l.duplicateGroupId) ?? null) : null,
             duplicateStatus: l.duplicateStatus ?? null,
             mergedIntoId: l.mergedIntoId ? (trainingLogIdMap.get(l.mergedIntoId) ?? null) : null,
@@ -215,6 +229,7 @@ export async function POST(request: NextRequest) {
             targetTimeSeconds: g.targetTimeSeconds ?? null,
             priority: g.priority, status: g.status,
             notes: g.notes ?? null, goalStatement: g.goalStatement ?? null,
+            courseProfile: g.courseProfile ?? undefined,
             createdAt: new Date(g.createdAt), updatedAt: new Date(g.updatedAt),
           })),
         });
@@ -377,6 +392,90 @@ export async function POST(request: NextRequest) {
           },
         });
         counts.garminSession = 1;
+      }
+
+      // ── 21. Import CorosSession ──────────────────────────────────
+      if (corosSession) {
+        await tx.corosSession.create({
+          data: {
+            id: uuid(), userId,
+            accessToken: corosSession.accessToken,
+            corosUserId: corosSession.corosUserId ?? null,
+            displayName: corosSession.displayName ?? null,
+            lastSyncAt: corosSession.lastSyncAt ? new Date(corosSession.lastSyncAt) : null,
+            connectedAt: new Date(corosSession.connectedAt),
+            createdAt: new Date(corosSession.createdAt),
+            updatedAt: new Date(corosSession.updatedAt),
+          },
+        });
+        counts.corosSession = 1;
+      }
+
+      // ── 22. Import CoachConversations (with Messages & Suggestions) ─
+      if (coachConversations.length > 0) {
+        const conversationIdMap = buildIdMap(coachConversations.map((c: any) => c.id));
+
+        // Build messages and suggestions arrays with mapped conversation IDs
+        const allMessages: any[] = [];
+        const allSuggestions: any[] = [];
+
+        for (const c of coachConversations) {
+          const newConvId = conversationIdMap.get(c.id)!;
+
+          if (c.messages?.length) {
+            for (const m of c.messages) {
+              allMessages.push({
+                id: uuid(),
+                conversationId: newConvId,
+                role: m.role,
+                content: m.content,
+                suggestionId: m.suggestionId ?? null,
+                tokenCount: m.tokenCount ?? null,
+                createdAt: new Date(m.createdAt),
+              });
+            }
+          }
+
+          if (c.suggestions?.length) {
+            for (const s of c.suggestions) {
+              allSuggestions.push({
+                id: uuid(),
+                conversationId: newConvId,
+                userId,
+                suggestionType: s.suggestionType,
+                title: s.title,
+                description: s.description,
+                changes: s.changes,
+                status: s.status,
+                createdAt: new Date(s.createdAt),
+                appliedAt: s.appliedAt ? new Date(s.appliedAt) : null,
+              });
+            }
+          }
+        }
+
+        await tx.coachConversation.createMany({
+          data: coachConversations.map((c: any) => ({
+            id: conversationIdMap.get(c.id)!,
+            userId,
+            title: c.title ?? null,
+            status: c.status ?? "active",
+            contextSnapshot: c.contextSnapshot ?? undefined,
+            createdAt: new Date(c.createdAt),
+            updatedAt: new Date(c.updatedAt),
+          })),
+        });
+        counts.coachConversations = coachConversations.length;
+
+        if (allMessages.length > 0) {
+          await tx.coachMessage.createMany({ data: allMessages });
+          counts.coachMessages = allMessages.length;
+        }
+
+        if (allSuggestions.length > 0) {
+          await tx.coachSuggestion.createMany({ data: allSuggestions });
+          counts.coachSuggestions = allSuggestions.length;
+        }
       }
     });
 

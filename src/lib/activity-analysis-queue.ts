@@ -31,6 +31,13 @@ export async function scheduleBatchAnalysis(
     console.log(
       `[analysis-queue] Large batch (${totalBatchSize}), skipping auto-analysis for ${activityIds.length} activities`
     );
+    // Reset status to null so the frontend shows "No coach analysis yet"
+    // rather than a misleading stuck "pending" state
+    const { prisma } = await import("./prisma");
+    await prisma.trainingLog.updateMany({
+      where: { id: { in: activityIds } },
+      data: { analysisStatus: null },
+    });
     return;
   }
 

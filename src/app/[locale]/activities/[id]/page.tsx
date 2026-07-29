@@ -10,7 +10,7 @@ import { format } from "date-fns";
 import {
   Activity, Clock, Mountain, Route, Heart, Zap, ArrowLeft, ArrowRight,
   ChevronLeft, ChevronRight, MessageSquare, Trash2, TrendingUp, BarChart3, Flame,
-  Copy, AlertTriangle, Target, Check, Brain, Loader2, AlertCircle,
+  Copy, AlertTriangle, Target, Check, Brain, Loader2, AlertCircle, Download,
 } from "lucide-react";
 import { TrackPoint } from "@/lib/gpx-parser";
 import {
@@ -23,6 +23,7 @@ import {
   CombinedMetricsChart,
 } from "@/components/training/training-charts";
 import { SplitsTable, LapTable, RouteMap } from "@/components/training/training-tables";
+import { SOURCE_LABELS, SOURCE_COLORS } from "@/lib/constants";
 
 interface RouteMatch {
   id: string; name: string; startDate: string;
@@ -62,24 +63,13 @@ function deltaStr(current: number, previous: number | null | undefined, unit: st
   return `${sign}${pct}% ${arrow}`;
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  strava: "Strava",
-  garmin: "Garmin",
-  watch_push: "Watch Push",
-  manual: "Manual",
-};
-
-const SOURCE_COLORS: Record<string, "default" | "secondary" | "outline" | "success" | "warning"> = {
-  strava: "default",
-  garmin: "success",
-  watch_push: "warning",
-  manual: "secondary",
-};
+type BadgeVariant = "default" | "secondary" | "destructive" | "success" | "warning" | "outline";
 
 function SourceBadge({ source }: { source: string }) {
+  const variant = (SOURCE_COLORS as Record<string, BadgeVariant>)[source] || "outline";
   return (
-    <Badge variant={SOURCE_COLORS[source] || "outline"}>
-      {SOURCE_LABELS[source] || source}
+    <Badge variant={variant}>
+      {(SOURCE_LABELS as Record<string, string>)[source] || source}
     </Badge>
   );
 }
@@ -96,7 +86,7 @@ function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ classNa
   );
 }
 
-function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, analysisStatus, onAnalyze, isRace, isRaceDirty, onIsRaceChange }: {
+function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup, onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, analysisStatus, onAnalyze, onClearAnalysis, isRace, isRaceDirty, onIsRaceChange }: {
   log: TrainingLog;
   remarksText: string;
   remarksDirty: boolean;
@@ -111,6 +101,7 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
   analyzeError: string | null;
   analysisStatus: string | null;
   onAnalyze: () => void;
+  onClearAnalysis?: () => void;
   isRace: boolean;
   isRaceDirty: boolean;
   onIsRaceChange: (value: boolean) => void;
@@ -173,6 +164,18 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
           >
             {promoteResult?.success ? <Check className="h-4 w-4 text-green-500" /> : <Target className="h-4 w-4" />}
           </button>
+          <a
+            href={`/api/activities/${log.id}/gpx`}
+            download
+            className={`p-1 rounded-md transition-colors ${
+              hasTrackpoints
+                ? "hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                : "text-muted-foreground/30 pointer-events-none"
+            }`}
+            title={hasTrackpoints ? "Download GPX" : "No track data to export"}
+          >
+            <Download className="h-4 w-4" />
+          </a>
           <button
             onClick={(e) => { e.preventDefault(); onDelete(); }}
             disabled={deleting}
@@ -418,6 +421,15 @@ function LogCard({ log, remarksText, remarksDirty, saved, deleting, similarRoute
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Brain className="h-4 w-4 text-primary" /> Coach Analysis
+              {coachAnalysisText && onClearAnalysis && (
+                <button
+                  onClick={(e) => { e.preventDefault(); onClearAnalysis(); }}
+                  className="ml-auto p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Clear analysis"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -505,13 +517,27 @@ export default function ActivityDetailPage() {
   const touchRef = useRef<{ startX: number; startY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Navigate back to activities list preserving any position params
+  function backToActivities() {
+    const params = new URLSearchParams(window.location.search);
+    const fwd = new URLSearchParams();
+    const vm = params.get("vm");
+    const off = params.get("off");
+    const bar = params.get("bar");
+    if (vm) fwd.set("vm", vm);
+    if (off) fwd.set("off", off);
+    if (bar) fwd.set("bar", bar);
+    const qs = fwd.toString();
+    router.push(`/activities${qs ? `?${qs}` : ""}`);
+  }
+
   async function handleDelete() {
     if (!log) return;
     if (!confirm(`Delete "${log.name}"?\n\nThis cannot be undone.`)) return;
     setDeleting(true);
     try {
       await fetch(`/api/activities/${id}`, { method: "DELETE" });
-      router.push("/activities");
+      backToActivities();
     } catch {
       alert("Failed to delete. Please try again.");
       setDeleting(false);
@@ -561,6 +587,40 @@ export default function ActivityDetailPage() {
       })
       .catch(() => setDuplicateGroup(null));
   }, [log?.duplicateGroupId]);
+
+  // Poll analysis status while pending or processing
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
+  useEffect(() => {
+    const shouldPoll = !analyzing && (analysisStatus === "pending" || analysisStatus === "processing");
+
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = undefined;
+    }
+
+    if (shouldPoll) {
+      pollRef.current = setInterval(() => {
+        fetch(`/api/activities/${id}?neighbors=full`)
+          .then((r) => r.json())
+          .then((data) => {
+            const l = data.log || data;
+            if (l.analysisStatus !== analysisStatus || l.coachAnalysis !== coachAnalysisText) {
+              setAnalysisStatus(l.analysisStatus || null);
+              setCoachAnalysisText(l.coachAnalysis || "");
+              setAnalyzeError(null);
+            }
+          })
+          .catch(() => {});
+      }, 5000);
+    }
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = undefined;
+      }
+    };
+  }, [id, analyzing, analysisStatus, coachAnalysisText]);
 
   // Auto-save remarks with debounce
   const saveRemarks = useCallback(async (text: string) => {
@@ -617,6 +677,23 @@ export default function ActivityDetailPage() {
       setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
     }
     setAnalyzing(false);
+  }, [id]);
+
+  // Clear coach analysis
+  const handleClearAnalysis = useCallback(async () => {
+    if (!confirm("Clear the coach analysis for this activity?")) return;
+    try {
+      await fetch(`/api/activities/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearAnalysis: true }),
+      });
+      setCoachAnalysisText("");
+      setAnalysisStatus(null);
+      setAnalyzeError(null);
+    } catch {
+      alert("Failed to clear analysis.");
+    }
   }, [id]);
 
   // Carousel navigation — use preloaded data when available, fetch if not
@@ -716,7 +793,7 @@ export default function ActivityDetailPage() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       {/* Navigation bar */}
       <div className="flex items-center justify-between mb-4">
-        <Button variant="ghost" onClick={() => router.push("/activities")}>
+        <Button variant="ghost" onClick={backToActivities}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
         <div className="flex items-center gap-1">
@@ -758,6 +835,7 @@ export default function ActivityDetailPage() {
             analyzeError={analyzeError}
             analysisStatus={analysisStatus}
             onAnalyze={handleAnalyze}
+            onClearAnalysis={handleClearAnalysis}
             isRace={isRace}
             isRaceDirty={isRaceDirty}
             onIsRaceChange={handleIsRaceChange}

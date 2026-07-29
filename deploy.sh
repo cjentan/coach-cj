@@ -79,10 +79,9 @@ else
   docker tag coach-cj-app:latest coach-app:latest 2>/dev/null || true
   docker tag coach-cj-worker:latest coach-worker:latest 2>/dev/null || true
 
-  info "Transferring image to $REMOTE_HOST (this may take a minute)..."
-  docker save coach-app:latest | gzip -1 | $SSH_CMD "$REMOTE_USER@$REMOTE_HOST" \
+  info "Transferring images to $REMOTE_HOST (this may take a minute)..."
+  docker save coach-app:latest coach-worker:latest | gzip -1 | $SSH_CMD "$REMOTE_USER@$REMOTE_HOST" \
     "docker load && \
-     docker tag coach-app:latest coach-worker:latest && \
      cd $REMOTE_DIR && \
      docker compose up -d"
 

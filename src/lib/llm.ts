@@ -101,6 +101,92 @@ export const PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 /**
+ * Shared: send a chat completion request with full body control.
+ * Builds the request body, manages the abort-signal race (internal 110s timeout
+ * vs caller's signal), executes the fetch, handles response errors, and returns
+ * the parsed message (content + toolCalls) or null on failure.
+ */
+async function sendChatCompletion(
+  model: string,
+  messages: LlmMessage[],
+  opts: {
+    temperature: number;
+    maxTokens: number;
+    apiKey: string;
+    baseUrl: string;
+    jsonMode?: boolean;
+    tools?: ToolDefinition[];
+    toolChoice?: LlmOptions["toolChoice"];
+    signal?: AbortSignal;
+  }
+): Promise<{ content: string | null; toolCalls: ToolCall[] } | null> {
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: opts.temperature,
+    max_tokens: opts.maxTokens,
+  };
+
+  if (opts.jsonMode) {
+    body.response_format = { type: "json_object" };
+  }
+
+  if (opts.tools && opts.tools.length > 0) {
+    body.tools = opts.tools;
+    if (opts.toolChoice) body.tool_choice = opts.toolChoice;
+  }
+
+  try {
+    // Internal timeout (110s) raced with the caller's signal (client disconnect / platform timeout).
+    // This lets the app respond gracefully before the platform kills the function.
+    const internalTimeout = AbortSignal.timeout(110000);
+    const abortSignal = opts.signal
+      ? AbortSignal.any([internalTimeout, opts.signal])
+      : internalTimeout;
+
+    const res = await fetch(`${opts.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${opts.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: abortSignal,
+    });
+
+    if (!res.ok) {
+      console.error(`LLM error ${res.status}: ${(await res.text().catch(() => "")).slice(0, 500)}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const message = data.choices?.[0]?.message;
+    if (!message) {
+      console.error(`LLM response missing message — status=${res.status}, choices=${data.choices?.length || 0}, finish_reason=${data.choices?.[0]?.finish_reason || "none"}`);
+      if (data.choices?.[0]?.message) {
+        console.error(`LLM response message keys: ${Object.keys(data.choices[0].message).join(", ")}`);
+      }
+      return null;
+    }
+
+    return {
+      content: message.content?.trim() || null,
+      toolCalls: message.tool_calls || [],
+    };
+  } catch (err) {
+    const msg = (err as Error).message || "unknown";
+    if ((err as Error).name === "TimeoutError" || msg.includes("timed out")) {
+      console.error(`LLM request timed out after 110s`);
+    } else if ((err as Error).name === "AbortError") {
+      console.error(`LLM request aborted (client disconnect or platform timeout)`);
+    } else {
+      console.error("LLM request failed:", msg);
+    }
+    return null;
+  }
+}
+
+/**
  * Send a chat completion request. Returns the model's text response.
  * Falls back to null if the LLM is unavailable.
  *
@@ -125,61 +211,16 @@ export async function chat(
     return null;
   }
 
-  const body: Record<string, unknown> = {
-    model,
-    messages,
+  const result = await sendChatCompletion(model, messages, {
     temperature,
-    max_tokens: maxTokens,
-  };
+    maxTokens,
+    apiKey,
+    baseUrl,
+    jsonMode,
+    signal,
+  });
 
-  if (jsonMode) {
-    body.response_format = { type: "json_object" };
-  }
-
-  try {
-    // Internal timeout (110s) raced with the caller's signal (client disconnect / platform timeout).
-    // This lets the app respond gracefully before the platform kills the function.
-    const internalTimeout = AbortSignal.timeout(110000);
-    const abortSignal = signal
-      ? AbortSignal.any([internalTimeout, signal])
-      : internalTimeout;
-
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: abortSignal,
-    });
-
-    if (!res.ok) {
-      console.error(`LLM error ${res.status}: ${await res.text().catch(() => "")}`);
-      return null;
-    }
-
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content?.trim();
-    if (!content) {
-      console.error(`LLM response missing content — status=${res.status}, choices=${data.choices?.length || 0}, finish_reason=${data.choices?.[0]?.finish_reason || "none"}`);
-      if (data.choices?.[0]?.message) {
-        console.error(`LLM response message keys: ${Object.keys(data.choices[0].message).join(", ")}`);
-      }
-      return null;
-    }
-    return content;
-  } catch (err) {
-    const msg = (err as Error).message || "unknown";
-    if ((err as Error).name === "TimeoutError" || msg.includes("timed out")) {
-      console.error(`LLM request timed out after 110s`);
-    } else if ((err as Error).name === "AbortError") {
-      console.error(`LLM request aborted (client disconnect or platform timeout)`);
-    } else {
-      console.error("LLM request failed:", msg);
-    }
-    return null;
-  }
+  return result?.content ?? null;
 }
 
 /**
@@ -264,61 +305,19 @@ export async function chatWithTools(
     return null;
   }
 
-  const body: Record<string, unknown> = {
-    model,
-    messages,
+  const result = await sendChatCompletion(model, messages, {
     temperature,
-    max_tokens: maxTokens,
-  };
+    maxTokens,
+    apiKey,
+    baseUrl,
+    tools,
+    toolChoice,
+    signal,
+  });
 
-  if (tools && tools.length > 0) {
-    body.tools = tools;
-    if (toolChoice) body.tool_choice = toolChoice;
+  if (result) {
+    console.error(`[AI-COACH] LLM response: tool_calls=${result.toolCalls.length}, content_length=${(result.content || "").length}`);
   }
 
-  try {
-    const internalTimeout = AbortSignal.timeout(110000);
-    const abortSignal = signal
-      ? AbortSignal.any([internalTimeout, signal])
-      : internalTimeout;
-
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: abortSignal,
-    });
-
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      console.error(`[AI-COACH] LLM API error ${res.status}: ${errorText.slice(0, 500)}`);
-      return null;
-    }
-
-    const data = await res.json();
-    const message = data.choices?.[0]?.message;
-    if (!message) {
-      console.error(`[AI-COACH] LLM response missing message: ${JSON.stringify(data).slice(0, 300)}`);
-      return null;
-    }
-
-    console.error(`[AI-COACH] LLM response: tool_calls=${message.tool_calls?.length || 0}, content_length=${(message.content || "").length}`);
-    return {
-      content: message.content?.trim() || null,
-      toolCalls: message.tool_calls || [],
-    };
-  } catch (err) {
-    const msg = (err as Error).message || "unknown";
-    if ((err as Error).name === "TimeoutError" || msg.includes("timed out")) {
-      console.error(`[AI-COACH] LLM request timed out after 110s`);
-    } else if ((err as Error).name === "AbortError") {
-      console.error(`[AI-COACH] LLM request aborted (client disconnect or platform timeout)`);
-    } else {
-      console.error("[AI-COACH] LLM request failed:", msg);
-    }
-    return null;
-  }
+  return result;
 }

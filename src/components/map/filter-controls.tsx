@@ -47,7 +47,7 @@ export default function FilterControls({
   onBuildHeatmap,
   loading,
 }: FilterControlsProps) {
-  const t = useTranslations("map");
+  const t = useTranslations("heatmap");
   const update = (patch: Partial<FilterValues>) =>
     onChange({ ...filters, ...patch });
 
@@ -56,7 +56,7 @@ export default function FilterControls({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">{t("heatmap")}</h2>
+          <h2 className="text-sm font-semibold">{t("title")}</h2>
           <span className="text-[10px] text-muted-foreground">
             {activityCount} activity
             {activityCount === 1 ? "" : "ies"}

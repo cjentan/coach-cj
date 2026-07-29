@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart } from "@/lib/utils";
 import { clearContext } from "@/lib/ai-coach";
+import { PHASE_COLORS, SHORT_DAY_NAMES } from "@/lib/constants";
 import type {
   TrainingPlanResponse,
   TrainingPlanPhase,
@@ -15,14 +16,6 @@ import type {
 // ── Phase detection ─────────────────────────────────────
 
 const PHASE_NAMES = ["Base", "Build", "Peak", "Taper", "Race"] as const;
-
-const PHASE_COLORS: Record<string, string> = {
-  Base: "#3b82f6",   // blue
-  Build: "#f59e0b",  // amber
-  Peak: "#ef4444",   // red
-  Taper: "#22c55e",  // green
-  Race: "#a855f7",   // purple
-};
 
 /**
  * Map an AI-generated phase name to one of the canonical phase names.
@@ -144,8 +137,6 @@ function groupPhases(
 }
 
 // ── Route ───────────────────────────────────────────────
-
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 export async function GET() {
   const session = await auth();
@@ -320,7 +311,7 @@ export async function GET() {
         };
       }
 
-      days.push({ date: dateStr, dayLabel: DAY_NAMES[dow], dayOfWeek: dow, planned, actual, isPast, isToday });
+      days.push({ date: dateStr, dayLabel: SHORT_DAY_NAMES[dow], dayOfWeek: dow, planned, actual, isPast, isToday });
     }
 
     // Detect phase — uses authoritative phase name from

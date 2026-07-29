@@ -7,55 +7,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Send, Brain, Sparkles, Wand2, Check, X, AlertCircle, Trash2, Target } from "lucide-react";
 import { type PageContext } from "@/lib/page-context";
-import type { PlanProposal } from "@/lib/training-plan-types";
+import type { PlanProposal, PlanDay, PlanDayPlanned, PlanDayActual, PlanWeekData } from "@/lib/training-plan-types";
 import PlanProposalCard from "@/components/coach/plan-proposal-card";
 import TrainingPlanSummaryCard, { type PhaseSummary } from "@/components/coach/training-plan-summary-card";
 import { notifyPlanUpdated } from "@/lib/coach-chat-events";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import CoachInitialState from "@/components/coach/coach-initial-state";
 
 // ── Types ──────────────────────────────────────────────
-
-interface PlanDayActual {
-  type: string;
-  name: string;
-  distanceMeters: number | null;
-  elevationGainMeters: number | null;
-  durationSeconds: number;
-  activityId: string;
-  source: string;
-}
-
-interface PlanDayPlanned {
-  type: string;
-  description: string;
-  targetDistance: number | null;
-  targetElevation: number | null;
-  targetDuration: number | null;
-  changedAt?: string;
-  changeReason?: string;
-}
-
-interface PlanDay {
-  date: string;
-  dayLabel: string;
-  dayOfWeek: number;
-  planned: PlanDayPlanned | null;
-  actual: PlanDayActual | null;
-  isPast: boolean;
-  isToday: boolean;
-}
-
-interface PlanData {
-  weekStart: string;
-  weekEnd: string;
-  days: PlanDay[];
-  targetVolumeMeters?: number;
-  targetElevationMeters?: number;
-  adjustments?: string[];
-  coachNotes?: string;
-  totalPlanCount?: number;
-}
 
 interface CoachMessage {
   id: string;
@@ -96,7 +56,7 @@ interface SaveProgressInfo {
 }
 
 interface CoachChatProps {
-  plan?: PlanData | null;
+  plan?: PlanWeekData | null;
   onPlanApplied?: () => void;
   initialNotes?: string | null;
   initialNotesAt?: string | null;
@@ -234,7 +194,7 @@ export default function CoachChat({
   const [currentProposal, setCurrentProposal] = useState<PlanProposal | null>(null);
   const [editedProposal, setEditedProposal] = useState<PlanProposal | null>(null);
   const [completedPhases, setCompletedPhases] = useState<PhaseSummary[]>([]);
-  const [internalPlan, setInternalPlan] = useState<PlanData | null>(null);
+  const [internalPlan, setInternalPlan] = useState<PlanWeekData | null>(null);
   const [internalPlanLoading, setInternalPlanLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const feedIdRef = useRef(0);
@@ -390,7 +350,7 @@ export default function CoachChat({
 
       // Use streaming so the user sees progress updates during data gathering + LLM call
       let feedId = 0;
-      const data = await coachApiStream("start-interview", { locale },
+      const data = await coachApiStream("start-interview", { locale, pageContext },
         (eventData) => {
           const pd = eventData as Record<string, unknown>;
           if (pd.type === "status") {
@@ -744,6 +704,18 @@ export default function CoachChat({
     }
   };
 
+  /** Send a pre-filled quick-action message (bypasses the input textarea). */
+  const handleQuickActionMessage = useCallback((text: string) => {
+    pendingMessageRef.current = text;
+    sendMessage();
+  }, [sendMessage]);
+
+  /** Focus the input bar — used by the "Ask a question" quick action. */
+  const focusInput = useCallback(() => {
+    // Small delay so the component has a chance to settle (e.g. after open animation)
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
+
   // ── Render states ──────────────────────────────────
 
   if (!initialized) {
@@ -802,35 +774,18 @@ export default function CoachChat({
               </Button>
             </div>
           </div>
-          {/* Initial state — no messages yet */}
-          {showInitialState && (
-            <>
-              {initialNotes ? (
-                <div className="rounded-lg border bg-primary/5 p-4 mb-4">
-                  <p className="text-sm whitespace-pre-line leading-relaxed">{initialNotes}</p>
-                </div>
-              ) : !hasExistingPlan ? (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-base font-medium text-foreground mb-1">{t("readyToBuild")}</p>
-                  <p className="text-xs mb-4">{t("interviewIntro")}</p>
-                  <Button size="sm" variant="outline" onClick={startPlanInterview} disabled={interviewStarting} className="gap-2">
-                    {interviewStarting ? (
-                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("startingInterview")}</>
-                    ) : (
-                      <><Sparkles className="h-3.5 w-3.5" /> {t("createPlanButton")}</>
-                    )}
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-sm text-muted-foreground">
-                  <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p>{t("clickToAnalyze")}</p>
-                  <p className="text-xs mt-1">{t("followUpHint")}</p>
-                </div>
-              )}
-            </>
-          )}
+          {/* Initial state — page-aware greeting + quick actions */}
+          <CoachInitialState
+            pageContext={pageContext}
+            hasExistingPlan={hasExistingPlan}
+            hasMessages={hasMessages}
+            initialNotes={initialNotes}
+            onAnalyze={analyze}
+            onStartPlanInterview={startPlanInterview}
+            onSendMessage={handleQuickActionMessage}
+            interviewStarting={interviewStarting}
+            onAskQuestion={focusInput}
+          />
 
           {/* Message thread */}
           {hasMessages && (
@@ -972,32 +927,30 @@ export default function CoachChat({
         </div>
 
         {/* Input bar — pinned to bottom in floating mode */}
-        {(hasMessages || initialNotes) && (
-          <div className="px-4 pb-4 pt-2 border-t">
-            <div className="flex gap-2">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  e.target.style.height = "auto";
-                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder={t("placeholder")}
-                disabled={loading || analyzing || interviewStarting}
-                rows={1}
-                className="flex-1 min-h-[40px] max-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-              />
-              <Button size="icon" onClick={sendMessage} disabled={loading || analyzing || interviewStarting || !input.trim()}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </div>
-            {hasMessages && (
-              <p className="text-[0.625rem] text-muted-foreground text-center mt-1">{t("sendHint")}</p>
-            )}
+        <div className="px-4 pb-4 pt-2 border-t">
+          <div className="flex gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder={t("placeholder")}
+              disabled={loading || analyzing || interviewStarting}
+              rows={1}
+              className="flex-1 min-h-[40px] max-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+            />
+            <Button size="icon" onClick={sendMessage} disabled={loading || analyzing || interviewStarting || !input.trim()}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
           </div>
-        )}
+          {hasMessages && (
+            <p className="text-[0.625rem] text-muted-foreground text-center mt-1">{t("sendHint")}</p>
+          )}
+        </div>
       </div>
     );
   }
@@ -1038,35 +991,18 @@ export default function CoachChat({
           </div>
         </div>
 
-        {/* Initial state — no messages yet */}
-        {showInitialState && (
-          <>
-            {initialNotes ? (
-              <div className="rounded-lg border bg-primary/5 p-4 mb-4">
-                <p className="text-sm whitespace-pre-line leading-relaxed">{initialNotes}</p>
-              </div>
-            ) : !hasExistingPlan ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-base font-medium text-foreground mb-1">{t("readyToBuild")}</p>
-                <p className="text-xs mb-4">{t("interviewIntro")}</p>
-                <Button size="sm" variant="outline" onClick={startPlanInterview} disabled={interviewStarting} className="gap-2">
-                  {interviewStarting ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("startingInterview")}</>
-                  ) : (
-                    <><Sparkles className="h-3.5 w-3.5" /> {t("createPlanButton")}</>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p>{t("clickToAnalyze")}</p>
-                <p className="text-xs mt-1">{t("followUpHint")}</p>
-              </div>
-            )}
-          </>
-        )}
+        {/* Initial state — page-aware greeting + quick actions */}
+        <CoachInitialState
+          pageContext={pageContext}
+          hasExistingPlan={hasExistingPlan}
+          hasMessages={hasMessages}
+          initialNotes={initialNotes}
+          onAnalyze={analyze}
+          onStartPlanInterview={startPlanInterview}
+          onSendMessage={handleQuickActionMessage}
+          interviewStarting={interviewStarting}
+          onAskQuestion={focusInput}
+        />
 
         {/* Message thread */}
         {hasMessages && (
@@ -1195,27 +1131,25 @@ export default function CoachChat({
         )}
 
         {/* Input bar */}
-        {(hasMessages || initialNotes) && (
-          <div className="flex gap-2 mt-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder={t("placeholder")}
-              disabled={loading || analyzing || interviewStarting}
-              rows={1}
-              className="flex-1 min-h-[40px] max-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-            />
-            <Button size="icon" onClick={sendMessage} disabled={loading || analyzing || interviewStarting || !input.trim()}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2 mt-2">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={t("placeholder")}
+            disabled={loading || analyzing || interviewStarting}
+            rows={1}
+            className="flex-1 min-h-[40px] max-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+          />
+          <Button size="icon" onClick={sendMessage} disabled={loading || analyzing || interviewStarting || !input.trim()}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </div>
         {hasMessages && (
           <p className="text-[0.625rem] text-muted-foreground text-center mt-1">{t("sendHint")}</p>
         )}

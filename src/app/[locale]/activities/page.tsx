@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, Clock, Heart, Route, MessageSquare, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDistance, formatDuration } from "@/lib/utils";
 import ImportModal from "@/components/training/import-modal";
+import { SOURCE_LABELS, SOURCE_COLORS, ACTIVITY_TYPE_LABELS } from "@/lib/constants";
 
 type ActivityLog = {
   id: string; type: string; subType: string | null; name: string; startDate: string;
@@ -18,8 +19,9 @@ type ActivityLog = {
 };
 
 type MonthlyStat = {
-  key: string; label: string;
+  key: string; label: string; fullLabel?: string;
   activityCount: number; totalDistance: number; totalElevation: number;
+  totalDurationSeconds: number;
 };
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -46,31 +48,27 @@ const SUB_TYPE_LABELS: Record<string, string> = {
   soccer: "Soccer", tennis: "Tennis", golf: "Golf", wheelchair: "Wheelchair",
 };
 
-const SOURCE_LABELS: Record<string, string> = {
-  strava: "Strava", garmin: "Garmin", watch_push: "Watch", manual: "Manual",
-};
-
-const SOURCE_COLORS: Record<string, "default" | "secondary" | "outline" | "success" | "warning"> = {
-  strava: "default", garmin: "success", watch_push: "warning", manual: "secondary",
-};
+type BadgeVariant = "default" | "secondary" | "destructive" | "success" | "warning" | "outline";
 
 function SourceBadge({ source }: { source: string }) {
+  const variant = (SOURCE_COLORS as Record<string, BadgeVariant>)[source] || "outline";
   return (
-    <Badge variant={SOURCE_COLORS[source] || "outline"} className="text-[10px] shrink-0">
-      {SOURCE_LABELS[source] || source}
+    <Badge variant={variant} className="text-[10px] shrink-0">
+      {(SOURCE_LABELS as Record<string, string>)[source] || source}
     </Badge>
   );
 }
 
 const TYPE_OPTIONS = ["all", "run", "ride", "swim", "hike", "workout", "walk", "other"] as const;
 const TYPE_LABELS_SHORT: Record<string, string> = {
-  all: "All", run: "Run", ride: "Ride", swim: "Swim", hike: "Hike",
-  workout: "Workout", walk: "Walk", other: "Other",
+  all: "All",
+  ...ACTIVITY_TYPE_LABELS,
 };
 
 const SOURCE_OPTIONS = ["all", "strava", "garmin", "watch_push", "manual"] as const;
 const SOURCE_LABELS_SHORT: Record<string, string> = {
-  all: "All", strava: "Strava", garmin: "Garmin", watch_push: "Watch", manual: "Manual",
+  all: "All",
+  ...SOURCE_LABELS,
 };
 
 // ── Month helpers ──────────────────────────────────────────────────────
@@ -87,6 +85,13 @@ function getMonthRange(key: string): { from: string; to: string } {
     from: monthStart.toISOString().split("T")[0],
     to: monthEnd.toISOString().split("T")[0],
   };
+}
+
+function getWeekRange(key: string): { from: string; to: string } {
+  const monday = new Date(key + "T00:00:00");
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  return { from: key, to: sunday.toISOString().split("T")[0] };
 }
 
 function getWeekStart(date: Date): Date {
@@ -146,23 +151,57 @@ export default function ActivitiesPage() {
   // Import modal
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // Monthly stats & selection
-  const [monthlyStats, setMonthlyStats] = useState<MonthlyStat[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonthKey);
-  const [dateFrom, setDateFrom] = useState(defaultRange.from);
-  const [dateTo, setDateTo] = useState(defaultRange.to);
-  const [monthOffset, setMonthOffset] = useState(0);
-  const [canGoBack, setCanGoBack] = useState(true);
-  const [jumpMonths, setJumpMonths] = useState(6);
+  // View mode — persisted to localStorage
+  const [viewMode, setViewMode] = useState<"monthly" | "weekly" | "yearly">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const vm = params.get("vm") as "monthly" | "weekly" | "yearly" | null;
+      if (vm && ["monthly", "weekly", "yearly"].includes(vm)) return vm;
+      return (localStorage.getItem("activities-view-mode") as "monthly" | "weekly" | "yearly") || "monthly";
+    }
+    return "monthly";
+  });
 
-  // Detect mobile to adjust how many months we jump per arrow click
+  // Persist view mode preference
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    setJumpMonths(mq.matches ? 3 : 6);
-    const handler = (e: MediaQueryListEvent) => setJumpMonths(e.matches ? 3 : 6);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+    localStorage.setItem("activities-view-mode", viewMode);
+  }, [viewMode]);
+
+  // Monthly/weekly stats & selection
+  const [barStats, setBarStats] = useState<MonthlyStat[]>([]);
+  const [selectedBar, setSelectedBar] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const bar = params.get("bar");
+      if (bar) return bar;
+    }
+    return defaultMonthKey;
+  });
+  const [dateFrom, setDateFrom] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const bar = params.get("bar");
+      if (bar) return getMonthRange(bar).from;
+    }
+    return defaultRange.from;
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const bar = params.get("bar");
+      if (bar) return getMonthRange(bar).to;
+    }
+    return defaultRange.to;
+  });
+  const [monthOffset, setMonthOffset] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const off = params.get("off");
+      return off ? parseInt(off) || 0 : 0;
+    }
+    return 0;
+  });
+  const [canGoBack, setCanGoBack] = useState(true);
 
   // ── Filter options from API ──────────────────────────
   const [filterOptions, setFilterOptions] = useState<{
@@ -173,11 +212,12 @@ export default function ActivitiesPage() {
     setLoading(true);
     Promise.all([
       fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
-      fetch(`/api/activities/monthly-stats?offset=${monthOffset}`).then(r => r.json()),
+      fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
       fetch("/api/activities/filter-options").then(r => r.json()),
     ]).then(([logsData, stats, opts]) => {
       if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
-      if (stats.months) { setMonthlyStats(stats.months); setCanGoBack(stats.canGoBack ?? true); }
+      const bars = stats.months || stats.weeks;
+      if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
       if (opts.types) setFilterOptions(opts);
     }).catch(() => {}).finally(() => setLoading(false));
   }
@@ -187,56 +227,126 @@ export default function ActivitiesPage() {
   // Load on mount
   useEffect(() => { loadAll(); }, []);
 
-  // Reload when filters or month change
+  // Reload when filters, month, or view mode change
   useEffect(() => {
     setLoading(true);
     Promise.all([
       fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
-      fetch(`/api/activities/monthly-stats?offset=${monthOffset}`).then(r => r.json()),
+      fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
     ]).then(([logsData, stats]) => {
       if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
-      if (stats.months) { setMonthlyStats(stats.months); setCanGoBack(stats.canGoBack ?? true); }
+      const bars = stats.months || stats.weeks;
+      if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [avgTypeFilter, avgSourceFilter, dateFrom, dateTo, monthOffset]);
+  }, [avgTypeFilter, avgSourceFilter, dateFrom, dateTo, monthOffset, viewMode]);
+
+  // ── Sync position state to URL ─────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (viewMode !== "monthly") params.set("vm", viewMode);
+    if (monthOffset > 0) params.set("off", String(monthOffset));
+    if (selectedBar) params.set("bar", selectedBar);
+    const qs = params.toString();
+    const newUrl = `/activities${qs ? `?${qs}` : ""}`;
+    window.history.replaceState(null, "", newUrl);
+  }, [viewMode, monthOffset, selectedBar]);
 
   function handleImportComplete() {
     loadAll();
   }
 
+  function handleViewModeChange(mode: "monthly" | "weekly" | "yearly") {
+    if (mode === viewMode) return;
+    setViewMode(mode);
+    setMonthOffset(0);
+    setBarStats([]);
+    if (mode === "weekly") {
+      const latestKey = toLocalDateStr(getWeekStart(now));
+      const range = getWeekRange(latestKey);
+      setSelectedBar(latestKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    } else {
+      const range = getMonthRange(defaultMonthKey);
+      setSelectedBar(defaultMonthKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    }
+    setExpandedWeeks(new Set());
+  }
+
   function handleMonthClick(key: string) {
-    setSelectedMonth(key);
-    const range = getMonthRange(key);
+    setSelectedBar(key);
+    const range = viewMode === "weekly" ? getWeekRange(key) : getMonthRange(key);
     setDateFrom(range.from);
     setDateTo(range.to);
     setExpandedWeeks(new Set());
   }
 
   function goBackMonths() {
-    const newOffset = monthOffset + jumpMonths;
+    const step = viewMode === "yearly" ? 1 : 12;
+    const newOffset = monthOffset + step;
     setMonthOffset(newOffset);
-    // Auto-select the most recent month in the new window after data loads
-    const latestKey = getMonthKey(new Date(now.getFullYear(), now.getMonth() - newOffset, 1));
-    const range = getMonthRange(latestKey);
-    setSelectedMonth(latestKey);
-    setDateFrom(range.from);
-    setDateTo(range.to);
-    setExpandedWeeks(new Set());
-  }
-
-  function goForwardMonths() {
-    const newOffset = Math.max(0, monthOffset - jumpMonths);
-    setMonthOffset(newOffset);
-    if (newOffset === 0) {
-      const range = getMonthRange(defaultMonthKey);
-      setSelectedMonth(defaultMonthKey);
+    // Auto-select the most recent bar in the new window
+    if (viewMode === "weekly") {
+      const d = new Date();
+      d.setDate(d.getDate() - newOffset * 7);
+      const latestKey = toLocalDateStr(getWeekStart(d));
+      const range = getWeekRange(latestKey);
+      setSelectedBar(latestKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    } else if (viewMode === "yearly") {
+      const targetYear = now.getFullYear() - newOffset;
+      const lastMonth = newOffset === 0 ? now.getMonth() : 11;
+      const latestKey = `${targetYear}-${String(lastMonth + 1).padStart(2, "0")}`;
+      const range = getMonthRange(latestKey);
+      setSelectedBar(latestKey);
       setDateFrom(range.from);
       setDateTo(range.to);
     } else {
       const latestKey = getMonthKey(new Date(now.getFullYear(), now.getMonth() - newOffset, 1));
       const range = getMonthRange(latestKey);
-      setSelectedMonth(latestKey);
+      setSelectedBar(latestKey);
       setDateFrom(range.from);
       setDateTo(range.to);
+    }
+    setExpandedWeeks(new Set());
+  }
+
+  function goForwardMonths() {
+    const step = viewMode === "yearly" ? 1 : 12;
+    const newOffset = Math.max(0, monthOffset - step);
+    setMonthOffset(newOffset);
+    if (viewMode === "weekly") {
+      const d = new Date();
+      d.setDate(d.getDate() - Math.max(newOffset, 1) * 7);
+      const latestKey = toLocalDateStr(getWeekStart(newOffset === 0 ? now : d));
+      const range = getWeekRange(latestKey);
+      setSelectedBar(latestKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    } else if (viewMode === "yearly") {
+      const targetYear = now.getFullYear() - newOffset;
+      const lastMonth = newOffset === 0 ? now.getMonth() : 11;
+      const latestKey = `${targetYear}-${String(lastMonth + 1).padStart(2, "0")}`;
+      const range = getMonthRange(latestKey);
+      setSelectedBar(latestKey);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    } else {
+      if (newOffset === 0) {
+        const range = getMonthRange(defaultMonthKey);
+        setSelectedBar(defaultMonthKey);
+        setDateFrom(range.from);
+        setDateTo(range.to);
+      } else {
+        const latestKey = getMonthKey(new Date(now.getFullYear(), now.getMonth() - newOffset, 1));
+        const range = getMonthRange(latestKey);
+        setSelectedBar(latestKey);
+        setDateFrom(range.from);
+        setDateTo(range.to);
+      }
     }
     setExpandedWeeks(new Set());
   }
@@ -260,8 +370,18 @@ export default function ActivitiesPage() {
     }
   }, [weekGroups.length]);
 
-  // ── Active month stats ───────────────────────────────
-  const activeMonth = monthlyStats.find((m) => m.key === selectedMonth);
+  // ── Active bar stats ─────────────────────────────────
+  const activeBar = barStats.find((m) => m.key === selectedBar);
+
+  // Build activity detail href with current position state
+  function detailHref(activityId: string) {
+    const p = new URLSearchParams();
+    if (viewMode !== "monthly") p.set("vm", viewMode);
+    if (monthOffset > 0) p.set("off", String(monthOffset));
+    if (selectedBar) p.set("bar", selectedBar);
+    const qs = p.toString();
+    return `/activities/${activityId}${qs ? `?${qs}` : ""}`;
+  }
 
   // ── Render ───────────────────────────────────────────
 
@@ -283,11 +403,11 @@ export default function ActivitiesPage() {
             <Activity className="h-7 w-7 text-primary" />
             {t("title")}
           </h1>
-          {activeMonth && (
+          {activeBar && (
             <p className="text-muted-foreground mt-1">
-              {activeMonth.activityCount} activit{activeMonth.activityCount !== 1 ? "ies" : ""}
-              {activeMonth.activityCount > 0 && (
-                <> — {formatDistance(activeMonth.totalDistance)} · {Math.round(activeMonth.totalElevation).toLocaleString()}m ↑</>
+              {activeBar.activityCount} activit{activeBar.activityCount !== 1 ? "ies" : ""}
+              {activeBar.activityCount > 0 && (
+                <> — {formatDistance(activeBar.totalDistance)} · {Math.round(activeBar.totalElevation).toLocaleString()}m ↑</>
               )}
             </p>
           )}
@@ -297,53 +417,160 @@ export default function ActivitiesPage() {
         </Button>
       </div>
 
-      {/* ═══ MONTH SELECTOR ═══ */}
-      {monthlyStats.length > 0 && (
-        <div className="mb-5">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={goBackMonths}
-              className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-border hover:bg-muted transition-colors"
-              title="Older months"
-            >
-              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-            </button>
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 flex-1">
-            {monthlyStats.map((month, i) => {
-              // On mobile only show the 3 most recent months (last 3 in the array)
-              const showOnMobile = i >= 3;
-              const isActive = selectedMonth === month.key;
-              return (
+      {/* ═══ VOLUME BAR CHART ═══ */}
+      {barStats.length > 0 && (
+        <div className="mb-6">
+          {/* Chart header with toggle */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                {viewMode === "yearly"
+                  ? now.getFullYear() - monthOffset
+                  : `${viewMode === "monthly" ? "Monthly" : "Weekly"} Volume`}
+              </h2>
+              {/* View mode toggle */}
+              <div className="flex rounded-lg border border-border p-0.5 bg-muted/30">
                 <button
-                  key={month.key}
-                  ref={(el) => {
-                    if (el && isActive) {
-                      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-                    }
-                  }}
-                  onClick={() => handleMonthClick(month.key)}
-                  className={`flex flex-col items-center rounded-xl border px-3.5 py-2 text-xs shrink-0 min-w-[105px] transition-all ${showOnMobile ? "" : "hidden md:flex"} ${
-                    isActive
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                      : "bg-card hover:bg-muted/70 border-border text-muted-foreground hover:text-foreground"
+                  onClick={() => handleViewModeChange("monthly")}
+                  className={`px-2.5 py-0.5 text-[11px] rounded-md transition-all ${
+                    viewMode === "monthly"
+                      ? "bg-background text-foreground shadow-sm font-medium"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <span className={`font-semibold text-sm ${isActive ? "text-primary-foreground" : "text-foreground"}`}>
-                    {month.label}
+                  Monthly
+                </button>
+                <button
+                  onClick={() => handleViewModeChange("weekly")}
+                  className={`px-2.5 py-0.5 text-[11px] rounded-md transition-all ${
+                    viewMode === "weekly"
+                      ? "bg-background text-foreground shadow-sm font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => handleViewModeChange("yearly")}
+                  className={`px-2.5 py-0.5 text-[11px] rounded-md transition-all ${
+                    viewMode === "yearly"
+                      ? "bg-background text-foreground shadow-sm font-medium"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Yearly
+                </button>
+              </div>
+            </div>
+            {(() => {
+              const totalOfDisplayed = barStats.reduce((s, m) => s + m.totalDistance, 0);
+              return totalOfDisplayed > 0 ? (
+                <span className="text-xs text-muted-foreground">
+                  {formatDistance(totalOfDisplayed)} total
+                </span>
+              ) : null;
+            })()}
+          </div>
+
+          {/* Bars */}
+          <div className="flex items-end gap-[3px] h-28">
+            {barStats.map((bar) => {
+              const maxVal = Math.max(...barStats.map((m) => m.totalDistance));
+              const heightPct = maxVal > 0 ? (bar.totalDistance / maxVal) * 100 : 0;
+              const isActive = selectedBar === bar.key;
+              return (
+                <button
+                  key={bar.key}
+                  onClick={() => handleMonthClick(bar.key)}
+                  className="flex-1 flex flex-col items-center gap-0.5 group cursor-pointer min-w-0 h-full"
+                >
+                  {/* Bar area */}
+                  <div className="flex-1 w-full flex items-end justify-center">
+                    <div
+                      className={`w-full max-w-[32px] rounded-t-sm transition-all duration-200 ${
+                        isActive
+                          ? "bg-primary shadow-sm"
+                          : "bg-primary/40 group-hover:bg-primary/60"
+                      }`}
+                      style={{ height: `${Math.max(heightPct, 2)}%` }}
+                    />
+                  </div>
+                  {/* Label */}
+                  <span
+                    className={`text-[10px] leading-tight whitespace-nowrap ${
+                      isActive
+                        ? "text-foreground font-semibold"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {viewMode === "monthly" ? bar.label.split(" ")[0] : bar.label}
                   </span>
-                  <span className="leading-tight">{month.activityCount} act.</span>
-                  <span className="leading-tight">{formatDistance(month.totalDistance)}</span>
+                  <span className="text-[8px] leading-tight text-muted-foreground/60">
+                    {bar.key.slice(0, 4)}
+                  </span>
                 </button>
               );
             })}
+          </div>
+
+          {/* Selected bar detail */}
+          {activeBar && activeBar.totalDistance > 0 && (
+            <div className="text-xs text-muted-foreground mt-2 text-center">
+              <span className="font-medium text-foreground">
+                {viewMode === "weekly" && activeBar.fullLabel ? activeBar.fullLabel : activeBar.label}
+              </span>
+              {" — "}
+              {formatDistance(activeBar.totalDistance)}
+              {" · "}
+              {activeBar.activityCount} activit
+              {activeBar.activityCount !== 1 ? "ies" : "y"}
+              {activeBar.totalDurationSeconds > 0 && (
+                <> · {formatDuration(activeBar.totalDurationSeconds)}</>
+              )}
+              {activeBar.totalElevation > 0 && (
+                <> · {Math.round(activeBar.totalElevation).toLocaleString()}m ↑</>
+              )}
             </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+            <button
+              onClick={goBackMonths}
+              disabled={!canGoBack}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
+            >
+              {viewMode === "yearly" ? "← Previous year" : `← 12 ${viewMode === "monthly" ? "months" : "weeks"} earlier`}
+            </button>
+            {monthOffset > 0 && (
+              <button
+                onClick={() => {
+                  setMonthOffset(0);
+                  if (viewMode === "weekly") {
+                    const latestKey = toLocalDateStr(getWeekStart(now));
+                    const range = getWeekRange(latestKey);
+                    setSelectedBar(latestKey);
+                    setDateFrom(range.from);
+                    setDateTo(range.to);
+                  } else {
+                    const range = getMonthRange(defaultMonthKey);
+                    setSelectedBar(defaultMonthKey);
+                    setDateFrom(range.from);
+                    setDateTo(range.to);
+                  }
+                  setExpandedWeeks(new Set());
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {viewMode === "yearly" ? "This year" : `Latest ${viewMode === "monthly" ? "months" : "weeks"}`}
+              </button>
+            )}
             <button
               onClick={goForwardMonths}
               disabled={monthOffset === 0}
-              className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-30 disabled:pointer-events-none"
-              title="Newer months"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              {viewMode === "yearly" ? "Next year →" : `12 ${viewMode === "monthly" ? "months" : "weeks"} later →`}
             </button>
           </div>
         </div>
@@ -402,6 +629,7 @@ export default function ActivitiesPage() {
             const weekDist = week.logs.reduce((s, l) => s + (l.distanceMeters || 0), 0);
             const weekElev = week.logs.reduce((s, l) => s + (l.elevationGainMeters || 0), 0);
             const weekDur = week.logs.reduce((s, l) => s + (l.durationSeconds || 0), 0);
+            const weekTss = week.logs.reduce((s, l) => s + (l.tss || 0), 0);
 
             return (
               <Card key={week.weekKey} className="rounded-xl border">
@@ -419,6 +647,7 @@ export default function ActivitiesPage() {
                       {weekDist > 0 && <span className="font-medium">{formatDistance(weekDist)}</span>}
                       {weekElev > 0 && <span className="font-medium">{Math.round(weekElev)}m ↑</span>}
                       <span className="font-medium">{formatDuration(weekDur)}</span>
+                      {weekTss > 0 && <span className="font-medium">TSS {Math.round(weekTss)}</span>}
                     </div>
                   </div>
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />}
@@ -434,7 +663,7 @@ export default function ActivitiesPage() {
                       return (
                         <div key={log.id}>
                           {/* Mobile layout */}
-                          <Link href={`/activities/${log.id}`} className="md:hidden block px-4 py-3 hover:bg-muted/30 transition-colors">
+                          <Link href={detailHref(log.id)} className="md:hidden block px-4 py-3 hover:bg-muted/30 transition-colors">
                             <div className="flex items-start">
                               <div className="flex-1 min-w-0 pr-2">
                                 <div className="text-sm font-medium leading-snug line-clamp-2">{log.name}</div>
@@ -451,11 +680,12 @@ export default function ActivitiesPage() {
                               <div className="text-right shrink-0" style={{ width: "25%" }}>
                                 {dist > 0 && <div className="text-sm font-medium tabular-nums">{formatDistance(dist)}</div>}
                                 {elev > 0 && <div className="text-xs text-muted-foreground tabular-nums">{Math.round(elev)}m</div>}
+                                {log.tss != null && <div className="text-xs tabular-nums">TSS {Math.round(log.tss)}</div>}
                               </div>
                             </div>
                           </Link>
                           {/* Desktop layout (md+) */}
-                          <Link href={`/activities/${log.id}`} className="hidden md:block px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                          <Link href={detailHref(log.id)} className="hidden md:block px-4 py-2.5 hover:bg-muted/30 transition-colors">
                             <div className="flex items-center gap-3">
                             <span className="text-muted-foreground shrink-0">{TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}</span>
                             <div className="flex-1 min-w-0">

@@ -51,6 +51,8 @@ export interface PlanWeekData {
   coachNotes?: string;
   /** Phase name derived from coachNotes, if any. */
   phaseName?: string | null;
+  /** Total number of plans the user has, for display in coach chat. */
+  totalPlanCount?: number;
 }
 
 // ── Phase types ────────────────────────────────────────

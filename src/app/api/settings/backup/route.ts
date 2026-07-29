@@ -138,6 +138,8 @@ async function performBackup(userId: string, statusFile: string) {
     analysisReports,
     apiKeys,
     garminSession,
+    corosSession,
+    coachConversations,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -154,13 +156,19 @@ async function performBackup(userId: string, statusFile: string) {
         llmModel: true,
         llmApiKey: true,
         trainingContext: true,
+        onboardingCompleted: true,
+        dashboardPrefs: true,
       },
     }),
     // Load activities WITHOUT rawJson (GPS trackpoints are handled separately)
     prisma.$queryRawUnsafe(
       `SELECT id, user_id AS "userId", external_id AS "externalId",
               source, type, "subType", name,
-              description, remarks, start_date AS "startDate",
+              description, remarks,
+              coach_analysis AS "coachAnalysis",
+              analysis_status AS "analysisStatus",
+              is_race AS "isRace",
+              start_date AS "startDate",
               duration_seconds AS "durationSeconds",
               distance_meters AS "distanceMeters",
               elevation_gain_meters AS "elevationGainMeters",
@@ -170,7 +178,13 @@ async function performBackup(userId: string, statusFile: string) {
               calories, tss, workout_type AS "workoutType",
               duplicate_group_id AS "duplicateGroupId",
               duplicate_status AS "duplicateStatus",
-              merged_into_id AS "mergedIntoId", created_at AS "createdAt"
+              merged_into_id AS "mergedIntoId",
+              simplified_track_points AS "simplifiedTrackPoints",
+              track_min_lat AS "trackMinLat",
+              track_max_lat AS "trackMaxLat",
+              track_min_lng AS "trackMinLng",
+              track_max_lng AS "trackMaxLng",
+              created_at AS "createdAt"
        FROM training_logs WHERE user_id = $1 ORDER BY start_date ASC`,
       userId,
     ),
@@ -184,6 +198,15 @@ async function performBackup(userId: string, statusFile: string) {
     prisma.analysisReport.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.apiKey.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.garminSession.findUnique({ where: { userId } }),
+    prisma.corosSession.findUnique({ where: { userId } }),
+    prisma.coachConversation.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      include: {
+        messages: { orderBy: { createdAt: "asc" } },
+        suggestions: { orderBy: { createdAt: "asc" } },
+      },
+    }),
   ]);
 
   if (!user) throw new Error("User not found");
@@ -206,6 +229,8 @@ async function performBackup(userId: string, statusFile: string) {
         llmBaseUrl: user.llmBaseUrl,
         llmModel: user.llmModel,
         llmApiKey: user.llmApiKey,
+        onboardingCompleted: user.onboardingCompleted,
+        dashboardPrefs: user.dashboardPrefs,
       },
     },
   });
@@ -220,6 +245,9 @@ async function performBackup(userId: string, statusFile: string) {
     name: l.name,
     description: l.description,
     remarks: l.remarks,
+    coachAnalysis: l.coachAnalysis,
+    analysisStatus: l.analysisStatus,
+    isRace: l.isRace,
     startDate: l.startDate instanceof Date ? l.startDate.toISOString() : l.startDate,
     durationSeconds: l.durationSeconds,
     distanceMeters: l.distanceMeters,
@@ -234,6 +262,11 @@ async function performBackup(userId: string, statusFile: string) {
     duplicateGroupId: l.duplicateGroupId,
     duplicateStatus: l.duplicateStatus,
     mergedIntoId: l.mergedIntoId,
+    simplifiedTrackPoints: l.simplifiedTrackPoints,
+    trackMinLat: l.trackMinLat,
+    trackMaxLat: l.trackMaxLat,
+    trackMinLng: l.trackMinLng,
+    trackMaxLng: l.trackMaxLng,
   }));
   writeJson(tmpDir, "activities.json", activities);
 
@@ -261,6 +294,7 @@ async function performBackup(userId: string, statusFile: string) {
     status: g.status,
     notes: g.notes,
     goalStatement: g.goalStatement,
+    courseProfile: g.courseProfile,
     createdAt: g.createdAt.toISOString(),
     updatedAt: g.updatedAt.toISOString(),
   })));
@@ -389,6 +423,50 @@ async function performBackup(userId: string, statusFile: string) {
       createdAt: garminSession.createdAt.toISOString(),
       updatedAt: garminSession.updatedAt.toISOString(),
     });
+  }
+
+  if (corosSession) {
+    writeJson(tmpDir, "coros_session.json", {
+      id: corosSession.id,
+      accessToken: corosSession.accessToken,
+      corosUserId: corosSession.corosUserId,
+      displayName: corosSession.displayName,
+      lastSyncAt: corosSession.lastSyncAt?.toISOString() ?? null,
+      connectedAt: corosSession.connectedAt.toISOString(),
+      createdAt: corosSession.createdAt.toISOString(),
+      updatedAt: corosSession.updatedAt.toISOString(),
+    });
+  }
+
+  if (coachConversations.length > 0) {
+    writeJson(tmpDir, "coach_conversations.json", coachConversations.map((c: any) => ({
+      id: c.id,
+      title: c.title,
+      status: c.status,
+      contextSnapshot: c.contextSnapshot,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+      messages: c.messages.map((m: any) => ({
+        id: m.id,
+        conversationId: m.conversationId,
+        role: m.role,
+        content: m.content,
+        suggestionId: m.suggestionId,
+        tokenCount: m.tokenCount,
+        createdAt: m.createdAt.toISOString(),
+      })),
+      suggestions: c.suggestions.map((s: any) => ({
+        id: s.id,
+        conversationId: s.conversationId,
+        suggestionType: s.suggestionType,
+        title: s.title,
+        description: s.description,
+        changes: s.changes,
+        status: s.status,
+        createdAt: s.createdAt.toISOString(),
+        appliedAt: s.appliedAt?.toISOString() ?? null,
+      })),
+    })));
   }
 
   // ── 7. Package into tar.gz ────────────────────────────────────────────

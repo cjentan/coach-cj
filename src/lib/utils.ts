@@ -103,6 +103,31 @@ export function getMonthEnd(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
+// ── Geometry ────────────────────────────────────────────
+
+/** Convert degrees to radians. */
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+/**
+ * Haversine distance between two GPS coordinates in meters.
+ * Uses the WGS-84 ellipsoid approximation (Earth radius ≈ 6,371 km).
+ */
+export function haversine(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+  const a =
+    sinLat * sinLat +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLon * sinLon;
+  return 2 * 6371000 * Math.asin(Math.sqrt(a));
+}
+
 // ── Workout classification ───────────────────────────────
 
 export type EffortLevel = "rest" | "easy" | "moderate" | "hard";

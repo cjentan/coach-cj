@@ -25,6 +25,7 @@
  */
 import { ActivityType, ActivitySubType, ActivitySource } from "@prisma/client";
 import { generateBaseName } from "./activity-naming";
+import { haversine } from "./utils";
 
 export interface TrackPoint {
   lat: number | null;
@@ -420,6 +421,11 @@ function computeFromPoints(points: TrackPoint[], name: string, laps: LapData[]):
     tss = Math.round(hours * 50);
   }
 
+  // Cap per-activity TSS to prevent absurd values from ultra-long efforts
+  if (tss !== null) {
+    tss = Math.min(tss, 500);
+  }
+
   const sportType = mapGpxType(name);
 
   const sportSubType = mapGpxSubType(name);
@@ -484,24 +490,7 @@ function mapGpxSubType(name: string): ActivitySubType | null {
   return null;
 }
 
-function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000; // Earth radius in meters
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRad(deg: number): number {
-  return deg * (Math.PI / 180);
-}
-
-/**
- * Detect file type and parse accordingly.
+/** Detect file type and parse accordingly.
  */
 export function parseActivityFile(content: string, filename: string): ParsedFileActivity | null {
   const lower = filename.toLowerCase();
@@ -523,6 +512,64 @@ export function parseActivityFile(content: string, filename: string): ParsedFile
   }
 
   return null;
+}
+
+/**
+ * Generate a GPX 1.1 XML string from track points and activity metadata.
+ * Used for exporting/downloading activities that were stored in the DB.
+ */
+export function generateGpxXml(
+  trackPoints: TrackPoint[],
+  activityName: string,
+  startTime?: string | null,
+): string {
+  const validPoints = trackPoints.filter(tp => tp.lat != null && tp.lon != null);
+  const gpxNs = "http://www.topografix.com/GPX/1/1";
+
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="coach-cj"
+  xmlns="${gpxNs}"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <metadata>
+    <name>${escapeXml(activityName)}</name>`;
+
+  if (startTime) {
+    xml += `
+    <time>${escapeXml(startTime)}</time>`;
+  }
+
+  xml += `
+  </metadata>
+  <trk>
+    <name>${escapeXml(activityName)}</name>
+    <trkseg>`;
+
+  for (const tp of validPoints) {
+    xml += `
+      <trkpt lat="${tp.lat}" lon="${tp.lon}">`;
+    if (tp.ele != null) {
+      xml += `
+        <ele>${tp.ele}</ele>`;
+    }
+    xml += `
+      </trkpt>`;
+  }
+
+  xml += `
+    </trkseg>
+  </trk>
+</gpx>`;
+
+  return xml;
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 /**

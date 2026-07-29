@@ -12,8 +12,7 @@ import {
   Brain, Save, Loader2, CalendarDays, Clock, Check, Eye, EyeOff,
   Zap, Server, Send, CheckCircle2, XCircle, Loader2 as Spinner,
 } from "lucide-react";
-
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+import { LONG_DAY_NAMES } from "@/lib/constants";
 
 const PROVIDER_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
@@ -126,7 +125,7 @@ function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTransl
               <Label className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {t("dayOfWeek")}</Label>
               <Select value={reviewDay} onValueChange={setReviewDay}>
                 <SelectTrigger className="w-full max-w-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{DAY_NAMES.map((d, i) => (<SelectItem key={i} value={String(i)}>{d}</SelectItem>))}</SelectContent>
+                <SelectContent>{LONG_DAY_NAMES.map((d, i) => (<SelectItem key={i} value={String(i)}>{d}</SelectItem>))}</SelectContent>
               </Select>
             </div>
           )}

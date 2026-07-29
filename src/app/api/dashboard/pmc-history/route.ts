@@ -35,7 +35,22 @@ export async function GET(request: Request) {
     .map(([date, tss]) => ({ date, tss }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const pmcResults = computePMC(pmcInput);
+  // Fill in missing dates with tss: 0 so the chart's x-axis is continuous
+  // and CTL/ATL/TSB decay naturally on rest days
+  const filledInput: { date: string; tss: number }[] = [];
+  if (pmcInput.length > 0) {
+    const startDate = new Date(pmcInput[0].date);
+    const endDate = new Date(pmcInput[pmcInput.length - 1].date);
+    const inputMap = new Map(pmcInput.map((d) => [d.date, d.tss]));
+    const cursor = new Date(startDate);
+    while (cursor <= endDate) {
+      const key = cursor.toISOString().split("T")[0];
+      filledInput.push({ date: key, tss: inputMap.get(key) ?? 0 });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  const pmcResults = computePMC(filledInput);
 
   // Build time-series arrays for charting
   const series = pmcResults.map((r) => ({

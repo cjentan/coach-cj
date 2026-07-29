@@ -35,6 +35,26 @@ export default async function middleware(req: NextRequest) {
     effectivePath = "/";
   }
 
+  // Redirect old/removed paths to their new locations
+  const REDIRECT_MAP: Record<string, string> = {
+    "/goals": "/settings/training",
+    "/goals/": "/settings/training",
+    "/body-metrics": "/settings/training",
+    "/availability": "/settings/training",
+    "/llm-test": "/settings/connections",
+    "/settings/goals": "/settings/training",
+    "/settings/body-metrics": "/settings/training",
+    "/settings/analysis": "/settings/ai-coach",
+    "/settings/credentials": "/settings/connections",
+    "/settings/integrations": "/settings/connections",
+    "/settings/backup-restore": "/settings/data",
+    "/settings/danger-zone": "/settings/data",
+  };
+  const redirectTarget = REDIRECT_MAP[effectivePath];
+  if (redirectTarget) {
+    return NextResponse.redirect(new URL(`${localePrefix}${redirectTarget}`, req.url));
+  }
+
   // Read session token directly from cookie (avoid auth() wrapper deadlock)
   const sessionToken =
     req.cookies.get("next-auth.session-token")?.value ||

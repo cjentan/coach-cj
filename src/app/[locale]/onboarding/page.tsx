@@ -39,28 +39,7 @@ import {
   SkipForward,
   Check,
 } from "lucide-react";
-
-// ── Constants ─────────────────────────────────────────────────
-
-const DAY_NAMES = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
-
-const RACE_TYPES = [
-  { value: "road_run", label: "Road Run" },
-  { value: "trail_run", label: "Trail Run" },
-  { value: "marathon", label: "Marathon" },
-  { value: "ultra", label: "Ultra" },
-  { value: "triathlon", label: "Triathlon" },
-  { value: "cycling", label: "Cycling" },
-  { value: "other", label: "Other" },
-];
+import { LONG_DAY_NAMES, RACE_TYPES } from "@/lib/constants";
 
 // ── Helper Components ────────────────────────────────────────
 
@@ -787,7 +766,7 @@ export default function OnboardingPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {DAY_NAMES.map((d, i) => (
+                        {LONG_DAY_NAMES.map((d, i) => (
                           <SelectItem key={i} value={String(i)}>
                             {d}
                           </SelectItem>
@@ -1151,7 +1130,7 @@ export default function OnboardingPage() {
                 label={t("summary.reviewSchedule")}
                 detail={
                   analysisTrigger === "weekly"
-                    ? `${DAY_NAMES[Number(reviewDay)]} at ${reviewTime}`
+                    ? `${LONG_DAY_NAMES[Number(reviewDay)]} at ${reviewTime}`
                     : analysisTrigger === "monthly"
                       ? `Day ${reviewDayOfMonth} at ${reviewTime}`
                       : analysisTrigger === "daily"

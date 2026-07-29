@@ -12,6 +12,7 @@ import {
   Copy, CheckCircle, XCircle, AlertTriangle, RefreshCw, Loader2, ArrowRight,
   Activity, Clock, Route,
 } from "lucide-react";
+import { SOURCE_LABELS, SOURCE_COLORS } from "@/lib/constants";
 
 interface DuplicateActivity {
   id: string; source: string; type: string; name: string;
@@ -25,20 +26,6 @@ interface DuplicateGroup {
   trainingLogs: DuplicateActivity[];
   createdAt: string;
 }
-
-const SOURCE_LABELS: Record<string, string> = {
-  strava: "Strava",
-  garmin: "Garmin",
-  watch_push: "Watch Push",
-  manual: "Manual",
-};
-
-const SOURCE_COLORS: Record<string, "default" | "secondary" | "outline" | "success" | "warning"> = {
-  strava: "default",
-  garmin: "success",
-  watch_push: "warning",
-  manual: "secondary",
-};
 
 export default function DuplicatesPage() {
   const t = useTranslations("duplicates");
