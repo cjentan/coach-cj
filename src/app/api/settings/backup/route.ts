@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type {
+  ActivityRow,
+  RawJsonRow,
+  CoachConversationWithRelations,
+} from "@/lib/backup-restore-types";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -84,7 +89,7 @@ export async function POST() {
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-function writeJson(dir: string, name: string, data: any) {
+function writeJson(dir: string, name: string, data: unknown) {
   fs.writeFileSync(path.join(dir, name), JSON.stringify(data, null, 2), "utf-8");
 }
 
@@ -98,11 +103,11 @@ async function tarCzF(outputFile: string, sourceDir: string): Promise<void> {
 }
 
 // Load rawJson for activity IDs in small batches to stay within NAPI bridge limits.
-async function loadRawJsonBatched(ids: string[], batchSize = 5): Promise<Map<string, any>> {
-  const map = new Map<string, any>();
+async function loadRawJsonBatched(ids: string[], batchSize = 5): Promise<Map<string, unknown>> {
+  const map = new Map<string, unknown>();
   for (let i = 0; i < ids.length; i += batchSize) {
     const batch = ids.slice(i, i + batchSize);
-    const rows: any[] = await prisma.$queryRawUnsafe(
+    const rows: RawJsonRow[] = await prisma.$queryRawUnsafe(
       `SELECT id, raw_json AS "rawJson" FROM training_logs
        WHERE id = ANY($1::text[])`,
       batch,
@@ -236,7 +241,7 @@ async function performBackup(userId: string, statusFile: string) {
   });
 
   // ── 4. Write activities.json (all activities without rawJson) ─────────
-  const activities = (logs as any[]).map((l: any) => ({
+  const activities = (logs as ActivityRow[]).map((l: ActivityRow) => ({
     id: l.id,
     externalId: l.externalId,
     source: l.source,
@@ -271,7 +276,7 @@ async function performBackup(userId: string, statusFile: string) {
   writeJson(tmpDir, "activities.json", activities);
 
   // ── 5. Write per-activity GPS data files ──────────────────────────────
-  const activityIds = (logs as any[]).map((l: any) => l.id);
+  const activityIds = (logs as ActivityRow[]).map((l: ActivityRow) => l.id);
   if (activityIds.length > 0) {
     const rawJsonMap = await loadRawJsonBatched(activityIds);
     rawJsonMap.forEach((rawJson, id) => {
@@ -439,14 +444,14 @@ async function performBackup(userId: string, statusFile: string) {
   }
 
   if (coachConversations.length > 0) {
-    writeJson(tmpDir, "coach_conversations.json", coachConversations.map((c: any) => ({
+    writeJson(tmpDir, "coach_conversations.json", coachConversations.map((c: CoachConversationWithRelations) => ({
       id: c.id,
       title: c.title,
       status: c.status,
       contextSnapshot: c.contextSnapshot,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
-      messages: c.messages.map((m: any) => ({
+      messages: c.messages.map((m) => ({
         id: m.id,
         conversationId: m.conversationId,
         role: m.role,
@@ -455,7 +460,7 @@ async function performBackup(userId: string, statusFile: string) {
         tokenCount: m.tokenCount,
         createdAt: m.createdAt.toISOString(),
       })),
-      suggestions: c.suggestions.map((s: any) => ({
+      suggestions: c.suggestions.map((s) => ({
         id: s.id,
         conversationId: s.conversationId,
         suggestionType: s.suggestionType,

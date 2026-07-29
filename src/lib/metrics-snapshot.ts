@@ -10,6 +10,7 @@ import { computePMC } from "./pmc";
 import { computeBestTss } from "./trackpoint-metrics";
 import { estimateTss } from "@/lib/training-math";
 import { getWeekStart } from "./utils";
+import { computeReadinessScore, computeFatigueSignals } from "./training-health";
 
 /** Snapshots the given week's metrics for the user. Idempotent (upsert). */
 export async function snapshotWeek(
@@ -127,28 +128,28 @@ export async function snapshotWeek(
     tsb: 0,
   };
 
-  // ── Readiness score (same algorithm as /api/dashboard/readiness) ──
-  const { readinessScore, volumeAdherence, consistency } = computeReadiness({
-    weekLogs,
-    weekStart,
-    weekEnd,
-    goals,
-    weeklyVolume,
-    weeklyTss,
-  });
-
-  // ── Fatigue signals (same algorithm as /api/dashboard/fatigue) ──
-  const { fatigueSeverity, fatigueSignals, fatigueRecommendations } =
-    computeFatigue({
-      weekLogs,
-      weekStart,
-      weekEnd,
-      bodyMetrics,
-      pmcResults,
-      tssByDate,
+  // ── Readiness score ──
+  const { readinessScore, volumeAdherence, consistencyScore: consistency } =
+    computeReadinessScore({
+      weeklyVolumeMeters: weeklyVolume,
       weeklyTss,
-      weeklyCount,
+      weekStartDate: weekStart,
+      weekEndDate: weekEnd,
+      primaryGoal: goals[0] ?? null,
+      activityLogs: weekLogs,
     });
+
+  // ── Fatigue signals ──
+  const fatigueResult = computeFatigueSignals({
+    weeklyTss,
+    activityCount: weeklyCount,
+    bodyMetrics,
+  });
+  const {
+    severity: fatigueSeverity,
+    signals: fatigueSignals,
+    recommendations: fatigueRecommendations,
+  } = fatigueResult;
 
   // ── Goal progress ───────────────────────────────────────────
   const goalProgressPct: Record<string, number> = {};
@@ -242,117 +243,3 @@ export async function snapshotWeek(
   });
 }
 
-// ── Readiness computation (extracted from /api/dashboard/readiness) ──
-
-export function computeReadiness(params: {
-  weekLogs: any[];
-  weekStart: Date;
-  weekEnd: Date;
-  goals: any[];
-  weeklyVolume: number;
-  weeklyTss: number;
-}) {
-  const { weekLogs, weekStart, weekEnd, goals, weeklyVolume, weeklyTss } = params;
-  const now = new Date();
-
-  // Volume adherence
-  let volumeAdherence = 50;
-  const primaryGoal = goals[0];
-  if (primaryGoal) {
-    const weeksUntil = Math.max(1, Math.ceil((primaryGoal.targetDate.getTime() - now.getTime()) / (7 * 86400000)));
-    const targetWeekly = primaryGoal.distanceMeters / (weeksUntil * 0.7);
-    volumeAdherence = Math.min(100, Math.round((weeklyVolume / Math.max(1, targetWeekly)) * 100));
-  }
-
-  // Consistency
-  const elapsedDays = Math.max(1, Math.min(7, Math.ceil((Math.min(now.getTime(), weekEnd.getTime()) - weekStart.getTime()) / 86400000)));
-  const activeDays = new Set(weekLogs.map((l) => l.startDate.toISOString().split("T")[0])).size;
-  const consistency = Math.min(100, Math.round((activeDays / elapsedDays) * 100));
-
-  // Rest balance
-  const restBalance = Math.max(0, 100 - Math.min(100, Math.round((weeklyTss / 700) * 100)));
-
-  // Trend score (simplified — no 4-week data available in snapshot context, use neutral)
-  const trendScore = 75;
-
-  // Fatigue penalty
-  let fatiguePenalty = 0;
-  if (weeklyTss > 700) fatiguePenalty = 20;
-  else if (weeklyTss > 500) fatiguePenalty = 10;
-  else if (weeklyTss > 350) fatiguePenalty = 5;
-
-  let score = Math.round(
-    volumeAdherence * 0.4 +
-    consistency * 0.25 +
-    restBalance * 0.2 +
-    trendScore * 0.15 -
-    fatiguePenalty,
-  );
-  score = Math.max(0, Math.min(100, score));
-
-  return { readinessScore: score, volumeAdherence, consistency };
-}
-
-// ── Fatigue computation (simplified from /api/dashboard/fatigue) ──
-
-function computeFatigue(params: {
-  weekLogs: any[];
-  weekStart: Date;
-  weekEnd: Date;
-  bodyMetrics: any[];
-  pmcResults: any[];
-  tssByDate: Record<string, number>;
-  weeklyTss: number;
-  weeklyCount: number;
-}) {
-  const { weekLogs, bodyMetrics, weeklyTss, weeklyCount } = params;
-  const signals: string[] = [];
-  const recommendations: string[] = [];
-
-  // High volume check
-  if (weeklyTss > 600) {
-    signals.push("High training volume this week");
-    recommendations.push("Your TSS load is high. Prioritize sleep and nutrition this week.");
-  }
-
-  // Resting HR trend
-  const restingHrValues = bodyMetrics.filter((m: any) => m.restingHr != null).slice(0, 7);
-  if (restingHrValues.length >= 3) {
-    const recentResting = restingHrValues.slice(0, 3).reduce((sum: number, m: any) => sum + (m.restingHr || 0), 0) / Math.min(3, restingHrValues.slice(0, 3).length);
-    const olderResting = restingHrValues.length >= 6
-      ? restingHrValues.slice(3, 6).reduce((sum: number, m: any) => sum + (m.restingHr || 0), 0) / 3
-      : recentResting;
-    const restingDrift = recentResting - olderResting;
-    if (restingDrift > 5) {
-      signals.push(`Resting HR +${Math.round(restingDrift)} bpm above baseline`);
-      recommendations.push("Your resting heart rate is trending up — a key sign of autonomic stress. Consider a lighter training week.");
-    }
-  }
-
-  // Consistency
-  const expectedSessions = 5;
-  const consistency = Math.round((weeklyCount / expectedSessions) * 100);
-  if (consistency < 50) {
-    signals.push(`Low consistency (${consistency}% of planned sessions)`);
-    recommendations.push("Consistency is the foundation of endurance training.");
-  }
-
-  // Severity
-  let severity: string;
-  let summary: string;
-  if (signals.length >= 3) {
-    severity = "high";
-    summary = "Multiple fatigue signals detected. Strongly consider reducing volume and prioritizing recovery.";
-  } else if (signals.length === 2) {
-    severity = "medium";
-    summary = "Some fatigue signals present. Monitor how you feel and consider adding an extra rest day.";
-  } else if (signals.length === 1) {
-    severity = "low";
-    summary = "One minor signal — likely within normal training fluctuations.";
-  } else {
-    severity = "clear";
-    summary = "No fatigue signals detected. You're managing your training load well.";
-  }
-
-  return { fatigueSeverity: severity, fatigueSignals: signals, fatigueRecommendations: recommendations };
-}

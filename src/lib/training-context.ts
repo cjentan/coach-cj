@@ -13,6 +13,7 @@
 import { prisma } from "./prisma";
 import { getWeekStart } from "./utils";
 import { computePMC } from "./pmc";
+import { computeReadinessScore, computeFatigueSignals } from "./training-health";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -286,57 +287,25 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
   };
 
   // ── Fatigue (simplified rule-based) ──────────────────
-  const weeklyVolume = currentWeek.volumeMeters;
   const weeklyTss = currentWeekLogs.reduce((s, l) => s + (l.tss || 50), 0);
-  const signals: string[] = [];
-  const recommendations: string[] = [];
-
-  if (weeklyTss > 600) {
-    signals.push("High training volume this week");
-    recommendations.push("Your TSS load is high. Prioritize sleep and nutrition this week.");
-  }
-  if (weeklyTss > 350 && currentWeekLogs.length < 3) {
-    signals.push("High load with few sessions");
-    recommendations.push("Consider distributing volume across more sessions.");
-  }
-  if (bodyMetrics.length >= 3) {
-    const recentResting = bodyMetrics.slice(0, 3).reduce((s, m) => s + (m.restingHr || 0), 0) / 3;
-    const olderResting = bodyMetrics.length >= 6
-      ? bodyMetrics.slice(3, 6).reduce((s, m) => s + (m.restingHr || 0), 0) / 3
-      : recentResting;
-    if (olderResting > 0 && recentResting - olderResting > 5) {
-      signals.push("Resting HR elevated");
-      recommendations.push("Your resting heart rate is trending up. Consider lighter training.");
-    }
-  }
-
-  let fatigueSeverity = "none";
-  if (signals.length >= 3) fatigueSeverity = "high";
-  else if (signals.length === 2) fatigueSeverity = "medium";
-  else if (signals.length === 1) fatigueSeverity = "low";
-
-  const fatigue = signals.length > 0
-    ? { severity: fatigueSeverity, signals, recommendations }
-    : null;
+  const fatigueResult = computeFatigueSignals({
+    weeklyTss,
+    activityCount: currentWeekLogs.length,
+    bodyMetrics,
+  });
+  const fatigue =
+    fatigueResult.signals.length > 0 ? fatigueResult : null;
 
   // ── Readiness ───────────────────────────────────────
-  let volumeAdherence = 50;
-  const primaryGoal = goals[0];
-  if (primaryGoal) {
-    const weeksUntil = Math.max(1, Math.ceil(
-      (primaryGoal.targetDate.getTime() - now.getTime()) / (7 * 86400000)
-    ));
-    const targetWeekly = primaryGoal.distanceMeters / (weeksUntil * 0.7);
-    volumeAdherence = Math.min(100, Math.round((weeklyVolume / Math.max(1, targetWeekly)) * 100));
-  }
-
-  const elapsedDays = Math.max(1, Math.min(7, Math.ceil(
-    (now.getTime() - weekStart.getTime()) / 86400000
-  )));
-  const activeDays = new Set(
-    currentWeekLogs.map((l) => l.startDate.toISOString().split("T")[0])
-  ).size;
-  const consistencyScore = Math.min(100, Math.round((activeDays / elapsedDays) * 100));
+  const readinessResult = computeReadinessScore({
+    weeklyVolumeMeters: currentWeek.volumeMeters,
+    weeklyTss,
+    weekStartDate: weekStart,
+    primaryGoal: goals[0] ?? null,
+    activityLogs: currentWeekLogs,
+  });
+  let volumeAdherence = readinessResult.volumeAdherence;
+  const consistencyScore = readinessResult.consistencyScore;
 
   // ── Daily health averages ───────────────────────────
   let dailyHealthResult: TrainingContext["dailyHealth"] | undefined;
@@ -382,21 +351,7 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
       remarks: l.remarks!,
     }));
 
-  // ── Readiness score ─────────────────────────────────
-  const restBalance = Math.max(0, 100 - Math.min(100, Math.round((weeklyTss / 700) * 100)));
-  const trendScore = 75; // neutral fallback
-  let fatiguePenalty = 0;
-  if (weeklyTss > 700) fatiguePenalty = 20;
-  else if (weeklyTss > 500) fatiguePenalty = 10;
-  else if (weeklyTss > 350) fatiguePenalty = 5;
-
-  const readinessScore = Math.max(0, Math.min(100, Math.round(
-    volumeAdherence * 0.40 +
-    consistencyScore * 0.25 +
-    restBalance * 0.20 +
-    trendScore * 0.15 -
-    fatiguePenalty
-  )));
+  const readinessScore = readinessResult.readinessScore;
 
   // ── Weekly plan ─────────────────────────────────────
   let weeklyPlan: TrainingContext["weeklyPlan"] = null;

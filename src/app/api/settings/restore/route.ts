@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import type {
+  BackupSettings,
+  SerializedActivity,
+  SerializedGoal,
+  SerializedDuplicateGroup,
+  SerializedBodyMetric,
+  SerializedWeeklyAssessment,
+  SerializedWeeklyPlan,
+  SerializedFatigueAlert,
+  SerializedDailyHealth,
+  SerializedAnalysisReport,
+  SerializedApiKey,
+  SerializedGarminSession,
+  SerializedCorosSession,
+  SerializedCoachConversation,
+} from "@/lib/backup-restore-types";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
@@ -20,20 +37,20 @@ function buildIdMap(ids: string[]): Map<string, string> {
 }
 
 // Read a JSON file from the temp dir, return [] if missing
-function readJson(dir: string, name: string): any[] {
+function readJson<T>(dir: string, name: string): T[] {
   try {
     const raw = fs.readFileSync(path.join(dir, name), "utf-8");
-    return JSON.parse(raw);
+    return JSON.parse(raw) as T[];
   } catch {
     return [];
   }
 }
 
 // Read a single JSON object, return null if missing
-function readJsonSingle(dir: string, name: string): any {
+function readJsonSingle<T>(dir: string, name: string): T | null {
   try {
     const raw = fs.readFileSync(path.join(dir, name), "utf-8");
-    return JSON.parse(raw);
+    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
@@ -80,20 +97,20 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 2. Read all data files ───────────────────────────────────────────
-  const settings = readJsonSingle(tmpDir, "settings.json");
-  const activities = readJson(tmpDir, "activities.json");
-  const goals = readJson(tmpDir, "goals.json");
-  const duplicateGroups = readJson(tmpDir, "duplicate_groups.json");
-  const bodyMetrics = readJson(tmpDir, "body_metrics.json");
-  const weeklyAssessments = readJson(tmpDir, "weekly_assessments.json");
-  const weeklyPlans = readJson(tmpDir, "weekly_plans.json");
-  const fatigueAlerts = readJson(tmpDir, "fatigue_alerts.json");
-  const dailyHealth = readJson(tmpDir, "daily_health.json");
-  const analysisReports = readJson(tmpDir, "analysis_reports.json");
-  const apiKeys = readJson(tmpDir, "api_keys.json");
-  const garminSession = readJsonSingle(tmpDir, "garmin_session.json");
-  const corosSession = readJsonSingle(tmpDir, "coros_session.json");
-  const coachConversations = readJson(tmpDir, "coach_conversations.json");
+  const settings = readJsonSingle<BackupSettings>(tmpDir, "settings.json");
+  const activities = readJson<SerializedActivity>(tmpDir, "activities.json");
+  const goals = readJson<SerializedGoal>(tmpDir, "goals.json");
+  const duplicateGroups = readJson<SerializedDuplicateGroup>(tmpDir, "duplicate_groups.json");
+  const bodyMetrics = readJson<SerializedBodyMetric>(tmpDir, "body_metrics.json");
+  const weeklyAssessments = readJson<SerializedWeeklyAssessment>(tmpDir, "weekly_assessments.json");
+  const weeklyPlans = readJson<SerializedWeeklyPlan>(tmpDir, "weekly_plans.json");
+  const fatigueAlerts = readJson<SerializedFatigueAlert>(tmpDir, "fatigue_alerts.json");
+  const dailyHealth = readJson<SerializedDailyHealth>(tmpDir, "daily_health.json");
+  const analysisReports = readJson<SerializedAnalysisReport>(tmpDir, "analysis_reports.json");
+  const apiKeys = readJson<SerializedApiKey>(tmpDir, "api_keys.json");
+  const garminSession = readJsonSingle<SerializedGarminSession>(tmpDir, "garmin_session.json");
+  const corosSession = readJsonSingle<SerializedCorosSession>(tmpDir, "coros_session.json");
+  const coachConversations = readJson<SerializedCoachConversation>(tmpDir, "coach_conversations.json");
 
   if (!settings) {
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -102,7 +119,7 @@ export async function POST(request: NextRequest) {
 
   // ── 3. Read per-activity GPS data ────────────────────────────────────
   const activityDataDir = path.join(tmpDir, "activity_data");
-  const rawJsonMap = new Map<string, any>();
+  const rawJsonMap = new Map<string, unknown>();
   try {
     const files = fs.readdirSync(activityDataDir);
     for (const file of files) {
@@ -204,7 +221,7 @@ export async function POST(request: NextRequest) {
             calories: l.calories ?? null,
             tss: l.tss ?? null,
             workoutType: l.workoutType ?? null,
-            rawJson: rawJsonMap.get(l.id) ?? undefined,
+            rawJson: rawJsonMap.get(l.id) as Prisma.InputJsonValue | undefined,
             simplifiedTrackPoints: l.simplifiedTrackPoints ?? undefined,
             trackMinLat: l.trackMinLat ?? null,
             trackMaxLat: l.trackMaxLat ?? null,
