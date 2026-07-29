@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, MessageSquare, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -208,6 +208,123 @@ export default function ActivitiesPage() {
     types: string[]; sources: string[]; subTypes: string[];
   }>({ types: [], sources: [], subTypes: [] });
 
+  // ── Sync from connected integrations (Garmin / COROS) ──
+  const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Check which integrations are connected on mount
+  useEffect(() => {
+    Promise.allSettled([
+      fetch("/api/integrations/garmin/status").then((r) => r.json()),
+      fetch("/api/integrations/coros/status").then((r) => r.json()),
+    ]).then(([garmin, coros]) => {
+      const providers: string[] = [];
+      if (garmin.status === "fulfilled" && garmin.value?.connected) providers.push("garmin");
+      if (coros.status === "fulfilled" && coros.value?.connected) providers.push("coros");
+      setConnectedProviders(providers);
+    });
+  }, []);
+
+  const doSync = useCallback(async () => {
+    if (syncing || connectedProviders.length === 0) return;
+    setSyncing(true);
+    setSyncResult(null);
+
+    let totalImported = 0;
+    let hasError = false;
+
+    for (const provider of connectedProviders) {
+      try {
+        const res = await fetch(`/api/integrations/${provider}/sync`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          totalImported += data.activitiesImported || 0;
+        } else {
+          hasError = true;
+        }
+      } catch {
+        hasError = true;
+      }
+    }
+
+    setSyncing(false);
+
+    if (hasError && totalImported === 0) {
+      setSyncResult({ type: "error", text: "Sync failed. Check your integrations in Settings." });
+    } else {
+      setSyncResult({
+        type: "success",
+        text: `Synced ${totalImported} activit${totalImported !== 1 ? "ies" : "y"}.`,
+      });
+      // Refresh activity data
+      loadAll();
+    }
+
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => setSyncResult(null), 5000);
+  }, [syncing, connectedProviders]);
+
+  // Cleanup sync timer
+  useEffect(() => {
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, []);
+
+  // ── Pull-to-refresh (mobile) ────────────────────────────
+  const pullStateRef = useRef({ startY: 0, distance: 0, active: false });
+  const [pullDistance, setPullDistance] = useState(0);
+
+  useEffect(() => {
+    if (connectedProviders.length === 0) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY > 8 || syncing) return;
+      const ps = pullStateRef.current;
+      ps.startY = e.touches[0].clientY;
+      ps.distance = 0;
+      ps.active = true;
+      setPullDistance(0);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const ps = pullStateRef.current;
+      if (!ps.active) return;
+      const delta = e.touches[0].clientY - ps.startY;
+      if (delta <= 0) {
+        ps.active = false;
+        setPullDistance(0);
+        return;
+      }
+      // Resistive feel: cap distance and apply damping
+      ps.distance = Math.min(delta * 0.35, 110);
+      setPullDistance(ps.distance);
+      if (delta > 10) e.preventDefault();
+    };
+
+    const onTouchEnd = () => {
+      const ps = pullStateRef.current;
+      if (!ps.active) return;
+      ps.active = false;
+      const dist = ps.distance;
+      setPullDistance(0);
+      if (dist > 55) doSync();
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [connectedProviders.length, syncing, doSync]);
+
+  const [total, setTotal] = useState(0);
+
   function loadAll(cancelledRef?: { current: boolean }) {
     setLoading(true);
     Promise.all([
@@ -224,8 +341,6 @@ export default function ActivitiesPage() {
       if (!cancelledRef?.current) setLoading(false);
     });
   }
-
-  const [total, setTotal] = useState(0);
 
   // Load on mount
   useEffect(() => {
@@ -408,6 +523,35 @@ export default function ActivitiesPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+      {/* ═══ PULL-TO-REFRESH INDICATOR (mobile) ═══ */}
+      <div
+        className="flex items-center justify-center overflow-hidden transition-[height] duration-100 md:hidden"
+        style={{ height: pullDistance > 0 ? `${pullDistance}px` : "0px" }}
+      >
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <RefreshCw
+            className={`h-5 w-5 transition-all duration-200 ${
+              pullDistance > 55 ? "text-primary" : ""
+            }`}
+            style={{ transform: `rotate(${pullDistance * 3.6}deg)` }}
+          />
+          <span>{pullDistance > 55 ? "Release to sync" : "Pull to sync"}</span>
+        </div>
+      </div>
+
+      {/* ═══ SYNC RESULT BANNER ═══ */}
+      {syncResult && (
+        <div
+          className={`mb-4 p-3 rounded-lg text-sm ${
+            syncResult.type === "success"
+              ? "bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200"
+              : "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-200"
+          }`}
+        >
+          {syncResult.text}
+        </div>
+      )}
+
       {/* ═══ HEADER ═══ */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -424,9 +568,21 @@ export default function ActivitiesPage() {
             </p>
           )}
         </div>
-        <Button onClick={() => setShowImportModal(true)} className="shrink-0 mt-1">
-          <Plus className="h-4 w-4 mr-2" /> Import
-        </Button>
+        <div className="flex items-center gap-2 shrink-0 mt-1">
+          {connectedProviders.length > 0 && (
+            <Button onClick={doSync} disabled={syncing} variant="outline" className="shrink-0">
+              {syncing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              {syncing ? "Syncing…" : "Sync"}
+            </Button>
+          )}
+          <Button onClick={() => setShowImportModal(true)} className="shrink-0">
+            <Plus className="h-4 w-4 mr-2" /> Import
+          </Button>
+        </div>
       </div>
 
       {/* ═══ VOLUME BAR CHART ═══ */}
