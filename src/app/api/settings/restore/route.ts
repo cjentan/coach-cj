@@ -137,6 +137,8 @@ export async function POST(request: NextRequest) {
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Restore is a bulk operation — increase timeouts beyond Prisma's defaults (5s)
+      // to accommodate large backups with thousands of records.
       // ── 4. Update user settings ─────────────────────────────────────
       if (settings?.user?.settings) {
         const s = settings.user.settings;
@@ -494,6 +496,9 @@ export async function POST(request: NextRequest) {
           counts.coachSuggestions = allSuggestions.length;
         }
       }
+    }, {
+      maxWait: 30_000,  // 30s to acquire a transaction connection (default 2s)
+      timeout: 300_000,  // 5min for the transaction to complete (default 5s)
     });
 
     return NextResponse.json({ success: true, counts });

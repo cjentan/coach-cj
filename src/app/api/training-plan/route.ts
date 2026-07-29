@@ -136,6 +136,26 @@ function groupPhases(
   return phases;
 }
 
+// ── Helpers ──────────────────────────────────────────────
+
+/**
+ * Format a Date to a "YYYY-MM-DD" string using LOCAL timezone.
+ *
+ * This MUST be used instead of `toISOString().split("T")[0]` when
+ * comparing dates from different sources (plan vs training logs)
+ * because:
+ *   - Plan weekStartDate is stored as local midnight (from getWeekStart)
+ *   - Training log startDate is the activity's UTC timestamp
+ *   - toISOString() converts local midnight → previous day in UTC,
+ *     breaking all date matches for timezones with a positive UTC offset
+ */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // ── Route ───────────────────────────────────────────────
 
 export async function GET() {
@@ -189,14 +209,20 @@ export async function GET() {
     orderBy: { weekStartDate: "asc" },
   });
 
-  // 4. Fetch all TrainingLog records in the same range
+  // 4. Fetch all TrainingLog records in the plan range AND recent past
+  //    (so activities before the plan started show on the calendar).
   const planEndPlus1 = new Date(planEndDate);
   planEndPlus1.setDate(planEndPlus1.getDate() + 1);
+
+  // Look back up to 60 days from today (or planStart, whichever is earlier)
+  // so the current month's calendar always shows recorded activities.
+  const logLookback = new Date(now.getTime() - 60 * 86400_000);
+  const logQueryStart = logLookback < planStartDate ? logLookback : planStartDate;
 
   const logs = await prisma.trainingLog.findMany({
     where: {
       userId,
-      startDate: { gte: planStartDate, lt: planEndPlus1 },
+      startDate: { gte: logQueryStart, lt: planEndPlus1 },
       mergedIntoId: null,
     },
     orderBy: { startDate: "desc" },
@@ -212,10 +238,12 @@ export async function GET() {
     },
   });
 
-  // Group logs by date string for O(1) lookup
+  // Group logs by date string for O(1) lookup.
+  // Use localDateStr() instead of toISOString() to match plan day
+  // dates computed in the server's local timezone (see localDateStr doc).
   const logsByDate = new Map<string, typeof logs>();
   for (const log of logs) {
-    const dateKey = log.startDate.toISOString().split("T")[0];
+    const dateKey = localDateStr(log.startDate);
     if (!logsByDate.has(dateKey)) logsByDate.set(dateKey, []);
     logsByDate.get(dateKey)!.push(log);
   }
@@ -275,7 +303,7 @@ export async function GET() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = localDateStr(d);
       const dow = d.getDay();
       const isPast = d < todayStart;
       const isToday = d.getTime() === todayStart.getTime();
@@ -323,8 +351,8 @@ export async function GET() {
     });
 
     weekResults.push({
-      weekStart: weekStart.toISOString().split("T")[0],
-      weekEnd: weekEnd.toISOString().split("T")[0],
+      weekStart: localDateStr(weekStart),
+      weekEnd: localDateStr(weekEnd),
       days,
       targetVolumeMeters: plan.targetVolumeMeters ?? undefined,
       targetElevationMeters: plan.targetElevationMeters ?? undefined,
@@ -335,17 +363,95 @@ export async function GET() {
     });
 
     phaseInputs.push({
-      weekStart: weekStart.toISOString().split("T")[0],
+      weekStart: localDateStr(weekStart),
       phaseName,
     });
   }
 
-  // Group into phases
+  // 6. Build "orphan" weeks — dates with training logs that are NOT part
+  //    of any planned week (e.g. activities recorded before the plan started).
+  //    This lets the calendar overlay recorded activities even when no plan
+  //    session exists for that date.
+
+  // Collect all dates already covered by the plan's weeks
+  const planDates = new Set<string>();
+  for (const week of weekResults) {
+    for (const day of week.days) {
+      planDates.add(day.date);
+    }
+  }
+
+  // Group orphan logs into calendar weeks (Mon–Sun) via getWeekStart
+  const orphanWeeksMap = new Map<
+    string,
+    { weekStart: Date; days: Map<number, PlanDayActual> }
+  >();
+  for (const [dateStr, dateLogs] of logsByDate) {
+    if (planDates.has(dateStr)) continue; // already covered by a planned week
+
+    const best = dateLogs[0];
+    const ws = getWeekStart(best.startDate);
+    const weekKey = localDateStr(ws);
+    const dow = best.startDate.getDay();
+
+    if (!orphanWeeksMap.has(weekKey)) {
+      orphanWeeksMap.set(weekKey, { weekStart: ws, days: new Map() });
+    }
+    orphanWeeksMap.get(weekKey)!.days.set(dow, {
+      type: best.type,
+      name: best.name,
+      distanceMeters: best.distanceMeters,
+      elevationGainMeters: best.elevationGainMeters,
+      durationSeconds: best.durationSeconds,
+      activityId: best.id,
+      source: best.source,
+    });
+  }
+
+  // Convert orphan weeks to PlanWeekData (full 7-day array, only actual days populated)
+  const orphanWeeks: PlanWeekData[] = [];
+  for (const [, wd] of orphanWeeksMap) {
+    const we = new Date(wd.weekStart);
+    we.setDate(we.getDate() + 6);
+    const days: PlanDay[] = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(wd.weekStart);
+      d.setDate(d.getDate() + i);
+      const dateStr = localDateStr(d);
+      const dow = d.getDay();
+      const isPast = d < todayStart;
+      const isToday = d.getTime() === todayStart.getTime();
+
+      days.push({
+        date: dateStr,
+        dayLabel: SHORT_DAY_NAMES[dow],
+        dayOfWeek: dow,
+        planned: null,
+        actual: wd.days.get(dow) ?? null,
+        isPast,
+        isToday,
+      });
+    }
+
+    orphanWeeks.push({
+      weekStart: localDateStr(wd.weekStart),
+      weekEnd: localDateStr(we),
+      days,
+    });
+  }
+
+  // Merge orphan weeks with plan weeks, sorted chronologically
+  weekResults.push(...orphanWeeks);
+  weekResults.sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+
+  // Group into phases (orphan weeks are intentionally excluded from phaseInputs
+  // since they represent unplanned activity-only periods)
   const phases = groupPhases(phaseInputs);
 
   return NextResponse.json<TrainingPlanResponse>({
-    planStartDate: planStartDate.toISOString().split("T")[0],
-    planEndDate: planEndDate.toISOString().split("T")[0],
+    planStartDate: localDateStr(planStartDate),
+    planEndDate: localDateStr(planEndDate),
     phases,
     weeks: weekResults,
   });
