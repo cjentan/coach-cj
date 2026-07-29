@@ -15,6 +15,7 @@ export function Navbar() {
 
   const NAV_LINKS = [
     { href: "/dashboard", label: t("dashboard") },
+    { href: "/training-plan", label: t("trainingPlan") },
     { href: "/activities", label: t("activities") },
     { href: "/duplicates", label: t("duplicates") },
     { href: "/ingestion", label: t("import") },

@@ -13,6 +13,7 @@ import {
   Upload,
   LogOut,
   Shield,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -32,6 +33,7 @@ export function MobileNav() {
   ];
 
   const MORE_ITEMS = [
+    { href: "/training-plan", label: t("trainingPlan"), icon: CalendarDays },
     { href: "/duplicates", label: t("duplicates"), icon: Copy },
     { href: "/ingestion", label: t("import"), icon: Upload },
     { href: "/settings", label: t("settings"), icon: Settings },

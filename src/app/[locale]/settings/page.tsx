@@ -6,19 +6,20 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useTheme } from "next-themes";
-import { User, Sun, Moon, Monitor, AlertCircle, Check, MapPin, KeyRound, Languages } from "lucide-react";
+import { useAccessibility, type TextSize } from "@/hooks/use-accessibility";
+import { User, Sun, Moon, Monitor, AlertCircle, Check, KeyRound, Languages, Accessibility } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogClose,
 } from "@/components/ui/dialog";
 
-export default function SettingsGeneralPage() {
+export default function SettingsProfilePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { textSize, setTextSize } = useAccessibility();
   const [mounted, setMounted] = useState(false);
 
   // Password change state
@@ -46,49 +47,11 @@ export default function SettingsGeneralPage() {
     window.location.href = `/${newLocale}/settings`;
   }
 
-  // Training context state
-  const [trainingContext, setTrainingContext] = useState("");
-  const [trainingContextLoading, setTrainingContextLoading] = useState(true);
-  const [trainingContextSaving, setTrainingContextSaving] = useState(false);
-  const [trainingContextSaved, setTrainingContextSaved] = useState(false);
-  const [trainingContextError, setTrainingContextError] = useState("");
-
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
   }, [status, router]);
-
-  // Fetch training context on mount
-  useEffect(() => {
-    if (status !== "authenticated") return;
-    fetch("/api/settings/training-context")
-      .then((r) => r.json())
-      .then((data) => {
-        setTrainingContext(data.trainingContext || "");
-        setTrainingContextLoading(false);
-      })
-      .catch(() => setTrainingContextLoading(false));
-  }, [status]);
-
-  async function handleSaveTrainingContext() {
-    setTrainingContextSaving(true);
-    setTrainingContextError("");
-    setTrainingContextSaved(false);
-    try {
-      const res = await fetch("/api/settings/training-context", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trainingContext }),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      setTrainingContextSaved(true);
-      setTimeout(() => setTrainingContextSaved(false), 3000);
-    } catch {
-      setTrainingContextError(t("contextSaveFailed"));
-    }
-    setTrainingContextSaving(false);
-  }
 
   if (status === "loading" || !session) return <div className="py-8">{common("loading")}</div>;
 
@@ -238,50 +201,6 @@ export default function SettingsGeneralPage() {
         </CardContent>
       </Card>
 
-      {/* Where and When I Can Train */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" /> {t("trainingContextTitle")}</CardTitle>
-          <CardDescription>{t("trainingContextDesc")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {trainingContextLoading ? (
-            <p className="text-sm text-muted-foreground">{common("loading")}</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="training-context">{t("trainingContextLabel")}</Label>
-                <Textarea
-                  id="training-context"
-                  rows={6}
-                  placeholder={t("trainingContextPlaceholder")}
-                  value={trainingContext}
-                  onChange={(e) => setTrainingContext(e.target.value)}
-                />
-              </div>
-
-              {trainingContextError && (
-                <div className="flex items-center gap-2 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{trainingContextError}</span>
-                </div>
-              )}
-
-              {trainingContextSaved && (
-                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                  <Check className="h-4 w-4 shrink-0" />
-                  <span>{t("contextSaved")}</span>
-                </div>
-              )}
-
-              <Button onClick={handleSaveTrainingContext} disabled={trainingContextSaving}>
-                {trainingContextSaving ? common("saving") : common("save")}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Language */}
       <Card className="mb-6">
         <CardHeader>
@@ -337,6 +256,43 @@ export default function SettingsGeneralPage() {
                 <span className={`text-sm font-medium ${mounted && theme === value ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
               </button>
             ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Accessibility */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Accessibility className="h-5 w-5" /> {t("accessibilityTitle")}</CardTitle>
+          <CardDescription>{t("accessibilityDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Label>{t("textSize")}</Label>
+            <div className="flex gap-3">
+              {[
+                { value: "normal" as TextSize, label: t("textSizeNormal") },
+                { value: "large" as TextSize, label: t("textSizeLarge") },
+                { value: "xlarge" as TextSize, label: t("textSizeXLarge") },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setTextSize(value)}
+                  className={`flex-1 min-w-[100px] rounded-lg border-2 p-4 text-center transition-all ${
+                    mounted && textSize === value
+                      ? "border-primary bg-primary/5 text-primary font-medium"
+                      : "border-muted hover:border-muted-foreground/30 text-muted-foreground"
+                  }`}
+                >
+                  <span className="block font-medium">{label}</span>
+                  <span className="block mt-1 opacity-60 leading-none"
+                    style={{ fontSize: value === "normal" ? "0.75rem" : value === "large" ? "0.9375rem" : "1.125rem" }}
+                  >
+                    Aa
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>

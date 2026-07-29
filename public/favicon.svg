@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#g)"/>
+  <!-- Bold "C" for Coach, optimized for 16x16 readability -->
+  <path d="M9 16c0-4.4 3.1-7.5 7-7.5 2.4 0 4.2 1.1 5.2 2.8l-3.5 2c-.5-1-1.4-1.7-2.7-1.7-2 0-3.3 1.8-3.3 4.4s1.3 4.4 3.3 4.4c1.3 0 2.2-.7 2.7-1.7l3.5 2C24.2 22.4 22.4 23.5 20 23.5c-3.9 0-7-3.1-7-7.5z" fill="white"/>
+</svg>

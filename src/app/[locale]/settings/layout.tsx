@@ -5,14 +5,11 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
-  Settings2,
+  User,
   Target,
-  Scale,
   Brain,
-  Key,
   Plug,
   Shield,
-  AlertTriangle,
 } from "lucide-react";
 
 export default function SettingsLayout({
@@ -24,14 +21,11 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   const SIDEBAR_ITEMS = [
-    { href: "/settings", label: t("general.title"), icon: Settings2 },
-    { href: "/settings/goals", label: t("goals.title"), icon: Target },
-    { href: "/settings/body-metrics", label: t("bodyMetrics.title"), icon: Scale },
-    { href: "/settings/analysis", label: t("analysisTab"), icon: Brain },
-    { href: "/settings/credentials", label: t("apiCredentials"), icon: Key },
-    { href: "/settings/integrations", label: t("integrations.title"), icon: Plug },
-    { href: "/settings/backup-restore", label: t("backupRestore.title"), icon: Shield },
-    { href: "/settings/danger-zone", label: t("dangerZone.title"), icon: AlertTriangle },
+    { href: "/settings", label: t("profileTab"), icon: User },
+    { href: "/settings/training", label: t("trainingTab"), icon: Target },
+    { href: "/settings/ai-coach", label: t("aiCoachTab"), icon: Brain },
+    { href: "/settings/connections", label: t("connectionsTab"), icon: Plug },
+    { href: "/settings/data", label: t("dataTab"), icon: Shield },
   ];
 
   return (

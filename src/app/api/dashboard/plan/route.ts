@@ -103,6 +103,11 @@ export async function GET(request: Request) {
     }
   }
 
+  // Count ALL weekly plans for this user (across all weeks)
+  const totalPlanCount = await prisma.weeklyPlan.count({
+    where: { userId: session.user.id },
+  });
+
   // Build days array
   const days: Array<{
     date: string;
@@ -188,5 +193,6 @@ export async function GET(request: Request) {
     adjustments: plan?.adjustments || [],
     coachNotes: plan?.coachNotes ?? undefined,
     fromCache: !!plan,
+    totalPlanCount,
   });
 }

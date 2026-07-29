@@ -8,11 +8,11 @@ const intlMiddleware = createMiddleware(routing);
 export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Bypass i18n for API routes, static files, and next internals
+  // Bypass i18n for API routes, Next.js internals, and static files
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
-    pathname === "/favicon.ico"
+    pathname.includes(".")
   ) {
     return NextResponse.next();
   }
@@ -55,5 +55,5 @@ export default async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|.*\\..*).*)"],
 };

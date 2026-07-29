@@ -6,7 +6,9 @@ import "@/app/globals.css";
 import { Navbar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { AccessibilityProvider } from "@/hooks/use-accessibility";
 import AuthProvider from "@/components/providers/session-provider";
+import FloatingCoachButton from "@/components/coach/floating-coach-button";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -45,6 +47,7 @@ export async function generateMetadata({
     manifest: "/manifest.json",
     icons: {
       icon: [
+        { url: "/favicon.svg", type: "image/svg+xml" },
         { url: "/icon.svg", type: "image/svg+xml" },
         { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
         { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
@@ -93,11 +96,14 @@ export default async function LocaleLayout({
       <body className={fontClass} style={{ fontFamily }}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <AuthProvider>
-              <Navbar />
-              <MobileNav />
-              <main className="min-h-screen bg-background pb-16 md:pb-0">{children}</main>
-            </AuthProvider>
+            <AccessibilityProvider>
+              <AuthProvider>
+                <Navbar />
+                <MobileNav />
+                <main className="min-h-screen bg-background pb-16 md:pb-0">{children}</main>
+                <FloatingCoachButton />
+              </AuthProvider>
+            </AccessibilityProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

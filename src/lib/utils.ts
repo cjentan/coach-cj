@@ -102,3 +102,112 @@ export function getMonthStart(date: Date): Date {
 export function getMonthEnd(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
+
+// ── Workout classification ───────────────────────────────
+
+export type EffortLevel = "rest" | "easy" | "moderate" | "hard";
+export type SurfaceType = "trail" | "road" | "track" | "indoor" | null;
+
+/**
+ * Infer effort level from a planned session's type and description.
+ * Uses keyword matching on the free-text description with a fallback to
+ * the session type enum.
+ */
+export function inferEffort(type: string, description?: string): EffortLevel {
+  if (type === "rest") return "rest";
+  const desc = (description ?? "").toLowerCase();
+
+  // Hard efforts
+  if (
+    desc.includes("interval") ||
+    desc.includes("vo2max") ||
+    desc.includes("hill repeat") ||
+    desc.includes("sprint") ||
+    desc.includes("strides") ||
+    desc.includes("all-out") ||
+    desc.includes("race pace") ||
+    desc.includes("anaerobic") ||
+    desc.includes("hard effort")
+  ) {
+    return "hard";
+  }
+
+  // Moderate efforts
+  if (
+    desc.includes("tempo") ||
+    desc.includes("threshold") ||
+    desc.includes("lactate") ||
+    desc.includes("long run") ||
+    desc.includes("steady") ||
+    desc.includes("marathon pace") ||
+    desc.includes("moderate")
+  ) {
+    return "moderate";
+  }
+
+  // Easy / recovery
+  if (
+    desc.includes("easy") ||
+    desc.includes("recovery") ||
+    desc.includes("zone 2") ||
+    desc.includes("z2") ||
+    desc.includes("conversation") ||
+    desc.includes("regeneration") ||
+    desc.includes("shakeout") ||
+    desc.includes("gentle")
+  ) {
+    return "easy";
+  }
+
+  // Fallback based on type
+  if (type === "workout" || type === "hike") return "moderate";
+  if (type === "ride" || type === "swim") return "moderate";
+  if (type === "run") return "easy"; // default run is easy
+
+  return "rest";
+}
+
+/**
+ * Infer surface type from the session description.
+ */
+export function inferSurface(description?: string): SurfaceType {
+  if (!description) return null;
+  const desc = description.toLowerCase();
+
+  if (desc.includes("trail")) return "trail";
+  if (desc.includes("track")) return "track";
+  if (desc.includes("treadmill") || desc.includes("indoor")) return "indoor";
+  if (desc.includes("road")) return "road";
+  if (desc.includes("path") || desc.includes("pavement")) return "road";
+
+  return null;
+}
+
+/**
+ * Format elevation gain in meters for display.
+ * Shows as e.g. "450m" under 1000m, and "1.2km" above.
+ */
+export function formatElevation(meters: number | null | undefined): string {
+  if (!meters || meters <= 0) return "";
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)}km`;
+  }
+  return `${Math.round(meters)}m`;
+}
+
+/**
+ * Get the activity icon component name for a session type.
+ * Returns lucide-react icon name strings.
+ */
+export function getActivityIcon(type: string): string {
+  const map: Record<string, string> = {
+    run: "Footprints",
+    ride: "Bike",
+    swim: "Waves",
+    workout: "Dumbbell",
+    hike: "Mountain",
+    rest: "Moon",
+    other: "Activity",
+  };
+  return map[type.toLowerCase()] ?? "Activity";
+}

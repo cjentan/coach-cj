@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["debian-openssl-3.0.x"]
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -28,6 +28,7 @@ model User {
   llmApiKey               String?  @map("llm_api_key")
   locale                  String   @default("en")
   trainingContext         String?  @map("training_context")
+  dashboardPrefs          Json?    @map("dashboard_prefs")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 

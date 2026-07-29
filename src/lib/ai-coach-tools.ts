@@ -226,7 +226,7 @@ export const CREATE_TRAINING_PHASE_TOOL: ToolDefinition = {
   type: "function",
   function: {
     name: "create_training_phase",
-    description: "Create one training phase (2-8 weeks) as part of a periodized plan leading to a race goal. THIS IS THE PRIMARY TOOL FOR BUILDING TRAINING PLANS. Use this when the athlete has a goal and needs a plan — do NOT just list data and say 'Done'. Phases build on each other: Base → Build → Peak → Taper. Call this tool MULTIPLE TIMES in sequence to build the full plan, one phase at a time. After saving each phase, check its output then immediately create the next phase — do not stop mid-way. Consider recent training volume, training context (terrain/schedule), race course profile, target time, and the athlete's fitness (PMC: CTL/ATL/TSB) when designing each phase.",
+    description: "Create one training phase as part of a periodized plan leading to a race goal. THIS IS THE PRIMARY TOOL FOR BUILDING TRAINING PLANS. Use this when the athlete has a goal and needs a plan — do NOT just list data and say 'Done'. Phases build on each other: Base → Build → Peak → Taper. Call this tool MULTIPLE TIMES in sequence to build the full plan, one phase at a time. After saving each phase, check its output then immediately create the next phase — do not stop mid-way. Consider recent training volume, training context (terrain/schedule), race course profile, target time, and the athlete's fitness (PMC: CTL/ATL/TSB) when designing each phase.",
     parameters: {
       type: "object",
       properties: {
@@ -249,9 +249,8 @@ export const CREATE_TRAINING_PHASE_TOOL: ToolDefinition = {
         },
         weeks: {
           type: "array",
-          minItems: 2,
-          maxItems: 8,
-          description: "The weeks in this phase (2-6 weeks). Weeks must be consecutive starting from the phase start date.",
+          minItems: 1,
+          description: "The weeks in this phase (1+ weeks). Weeks must be consecutive starting from the phase start date.",
           items: {
             type: "object",
             required: ["weekNumber", "weekStart", "sessions"],
@@ -286,6 +285,109 @@ export const CREATE_TRAINING_PHASE_TOOL: ToolDefinition = {
   },
 };
 
+/**
+ * Full-plan tool — NOT included in ALL_COACH_TOOLS.
+ * This is a specialized tool used only by approvePlanProposal() for the
+ * initial plan creation, where speed matters most.
+ * Regular chat continues to use create_training_phase per-phase for adjustments.
+ */
+export const CREATE_FULL_TRAINING_PLAN_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "create_full_training_plan",
+    description: "Create a COMPLETE periodized training plan — ALL phases in one call. Use this when the athlete has approved a plan proposal and all phases need to be saved at once. This replaces calling create_training_phase multiple times. The phases array covers the full plan from start to race day: typically Base → Build (optionally multiple) → Peak → Taper. Each phase may have 1+ weeks with daily sessions.",
+    parameters: {
+      type: "object",
+      properties: {
+        phases: {
+          type: "array",
+          minItems: 1,
+          maxItems: 6,
+          description: "All training phases for the plan, in chronological order",
+          items: {
+            type: "object",
+            required: ["phaseName", "phaseGoal", "raceGoalId", "phaseOrder", "weeks"],
+            properties: {
+              phaseName: {
+                type: "string",
+                description: "Name of this training phase (e.g. 'Base Phase', 'Build Phase 1', 'Build Phase 2', 'Peak Phase', 'Taper'). Indicates its position in the periodization cycle.",
+              },
+              phaseGoal: {
+                type: "string",
+                description: "The specific training goal for this phase, e.g. 'Build aerobic base from 50km to 65km/week' or 'Introduce threshold work with one quality session per week'",
+              },
+              raceGoalId: {
+                type: "string",
+                description: "The ID of the race goal this phase targets. Get this from the training context's race goals list.",
+              },
+              phaseOrder: {
+                type: "integer",
+                minimum: 1,
+                description: "Sequence number of this phase in the overall plan (1, 2, 3...). Phase 1 is the first phase.",
+              },
+              weeks: {
+                type: "array",
+                minItems: 1,
+                description: "The weeks in this phase (1+ weeks). Weeks must be consecutive.",
+                items: {
+                  type: "object",
+                  required: ["weekNumber", "weekStart", "sessions"],
+                  properties: {
+                    weekNumber: { type: "integer", minimum: 1, description: "Week number within this phase (1-based)." },
+                    weekStart: { type: "string", description: "ISO date (YYYY-MM-DD) of the Monday of this week." },
+                    coachNotes: { type: "string", description: "Optional rationale for this week — e.g. 'Volume build week', 'Cutback/recovery week at ~80% volume'" },
+                    targetVolumeMeters: { type: "number", description: "Target weekly volume in meters." },
+                    targetElevationMeters: { type: "number", description: "Target weekly elevation gain in meters." },
+                    sessions: {
+                      type: "array",
+                      description: "All daily sessions for this week (include rest days explicitly). Past days are auto-skipped.",
+                      items: {
+                        type: "object",
+                        required: ["dayOfWeek", "type"],
+                        properties: {
+                          dayOfWeek: { type: "integer", minimum: 0, maximum: 6, description: "0=Sunday, 1=Monday ... 6=Saturday" },
+                          type: { type: "string", enum: ["run", "ride", "swim", "rest", "workout", "hike", "other"] },
+                          description: { type: "string", description: "Full description — workout details, pace zones, duration, terrain, intensity cues" },
+                          targetDistance: { type: "number", description: "Distance in meters" },
+                          targetElevation: { type: "number", description: "Elevation gain in meters" },
+                          targetDuration: { type: "integer", description: "Duration in seconds" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      required: ["phases"],
+    },
+  },
+};
+
+export const LOOKUP_RACE_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "lookup_race",
+    description: "Search the web for details about a specific race/event — date, distance, elevation, location, course profile. Use this when the athlete mentions a race name you can look up, to fill in missing details for a goal instead of asking the athlete. Searches Wikipedia then the general web for the best available information.",
+    parameters: {
+      type: "object",
+      properties: {
+        raceName: {
+          type: "string",
+          description: "The name of the race/event to look up (e.g. 'Chicago Marathon', 'Leadville 100', 'LangBiang 100K').",
+        },
+        year: {
+          type: "string",
+          description: "Optional year for edition-specific details (e.g. '2027').",
+        },
+      },
+      required: ["raceName"],
+    },
+  },
+};
+
 export const ALL_COACH_TOOLS: ToolDefinition[] = [
   UPDATE_TRAINING_CONTEXT_TOOL,
   MANAGE_GOALS_TOOL,
@@ -293,7 +395,16 @@ export const ALL_COACH_TOOLS: ToolDefinition[] = [
   UPDATE_WEEKLY_PLAN_TOOL,
   QUERY_ACTIVITIES_TOOL,
   CREATE_TRAINING_PHASE_TOOL,
+  LOOKUP_RACE_TOOL,
 ];
+
+// ── Progress callback type ────────────────────────────
+
+/**
+ * Callback for forwarding granular progress events from tool execution
+ * back through the SSE stream to the frontend.
+ */
+export type ToolProgressCallback = (event: Record<string, unknown>) => void;
 
 // ── Tool execution ────────────────────────────────────
 
@@ -306,7 +417,8 @@ export interface ToolExecutionResult {
 export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
-  userId: string
+  userId: string,
+  onProgress?: ToolProgressCallback
 ): Promise<ToolExecutionResult> {
   switch (toolName) {
     case "update_training_context":
@@ -320,7 +432,9 @@ export async function executeTool(
     case "query_activities":
       return executeQueryActivities(userId, args);
     case "create_training_phase":
-      return executeCreateTrainingPhase(userId, args);
+      return executeCreateTrainingPhase(userId, args, onProgress);
+    case "lookup_race":
+      return executeLookupRace(userId, args);
     default:
       return { success: false, message: `Unknown tool: ${toolName}` };
   }
@@ -582,9 +696,10 @@ async function executeUpdateWeeklyPlan(
   };
 }
 
-async function executeCreateTrainingPhase(
+export async function executeCreateTrainingPhase(
   userId: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  onProgress?: ToolProgressCallback
 ): Promise<ToolExecutionResult> {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -598,8 +713,8 @@ async function executeCreateTrainingPhase(
   if (!phaseName || !phaseGoal || !raceGoalId || !phaseOrder || !weeks || !Array.isArray(weeks)) {
     return { success: false, message: "phaseName, phaseGoal, raceGoalId, phaseOrder, and weeks array are required." };
   }
-  if (weeks.length < 2 || weeks.length > 8) {
-    return { success: false, message: "A phase must have between 2 and 8 weeks." };
+  if (weeks.length < 1) {
+    return { success: false, message: "A phase must have at least 1 week." };
   }
 
   // Verify the race goal exists and belongs to this user
@@ -615,11 +730,24 @@ async function executeCreateTrainingPhase(
   let totalSessionsSaved = 0;
   let totalPastSkipped = 0;
 
-  for (const week of weeks) {
+  const totalWeeks = weeks.length;
+  for (let wi = 0; wi < totalWeeks; wi++) {
+    const week = weeks[wi];
     const weekStartStr = week.weekStart as string;
     if (!weekStartStr) {
       return { success: false, message: "Each week must have a weekStart (YYYY-MM-DD)." };
     }
+
+    // Fire per-week saving progress
+    onProgress?.({
+      type: "progress",
+      phaseName,
+      phaseOrder,
+      weekCurrent: wi + 1,
+      weekTotal: totalWeeks,
+      weekStart: weekStartStr,
+      message: `Saving week ${wi + 1} of ${totalWeeks} for ${phaseName}`,
+    });
 
     const weekStart = getWeekStart(new Date(weekStartStr));
     const sessions = week.sessions as Array<Record<string, unknown>> | undefined;
@@ -799,5 +927,274 @@ async function executeQueryActivities(
     success: true,
     message: `${formatted.length} activities found`,
     data: { count: formatted.length, activities: formatted },
+  };
+}
+
+/**
+ * Look up race details — tries Wikipedia first, then general web search.
+ * Wikipedia returns structured data for well-known races (Chicago Marathon,
+ * Leadville 100, etc.), while the web search fallback catches lesser-known
+ * and international events (LangBiang 100K, CCC, etc.).
+ */
+async function executeLookupRace(
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const raceName = (args.raceName as string || "").trim();
+  const year = (args.year as string || "").trim();
+
+  if (!raceName) {
+    return { success: false, message: "raceName is required." };
+  }
+
+  // Step 1: Try Wikipedia (structured data, best quality when available)
+  const wikiResult = await tryWikipediaSearch(raceName, year);
+  if (wikiResult) return wikiResult;
+
+  // Step 2: Fall back to general web search via DuckDuckGo
+  const webResult = await tryWebSearch(raceName, year);
+  if (webResult) return webResult;
+
+  return {
+    success: true,
+    message: `No information found for "${raceName}". You may need to ask the athlete for the race details directly.`,
+    data: { raceName, source: "none" },
+  };
+}
+
+/**
+ * Search Wikipedia's REST API for a race page.
+ * Returns null if no page is found.
+ */
+async function tryWikipediaSearch(
+  raceName: string,
+  year: string
+): Promise<ToolExecutionResult | null> {
+  // Build search titles — try exact name first, then common variations
+  const searchTerms = [raceName];
+  if (year) {
+    searchTerms.unshift(`${raceName} ${year}`);
+  }
+
+  const lower = raceName.toLowerCase();
+  if (lower.includes("trail") || lower.includes("ultra") || lower.includes("100")) {
+    searchTerms.push(`${raceName} ultramarathon`);
+  }
+
+  for (const term of searchTerms) {
+    try {
+      const encoded = encodeURIComponent(
+        term
+          .replace(/[^\w\s-]/g, "")    // strip punctuation
+          .replace(/\s+/g, "_")        // spaces to underscores
+          .replace(/_+/g, "_")
+      );
+
+      const response = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+
+      if (response.ok) {
+        const data = await response.json() as {
+          title?: string;
+          extract?: string;
+          content_urls?: { desktop?: { page?: string } };
+          thumbnail?: { source?: string };
+        };
+
+        if (data.title && data.extract) {
+          const extract = data.extract.slice(0, 3000);
+          const pageUrl = data.content_urls?.desktop?.page || "";
+          const imgUrl = data.thumbnail?.source || "";
+
+          return {
+            success: true,
+            message: `Found Wikipedia entry: "${data.title}"`,
+            data: {
+              title: data.title,
+              description: extract,
+              url: pageUrl,
+              image: imgUrl,
+              source: "wikipedia",
+            },
+          };
+        }
+      }
+    } catch {
+      // Try next search term
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Search the web via DuckDuckGo Lite (no API key required).
+ * Parses the HTML result page and returns formatted snippets.
+ */
+async function tryWebSearch(
+  raceName: string,
+  year: string
+): Promise<ToolExecutionResult | null> {
+  // Build focused search queries
+  const queries: string[] = [];
+  if (year) {
+    queries.push(`${raceName} ${year} race`);
+  }
+  queries.push(`${raceName} ultramarathon race`);
+  queries.push(`${raceName} race course elevation`);
+  queries.push(`${raceName}`);
+
+  const seenUrls = new Set<string>();
+  const allResults: Array<{ title: string; url: string; snippet: string; source: string }> = [];
+
+  for (const query of queries) {
+    if (allResults.length >= 5) break;
+
+    try {
+      const html = await fetchDuckDuckGoLite(query);
+      if (!html) continue;
+
+      const results = parseDuckDuckGoResults(html, seenUrls);
+      for (const r of results) {
+        if (allResults.length >= 5) break;
+        allResults.push({ ...r, source: query });
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (allResults.length === 0) return null;
+
+  // Format results for the LLM
+  const formatted = allResults.map((r, i) =>
+    `${i + 1}. ${r.title}\n   ${r.snippet}\n   (${r.url})`
+  ).join("\n\n");
+
+  return {
+    success: true,
+    message: `Found search results for "${raceName}" — review the details below.`,
+    data: {
+      title: raceName,
+      description: formatted,
+      source: "web_search",
+    },
+  };
+}
+
+/**
+ * Fetch search results from DuckDuckGo Lite HTML endpoint.
+ */
+async function fetchDuckDuckGoLite(query: string): Promise<string | null> {
+  const response = await fetch("https://lite.duckduckgo.com/lite/", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ q: query }),
+    signal: AbortSignal.timeout(6000),
+    redirect: "follow",
+  });
+
+  if (!response.ok) return null;
+  return response.text();
+}
+
+/**
+ * Parse DuckDuckGo Lite HTML results.
+ * The page uses a simple table structure:
+ * - class="result-link" anchors for titles + URLs
+ * - class="result-snippet" for descriptions
+ * - class="result-url" for display URLs
+ */
+function parseDuckDuckGoResults(
+  html: string,
+  seenUrls: Set<string>
+): Array<{ title: string; url: string; snippet: string }> {
+  const results: Array<{ title: string; url: string; snippet: string }> = [];
+
+  // Split by result rows. Each result is in a <tr class="result-row"> or
+  // follows the pattern: link row (<a class="result-link">) then snippet row.
+  // We use a simpler approach: find all result-link anchors with their snippets.
+
+  const linkRegex = /<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const snippetRegex = /class="result-snippet">([\s\S]*?)<\/td>/gi;
+
+  let linkMatch: RegExpExecArray | null;
+  const titles: string[] = [];
+  const urls: string[] = [];
+
+  while ((linkMatch = linkRegex.exec(html)) !== null) {
+    const url = linkMatch[1].trim();
+    const title = linkMatch[2].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    if (url && title && !seenUrls.has(url)) {
+      seenUrls.add(url);
+      urls.push(url);
+      titles.push(title);
+    }
+  }
+
+  const snippets: string[] = [];
+  let snippetMatch: RegExpExecArray | null;
+  while ((snippetMatch = snippetRegex.exec(html)) !== null) {
+    const snippet = snippetMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    if (snippet) {
+      snippets.push(snippet);
+    }
+  }
+
+  for (let i = 0; i < titles.length && results.length < 5; i++) {
+    results.push({
+      title: titles[i],
+      url: urls[i],
+      snippet: snippets[i] || "",
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Execute a full training plan — saves ALL phases at once.
+ * This is called from approvePlanProposal() (not from the regular tool loop
+ * via executeTool, since it's not in ALL_COACH_TOOLS).
+ */
+export async function executeCreateFullTrainingPlan(
+  userId: string,
+  args: Record<string, unknown>,
+  onProgress?: ToolProgressCallback
+): Promise<ToolExecutionResult> {
+  const phases = args.phases as Array<Record<string, unknown>> | undefined;
+  if (!phases || !Array.isArray(phases) || phases.length === 0) {
+    return { success: false, message: "phases array is required with at least one phase." };
+  }
+
+  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number }> = [];
+
+  for (const phase of phases) {
+    const result = await executeCreateTrainingPhase(userId, phase, onProgress);
+    if (!result.success) {
+      return {
+        success: false,
+        message: `Failed on phase "${phase.phaseName || `#${phase.phaseOrder}`}": ${result.message}`,
+      };
+    }
+    savedPhases.push({
+      name: (phase.phaseName as string) || "Unknown",
+      phaseOrder: (phase.phaseOrder as number) || 0,
+      weekCount: (result.data?.weekCount as number) || 0,
+      sessionCount: (result.data?.sessionCount as number) || 0,
+    });
+  }
+
+  return {
+    success: true,
+    message: `Full plan created: ${savedPhases.map((p) => `${p.name} (${p.weekCount}w, ${p.sessionCount} sessions)`).join(", ")}`,
+    data: {
+      phases: savedPhases,
+      totalWeeks: savedPhases.reduce((sum, p) => sum + p.weekCount, 0),
+      totalSessions: savedPhases.reduce((sum, p) => sum + p.sessionCount, 0),
+    },
   };
 }

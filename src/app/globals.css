@@ -60,3 +60,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Accessibility: text size scaling */
+html[data-text-size="large"] {
+  font-size: 112.5%;
+}
+
+html[data-text-size="xlarge"] {
+  font-size: 131.25%;
+}

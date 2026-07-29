@@ -74,6 +74,9 @@ export interface TrainingContext {
     durationSeconds: number;
     activityCount: number;
   }>;
+  /** Average weekly volume over the last ~3 months (12 completed weeks) in km.
+   *  More stable than the 4-week average — reflects sustained training load. */
+  longTermVolumeKm: number;
   currentWeek: {
     volumeMeters: number;
     elevationMeters: number;
@@ -254,6 +257,24 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
       activityCount: weekLogs.length,
     });
   }
+
+  // ── Long-term average volume (last 12 completed weeks) ─
+  // More stable than 4-week — reflects sustained training load.
+  const LONG_TERM_WEEKS = 12;
+  let longTermVolumeBuckets = 0;
+  let longTermVolumeSum = 0;
+  for (let w = LONG_TERM_WEEKS; w >= 1; w--) {
+    const start = new Date(Date.now() - (w + 1) * 7 * 86400000);
+    const end = new Date(Date.now() - w * 7 * 86400000);
+    const weekLogs = trainingLogs.filter(
+      (l) => l.startDate >= start && l.startDate < end
+    );
+    longTermVolumeSum += weekLogs.reduce((s, l) => s + (l.distanceMeters || 0), 0);
+    longTermVolumeBuckets++;
+  }
+  const longTermVolumeKm = Math.round(
+    longTermVolumeSum / (longTermVolumeBuckets || 1) / 1000
+  );
 
   // ── Current week ─────────────────────────────────────
   const currentWeekLogs = trainingLogs.filter((l) => l.startDate >= weekStart);
@@ -477,6 +498,7 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     }),
     planWeeks,
     recentWeeks,
+    longTermVolumeKm,
     currentWeek,
     pmc: {
       ctl: latestPmc.ctl,

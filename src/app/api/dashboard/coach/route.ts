@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import {
   analyze,
   chat,
+  startInterview,
+  approvePlanProposal,
   applySuggestion,
   listConversations,
   getConversation,
@@ -11,6 +13,11 @@ import {
   clearContext,
   analyzeActivity,
 } from "@/lib/ai-coach";
+import { type PageContext } from "@/lib/page-context";
+
+// Allow up to 2 minutes for LLM-powered actions (start-interview, approve-plan, etc.)
+// which can take 10-25+ seconds per LLM call and may retry on parse failure.
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -31,10 +38,16 @@ export async function POST(request: Request) {
   }
 
   const userId = session.user.id;
+  const locale = (body.locale as string) || session.user.locale || "en";
 
   switch (action) {
     case "analyze": {
-      const result = await analyze(userId, body.conversationId as string | undefined);
+      const result = await analyze(
+        userId,
+        body.conversationId as string | undefined,
+        body.pageContext as PageContext | undefined,
+        locale,
+      );
       if ("error" in result) {
         const status =
           result.code === "NOT_CONFIGURED" ? 503
@@ -45,6 +58,53 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
 
+    case "start-interview": {
+      const encoder = new TextEncoder();
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const sendEvent = (event: string, data: unknown) => {
+            try {
+              const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+              controller.enqueue(encoder.encode(payload));
+            } catch { /* stream may have closed */ }
+          };
+
+          try {
+            const result = await startInterview(userId, {
+              onProgress: (event) => {
+                sendEvent(event.type, event);
+              },
+              signal: request.signal,
+            }, locale);
+
+            if ("error" in result) {
+              sendEvent("error", { error: result.error, code: result.code });
+            } else {
+              sendEvent("complete", {
+                conversationId: result.conversationId,
+                response: result.response,
+                proposal: result.proposal,
+                needsGoal: result.needsGoal,
+              });
+            }
+          } catch (err) {
+            sendEvent("error", { error: (err as Error).message || "Unexpected error" });
+          }
+
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
     case "chat": {
       const conversationId = body.conversationId as string | undefined;
       const message = body.message as string | undefined;
@@ -53,12 +113,137 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "conversationId and message are required" }, { status: 400 });
       }
 
-      const result = await chat(conversationId, userId, message);
+      const result = await chat(
+        conversationId, userId, message,
+        undefined,
+        body.pageContext as PageContext | undefined,
+        locale,
+      );
       if ("error" in result) {
         const status = result.code === "NOT_FOUND" ? 404 : 503;
         return NextResponse.json({ error: result.error, code: result.code }, { status });
       }
       return NextResponse.json(result);
+    }
+
+    case "chat-stream": {
+      const conversationId = body.conversationId as string | undefined;
+      const message = body.message as string | undefined;
+
+      if (!conversationId || !message) {
+        return NextResponse.json({ error: "conversationId and message are required" }, { status: 400 });
+      }
+
+      const encoder = new TextEncoder();
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const sendEvent = (event: string, data: unknown) => {
+            try {
+              const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+              controller.enqueue(encoder.encode(payload));
+            } catch {
+              // Stream may have closed
+            }
+          };
+
+          try {
+            const result = await chat(
+              conversationId!, userId, message!,
+              {
+                onProgress: (event) => {
+                  sendEvent(event.type, event);
+                },
+                signal: request.signal,
+              },
+              body.pageContext as PageContext | undefined,
+              locale,
+            );
+
+            if ("error" in result) {
+              sendEvent("error", { error: result.error, code: result.code });
+            } else {
+              sendEvent("complete", {
+                response: result.response,
+                suggestions: result.suggestions,
+                ...(result && "proposal" in result ? { proposal: result.proposal } : {}),
+              });
+            }
+          } catch (err) {
+            sendEvent("error", { error: (err as Error).message || "Unexpected error" });
+          }
+
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    case "approve-plan": {
+      const conversationId = body.conversationId as string | undefined;
+      const proposalOverrides = body.proposalOverrides as Record<string, unknown> | undefined;
+
+      if (!conversationId) {
+        return NextResponse.json({ error: "conversationId is required" }, { status: 400 });
+      }
+
+      const encoder = new TextEncoder();
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const sendEvent = (event: string, data: unknown) => {
+            try {
+              const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+              controller.enqueue(encoder.encode(payload));
+            } catch {
+              // Stream may have closed
+            }
+          };
+
+          try {
+            const result = await approvePlanProposal(
+              conversationId!, userId!,
+              {
+                onProgress: (event) => {
+                  sendEvent(event.type, event);
+                },
+                signal: request.signal,
+              },
+              locale,
+              proposalOverrides,
+            );
+
+            if ("error" in result) {
+              sendEvent("error", { error: result.error, code: result.code });
+            } else {
+              sendEvent("complete", {
+                success: true,
+                response: result.response,
+                phases: result.phases,
+              });
+            }
+          } catch (err) {
+            sendEvent("error", { error: (err as Error).message || "Unexpected error" });
+          }
+
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
     }
 
     case "apply-suggestion": {
@@ -113,7 +298,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "conversationId is required" }, { status: 400 });
       }
 
-      const result = await summarizeConversation(conversationId, userId);
+      const result = await summarizeConversation(conversationId, userId, locale);
       if ("error" in result) {
         const status = result.code === "NOT_FOUND" ? 404 : 503;
         return NextResponse.json({ error: result.error, code: result.code }, { status });
@@ -127,7 +312,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "activityId is required" }, { status: 400 });
       }
 
-      const activityResult = await analyzeActivity(userId, activityId);
+      const activityResult = await analyzeActivity(userId, activityId, locale);
       if ("error" in activityResult) {
         const status =
           activityResult.code === "NOT_FOUND" ? 404

@@ -10,10 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistance, formatDuration } from "@/lib/utils";
 import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database, Info, ChevronLeft, AlertCircle } from "lucide-react";
-import CoachChat from "@/components/coach/coach-chat";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useDashboardPrefs } from "@/hooks/use-dashboard-prefs";
 
 interface PlanDayActual {
   type: string;
@@ -129,17 +129,18 @@ export default function DashboardPage() {
   const router = useRouter();
   const t = useTranslations("dashboard");
   const common = useTranslations("common");
+  const { prefs, setPrefs } = useDashboardPrefs();
+  const timeframeDays = prefs.timeframeDays;
+  const volumePeriod = prefs.volumePeriod;
+  const pmcMetrics = new Set(prefs.pmcMetrics);
+  const trendMetrics = new Set(prefs.trendMetrics);
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [goals, setGoals] = useState<GoalSummary[]>([]);
   const [readiness, setReadiness] = useState<ReadinessData | null>(null);
   const [plan, setPlan] = useState<PlanData | null>(null);
-  const [coachNotes, setCoachNotes] = useState<string | null>(null);
-  const [coachNotesAt, setCoachNotesAt] = useState<string | null>(null);
   const [pmc, setPmc] = useState<PmcData | null>(null);
   const [pmcHistory, setPmcHistory] = useState<PmcHistoryPoint[]>([]);
-  const [timeframeDays, setTimeframeDays] = useState(30);
-  const [pmcMetrics, setPmcMetrics] = useState<Set<string>>(new Set(["ctl", "tsb"]));
-  const [trendMetrics, setTrendMetrics] = useState<Set<string>>(new Set(["readinessScore", "weeklyVolumeMeters"]));
   const [intensityDist, setIntensityDist] = useState<{
     zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number;
     distributionType: string; activityCount: number; analyzedHours: number;
@@ -151,7 +152,6 @@ export default function DashboardPage() {
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
-  const [volumePeriod, setVolumePeriod] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
 
   const PMC_METRICS = [
@@ -191,7 +191,6 @@ export default function DashboardPage() {
       setGoals(data.goals || []);
       setReadiness(data.readiness || null);
       setPmc(data.pmc || null);
-      if (data.coachNotes) { setCoachNotes(data.coachNotes); setCoachNotesAt(data.coachNotesAt); }
       if (data.analysisReport) setAnalysisReport(data.analysisReport);
 
       fetch("/api/dashboard/trackpoint-insights").then((r) => r.ok ? r.json() : null).then((d) => d && setTrackpointInsights(d)).catch(() => {});
@@ -226,24 +225,6 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
 
   // Reload plan when weekOffset changes
   useEffect(() => { loadPlan(weekOffset); }, [weekOffset, loadPlan]);
-
-  const handlePlanApplied = useCallback(() => {
-    // AI Coach made changes (goal created, plan updated, etc.) —
-    // silently refresh cards without showing the loading spinner
-    fetch("/api/dashboard/load")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (!data) return;
-        setStats(data.stats || null);
-        setGoals(data.goals || []);
-        setReadiness(data.readiness || null);
-        setPmc(data.pmc || null);
-        if (data.coachNotes) { setCoachNotes(data.coachNotes); setCoachNotesAt(data.coachNotesAt); }
-        if (data.analysisReport) setAnalysisReport(data.analysisReport);
-      })
-      .catch(() => {});
-    loadPlan(weekOffset);
-  }, [weekOffset, loadPlan]);
 
   // Compute race readiness
   useEffect(() => {
@@ -594,7 +575,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
           <CardContent className="py-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4" /> {t("volumeAndLoad")}</h2>
-              <Tabs value={volumePeriod} onValueChange={(v) => setVolumePeriod(v as "week" | "month")}>
+              <Tabs value={volumePeriod} onValueChange={(v) => setPrefs({ volumePeriod: v as "week" | "month" })}>
                 <TabsList className="h-8"><TabsTrigger value="week" className="text-xs px-3">Week</TabsTrigger><TabsTrigger value="month" className="text-xs px-3">Month</TabsTrigger></TabsList>
               </Tabs>
             </div>
@@ -629,15 +610,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         </Card>
       )}
 
-      {/* ═══ 4. AI COACH ═══ */}
-      <CoachChat
-        plan={plan}
-        onPlanApplied={handlePlanApplied}
-        initialNotes={coachNotes}
-        initialNotesAt={coachNotesAt}
-      />
-
-      {/* ═══ 5. TRAINING ANALYSIS (PMC + Intensity Dist + Historical) ═══ */}
+      {/* ═══ 4. TRAINING ANALYSIS (PMC + Intensity Dist + Historical) ═══ */}
       {(pmcHistory.length > 0 || intensityDist || trends.length >= 2) && (
         <Card className="mb-6">
           <CardContent className="py-4">
@@ -648,7 +621,12 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               <div className="mb-6">
                 <div className="flex gap-1 flex-wrap mb-3">
                   {PMC_METRICS.map((m) => (
-                    <button key={m.key} onClick={() => setPmcMetrics((prev) => { const n = new Set(prev); if (n.has(m.key)) { if (n.size > 1) n.delete(m.key); } else n.add(m.key); return n; })}
+                    <button key={m.key} onClick={() => {
+                      const current = new Set(prefs.pmcMetrics);
+                      if (current.has(m.key)) { if (current.size > 1) current.delete(m.key); }
+                      else current.add(m.key);
+                      setPrefs({ pmcMetrics: Array.from(current) });
+                    }}
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${pmcMetrics.has(m.key) ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
                       style={pmcMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}>
                       <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} /> {m.label}
@@ -697,7 +675,12 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               <div className="mb-6 last:mb-0">
                 <div className="flex items-center gap-1.5 flex-wrap mb-3">
                   {TREND_METRICS.map((m) => (
-                    <button key={m.key} onClick={() => setTrendMetrics((prev) => { const n = new Set(prev); if (n.has(m.key)) { if (n.size > 1) n.delete(m.key); } else n.add(m.key); return n; })}
+                    <button key={m.key} onClick={() => {
+                      const current = new Set(prefs.trendMetrics);
+                      if (current.has(m.key)) { if (current.size > 1) current.delete(m.key); }
+                      else current.add(m.key);
+                      setPrefs({ trendMetrics: Array.from(current) });
+                    }}
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${trendMetrics.has(m.key) ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
                       style={trendMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}>
                       <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} /> {m.label}
@@ -742,14 +725,14 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
             {/* Shared timeframe buttons */}
             <div className="flex gap-1 mt-4 flex-wrap">
               {TIME_RANGES.map((r) => (
-                <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setTimeframeDays(r.days)}>{r.label}</Button>
+                <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label}</Button>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ═══ 6. HEALTH & BODY ROW ═══ */}
+      {/* ═══ 5. HEALTH & BODY ROW ═══ */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <HrZoneCard stats={stats} />
@@ -784,7 +767,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         </Card>
       )}
 
-      {/* ═══ 7. GOAL PROGRESS ═══ */}
+      {/* ═══ 6. GOAL PROGRESS ═══ */}
       {goals.length > 0 && (
         <Card className="mb-6">
           <CardContent className="py-4">
@@ -807,7 +790,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         </Card>
       )}
 
-      {/* ═══ 8. TRAINING PLAN ═══ */}
+      {/* ═══ 7. TRAINING PLAN ═══ */}
       {plan && plan.days && (
         <Card className="mb-6">
           <CardContent className="py-4">
@@ -940,7 +923,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         </Card>
       )}
 
-      {/* ═══ 9. TRACKPOINT INSIGHTS ═══ */}
+      {/* ═══ 8. TRACKPOINT INSIGHTS ═══ */}
       {trackpointInsights?.available && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           {trackpointInsights.decoupling && (
