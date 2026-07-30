@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { tileToBounds, latLngToTilePixel } from "@/lib/tile-math";
+import { parseClientDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,7 @@ export async function GET(
   const type = url.searchParams.get("type");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0");
 
   // Only include activities with pre-built simplified trackpoints
   const where: Record<string, unknown> = {
@@ -72,8 +74,12 @@ export async function GET(
     simplifiedTrackPoints: { not: Prisma.DbNull },
   };
   if (type && type !== "all") where.type = type;
-  if (from) where.startDate = { ...(where.startDate as object || {}), gte: new Date(from) };
-  if (to) where.startDate = { ...(where.startDate as object || {}), lte: new Date(to) };
+  if (from) where.startDate = { ...(where.startDate as object || {}), gte: parseClientDate(from, tzOffset) };
+  if (to) {
+    const endDate = parseClientDate(to, tzOffset);
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+    where.startDate = { ...(where.startDate as object || {}), lt: endDate };
+  }
 
   const logs = await prisma.trainingLog.findMany({
     where,

@@ -42,11 +42,11 @@ export async function GET() {
   const fourWeeksAgo = new Date(now.getTime() - 28 * 86400000);
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
 
-  // Period boundaries for stats
+  // Period boundaries for stats (all UTC-based)
   const lastWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
   const lastWeekEnd = new Date(weekStart.getTime() - 1);
   const monthStart = getMonthStart(now);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
   const lastMonthEnd = getMonthEnd(lastMonthStart);
 
   // Single batch of parallel queries — covers all dashboard data
@@ -125,7 +125,7 @@ export async function GET() {
 
   // ── Stats ─────────────────────────────────────────────────────────
   const daysThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / 86400000));
-  const daysLastMonth = Math.max(1, new Date(now.getFullYear(), now.getMonth(), 0).getDate());
+  const daysLastMonth = Math.max(1, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).getUTCDate());
 
   const goalCount = goals.length;
   const latestWeight = bodyMetrics[0]?.weightKg || null;

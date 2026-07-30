@@ -28,6 +28,33 @@ COPY . .
 RUN npm run build
 # Compile worker TypeScript for the background job container
 RUN npx tsc -p tsconfig.worker.json
+# Resolve @/* path aliases to relative paths so the compiled JS
+# runs with plain node (tsc preserves aliases in output)
+RUN npx tsc-alias -p tsconfig.worker.json
+# Collect garmin-connect's full npm dependency tree (obfuscated code means
+# every require() for an external package is invisible to the standalone
+# trace). Recursively follows transitive deps from the full node_modules.
+RUN mkdir -p /app/garmin-deps && node -e "\
+const {readFileSync, existsSync, cpSync, mkdirSync} = require('fs');\
+const {join, dirname} = require('path');\
+const seen = new Set();\
+function copyTree(name) {\
+  if (seen.has(name)) return;\
+  const src = join('/app/node_modules', name);\
+  if (!existsSync(join(src, 'package.json'))) return;\
+  seen.add(name);\
+  const dst = join('/app/garmin-deps/node_modules', name);\
+  mkdirSync(dirname(dst), {recursive: true});\
+  cpSync(src, dst, {recursive: true, force: true});\
+  Object.keys(\
+    JSON.parse(readFileSync(join(src, 'package.json'), 'utf-8')).dependencies || {}\
+  ).forEach(copyTree);\
+}\
+Object.keys(JSON.parse(readFileSync(\
+  '/app/node_modules/@gooin/garmin-connect/package.json', 'utf-8'\
+)).dependencies || {}).forEach(copyTree);\
+console.log('collected ' + seen.size + ' garmin dep packages');\
+"
 
 # Stage 3a: App runner — Next.js standalone output with traced node_modules only
 FROM node:20-slim AS app-runner
@@ -43,6 +70,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # engine, canvas, react, next, bcryptjs, etc.). This replaces the previous
 # 740 MB full node_modules copy, saving ~680 MB in the final image.
 COPY --from=builder /app/.next/standalone ./
+
+# @gooin/garmin-connect is fully obfuscated — every file uses dynamically-
+# constructed require() paths that Next.js's static trace (@vercel/nft)
+# cannot follow. Its dist subdirectories AND its npm dependency packages
+# (axios, qs, lodash, etc.) all get dropped from the standalone output.
+# Copy the full dist directory and the pre-collected dependency tree.
+COPY --from=builder \
+  /app/node_modules/@gooin/garmin-connect/dist \
+  ./node_modules/@gooin/garmin-connect/dist
+COPY --from=builder /app/garmin-deps/node_modules ./node_modules
 
 # Static assets (CSS/JS chunks) — not inside .next/standalone, the server
 # resolves them relative to cwd as `.next/static/`

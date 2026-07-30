@@ -20,6 +20,7 @@ import { simplifyTrackPoints } from "./simplify-trackpoints";
 import { generateActivityName } from "./activity-naming";
 import { snapshotWeek } from "./metrics-snapshot";
 import { classifyWorkoutType } from "./workout-classifier";
+import { parseClientDate } from "./utils";
 
 // ─── Exported Types ──────────────────────────────────────
 
@@ -158,7 +159,8 @@ export async function syncCorosActivities(
   userId: string,
   fullSync?: boolean,
   fromDate?: string | null,
-  toDate?: string | null
+  toDate?: string | null,
+  tzOffset?: number,
 ): Promise<{ count: number; newActivityIds: string[] }> {
   const session = await prisma.corosSession.findUnique({
     where: { userId },
@@ -173,8 +175,8 @@ export async function syncCorosActivities(
     const batch = await client.getActivitiesList({
       page,
       size,
-      ...(fromDate ? { from: new Date(fromDate) } : {}),
-      ...(toDate ? { to: new Date(toDate) } : {}),
+      ...(fromDate ? { from: parseClientDate(fromDate, tzOffset) } : {}),
+      ...(toDate ? { to: parseClientDate(toDate, tzOffset) } : {}),
     });
     const dataList = batch.dataList || [];
     activities.push(...dataList);

@@ -317,7 +317,7 @@ describe('resolveDuplicateGroup', () => {
     const updateCalls = mockPrisma.trainingLog.update.mock.calls;
     const hrUpdate = updateCalls.find((c: any[]) => c[0].where.id === 'keep');
     expect(hrUpdate).toBeDefined();
-    expect(hrUpdate[0].data.averageHr).toBe(150);
+    expect(hrUpdate![0].data.averageHr).toBe(150);
   });
 
   it('merges rawJson when kept activity lacks trackpoints', async () => {

@@ -69,20 +69,82 @@ export function formatPace(metersPerSecond: number, type?: string, locale = "en"
   return `${minutes}:${seconds.toString().padStart(2, "0")} ${units.perKm}`;
 }
 
-export function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
+/**
+ * Format a Date as "YYYY-MM-DD" using LOCAL timezone components.
+ *
+ * Use this INSTEAD of `toISOString().split("T")[0]` when the source
+ * date was computed using local-timezone methods (e.g. `new Date(year, month, day)`).
+ * `toISOString()` always serializes in UTC, which shifts the date backward
+ * for positive UTC offsets — e.g. July 1 midnight in UTC+8 becomes June 30 in UTC.
+ *
+ * For UTC-accurate DB timestamps, use `toISOString().split("T")[0]` or `utcDateStr()`.
+ */
+export function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Format a Date as a UTC ISO string. Alias for `d.toISOString()` with
+ * explicit intent — use this when you want the UTC date serialization.
+ */
+export function utcDateStr(d: Date): string {
+  return d.toISOString();
+}
+
+/**
+ * Parse a client-sent date string "YYYY-MM-DD" into a Date, adjusted by
+ * the client's UTC offset so the server query matches the user's local
+ * day boundaries.
+ *
+ * ## Why this is needed
+ *
+ * The browser computes date ranges in the user's local timezone (e.g.
+ * "this week is Jul 27 – Aug 2" in MYT). Without adjustment, the server
+ * interprets "2026-07-27" as midnight UTC, which maps to 8am MYT for
+ * UTC+8 users — excluding morning activities from the query.
+ *
+ * This function treats the input as a local-midnight time and shifts it
+ * to the equivalent UTC instant using the client's offset.
+ *
+ * @param dateStr - "YYYY-MM-DD" from client (local date)
+ * @param tzOffset - Client's timezone offset in MINUTES as reported by
+ *                   `Date.getTimezoneOffset()` (negative for UTC+).
+ *                   Default 0 means the date is interpreted as UTC midnight.
+ */
+export function parseClientDate(dateStr: string, tzOffset: number = 0): Date {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCMinutes(d.getUTCMinutes() + tzOffset);
   return d;
 }
 
+/**
+ * Return the Monday of the week containing `date`, at 00:00:00 UTC.
+ *
+ * Uses UTC methods explicitly so the result is correct regardless of
+ * the server's timezone setting. DB timestamps are UTC, so UTC-based
+ * week alignment is consistent with stored data.
+ */
+export function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getUTCDay();
+  // Sunday = 0: subtract 6 days → Monday. Mon–Sat: subtract (day-1) days.
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Return the Sunday of the week containing `date`, at 23:59:59.999 UTC.
+ */
 export function getWeekEnd(date: Date): Date {
   const start = getWeekStart(date);
   const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
+  end.setUTCDate(end.getUTCDate() + 6);
+  end.setUTCHours(23, 59, 59, 999);
   return end;
 }
 
@@ -95,12 +157,18 @@ export function getWeekLabel(date: Date, locale = "en"): string {
   return `${startStr} – ${endStr}`;
 }
 
+/**
+ * Return the first day of the month containing `date`, at 00:00:00 UTC.
+ */
 export function getMonthStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
+/**
+ * Return the last day of the month containing `date`, at 23:59:59.999 UTC.
+ */
 export function getMonthEnd(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0, 23, 59, 59, 999));
 }
 
 // ── Geometry ────────────────────────────────────────────

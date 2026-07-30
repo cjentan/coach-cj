@@ -37,14 +37,14 @@ const CACHE_FILE = path.join(process.cwd(), "data", "geocode-cache.json");
 const memCache = new Map<string, string>();
 const MAX_CACHE_SIZE = 1000;
 function cacheGet(key: string): string | undefined {
-  return cacheGet(key);
+  return memCache.get(key);
 }
 function cacheSet(key: string, value: string): void {
   if (memCache.size >= MAX_CACHE_SIZE) {
     const firstKey = memCache.keys().next().value;
     if (firstKey !== undefined) memCache.delete(firstKey);
   }
-  cacheSet(key, value);
+  memCache.set(key, value);
 }
 
 /** Whether the JSON cache has been loaded into memCache yet */

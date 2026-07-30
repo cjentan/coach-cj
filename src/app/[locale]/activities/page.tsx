@@ -7,7 +7,7 @@ import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, MessageSq
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDistance, formatDuration } from "@/lib/utils";
+import { formatDistance, formatDuration, localDateStr, getWeekStart } from "@/lib/utils";
 import ImportModal from "@/components/training/import-modal";
 import { SOURCE_LABELS, SOURCE_COLORS, ACTIVITY_TYPE_LABELS } from "@/lib/constants";
 
@@ -82,8 +82,8 @@ function getMonthRange(key: string): { from: string; to: string } {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0);
   return {
-    from: monthStart.toISOString().split("T")[0],
-    to: monthEnd.toISOString().split("T")[0],
+    from: localDateStr(monthStart),
+    to: localDateStr(monthEnd),
   };
 }
 
@@ -91,17 +91,7 @@ function getWeekRange(key: string): { from: string; to: string } {
   const monday = new Date(key + "T00:00:00");
   const sunday = new Date(monday);
   sunday.setDate(sunday.getDate() + 6);
-  return { from: key, to: sunday.toISOString().split("T")[0] };
-}
-
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  // Days to subtract to get to Monday: Sunday=6, Monday=0, Tuesday=1, ..., Saturday=5
-  const daysToSubtract = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - daysToSubtract);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return { from: key, to: localDateStr(sunday) };
 }
 
 function getWeekLabel(date: Date): string {
@@ -112,18 +102,11 @@ function getWeekLabel(date: Date): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-function toLocalDateStr(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 function groupLogsByWeek(logs: ActivityLog[]): { weekKey: string; label: string; logs: ActivityLog[] }[] {
   const groups: Record<string, ActivityLog[]> = {};
   for (const log of logs) {
     const weekStart = getWeekStart(new Date(log.startDate));
-    const key = toLocalDateStr(weekStart);
+    const key = localDateStr(weekStart);
     if (!groups[key]) groups[key] = [];
     groups[key].push(log);
   }
@@ -328,7 +311,7 @@ export default function ActivitiesPage() {
   function loadAll(cancelledRef?: { current: boolean }) {
     setLoading(true);
     Promise.all([
-      fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
+      fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`).then(r => r.json()),
       fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
       fetch("/api/activities/filter-options").then(r => r.json()),
     ]).then(([logsData, stats, opts]) => {
@@ -354,7 +337,7 @@ export default function ActivitiesPage() {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}`).then(r => r.json()),
+      fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`).then(r => r.json()),
       fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
     ]).then(([logsData, stats]) => {
       if (cancelled) return;
@@ -388,7 +371,7 @@ export default function ActivitiesPage() {
     setMonthOffset(0);
     setBarStats([]);
     if (mode === "weekly") {
-      const latestKey = toLocalDateStr(getWeekStart(now));
+      const latestKey = localDateStr(getWeekStart(now));
       const range = getWeekRange(latestKey);
       setSelectedBar(latestKey);
       setDateFrom(range.from);
@@ -418,7 +401,7 @@ export default function ActivitiesPage() {
     if (viewMode === "weekly") {
       const d = new Date();
       d.setDate(d.getDate() - newOffset * 7);
-      const latestKey = toLocalDateStr(getWeekStart(d));
+      const latestKey = localDateStr(getWeekStart(d));
       const range = getWeekRange(latestKey);
       setSelectedBar(latestKey);
       setDateFrom(range.from);
@@ -448,7 +431,7 @@ export default function ActivitiesPage() {
     if (viewMode === "weekly") {
       const d = new Date();
       d.setDate(d.getDate() - Math.max(newOffset, 1) * 7);
-      const latestKey = toLocalDateStr(getWeekStart(newOffset === 0 ? now : d));
+      const latestKey = localDateStr(getWeekStart(newOffset === 0 ? now : d));
       const range = getWeekRange(latestKey);
       setSelectedBar(latestKey);
       setDateFrom(range.from);
@@ -715,7 +698,7 @@ export default function ActivitiesPage() {
                 onClick={() => {
                   setMonthOffset(0);
                   if (viewMode === "weekly") {
-                    const latestKey = toLocalDateStr(getWeekStart(now));
+                    const latestKey = localDateStr(getWeekStart(now));
                     const range = getWeekRange(latestKey);
                     setSelectedBar(latestKey);
                     setDateFrom(range.from);

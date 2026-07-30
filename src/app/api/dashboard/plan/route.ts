@@ -14,27 +14,27 @@ export async function GET(request: Request) {
   const weekOffset = parseInt(searchParams.get("weekOffset") || "0", 10);
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-  // Compute Monday of the target week
+  // Compute Monday of the target week (getWeekStart returns UTC Monday 00:00)
   const weekStart = getWeekStart(now);
-  weekStart.setDate(weekStart.getDate() + weekOffset * 7);
+  weekStart.setUTCDate(weekStart.getUTCDate() + weekOffset * 7);
 
   // Sunday of the target week
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
 
   // Build week dates
   const weekDates: Date[] = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
+    d.setUTCDate(d.getUTCDate() + i);
     weekDates.push(d);
   }
 
   // ALWAYS query training logs for this week (for actual activity on past days)
   const weekEndExclusive = new Date(weekEnd);
-  weekEndExclusive.setDate(weekEndExclusive.getDate() + 1);
+  weekEndExclusive.setUTCDate(weekEndExclusive.getUTCDate() + 1);
   const actualLogs = await prisma.trainingLog.findMany({
     where: {
       userId: session.user.id,
@@ -137,7 +137,7 @@ export async function GET(request: Request) {
   for (let i = 0; i < 7; i++) {
     const d = weekDates[i];
     const dateStr = d.toISOString().split("T")[0];
-    const dow = d.getDay();
+    const dow = d.getUTCDay();
     const isPast = d < todayStart;
     const isToday = d.getTime() === todayStart.getTime();
 

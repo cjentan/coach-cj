@@ -124,6 +124,7 @@ export default function IngestionPage() {
     form.append("file", file);
     if (stravaFrom) form.append("fromDate", stravaFrom);
     if (stravaTo) form.append("toDate", stravaTo);
+    form.append("tzOffset", String(new Date().getTimezoneOffset()));
     try {
       const res = await fetch("/api/ingestion/strava-export", { method: "POST", body: form, signal: controller.signal });
 

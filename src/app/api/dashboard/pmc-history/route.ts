@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     while (cursor <= endDate) {
       const key = cursor.toISOString().split("T")[0];
       filledInput.push({ date: key, tss: inputMap.get(key) ?? 0 });
-      cursor.setDate(cursor.getDate() + 1);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
   }
 

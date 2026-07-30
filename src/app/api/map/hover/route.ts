@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { parseClientDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ interface HoverBody {
   type?: string;
   from?: string;
   to?: string;
+  tzOffset?: number;
 }
 
 interface ActivityHit {
@@ -48,6 +50,7 @@ export async function POST(req: Request) {
 
   const body: HoverBody = await req.json();
   const { lat, lng, type, from, to } = body;
+  const tzOffset = typeof body.tzOffset === "number" ? body.tzOffset : parseInt(String(body.tzOffset || "0"), 10);
 
   if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
     return NextResponse.json({ error: "lat and lng are required" }, { status: 400 });
@@ -59,8 +62,12 @@ export async function POST(req: Request) {
     simplifiedTrackPoints: { not: Prisma.DbNull },
   };
   if (type && type !== "all") where.type = type;
-  if (from) where.startDate = { ...(where.startDate as object || {}), gte: new Date(from) };
-  if (to) where.startDate = { ...(where.startDate as object || {}), lte: new Date(to) };
+  if (from) where.startDate = { ...(where.startDate as object || {}), gte: parseClientDate(from, tzOffset) };
+  if (to) {
+    const endDate = parseClientDate(to, tzOffset);
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+    where.startDate = { ...(where.startDate as object || {}), lt: endDate };
+  }
 
   const candidates = await prisma.trainingLog.findMany({
     where,

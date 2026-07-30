@@ -46,6 +46,7 @@ export default function HeatmapPage() {
     if (filters.type !== "all") params.set("type", filters.type);
     if (filters.dateFrom) params.set("from", filters.dateFrom);
     if (filters.dateTo) params.set("to", filters.dateTo);
+    params.set("tzOffset", String(new Date().getTimezoneOffset()));
     const qs = params.toString();
     return `/api/map/tiles/{z}/{x}/{y}.png${qs ? `?${qs}` : ""}`;
   }, [filters.type, filters.dateFrom, filters.dateTo]);
@@ -56,6 +57,7 @@ export default function HeatmapPage() {
     if (filters.type !== "all") params.set("type", filters.type);
     if (filters.dateFrom) params.set("from", filters.dateFrom);
     if (filters.dateTo) params.set("to", filters.dateTo);
+    params.set("tzOffset", String(new Date().getTimezoneOffset()));
     return params.toString();
   }, [filters.type, filters.dateFrom, filters.dateTo]);
 
@@ -68,6 +70,7 @@ export default function HeatmapPage() {
     if (f.type !== "all") params.set("type", f.type);
     if (f.dateFrom) params.set("from", f.dateFrom);
     if (f.dateTo) params.set("to", f.dateTo);
+    params.set("tzOffset", String(new Date().getTimezoneOffset()));
 
     try {
       const res = await fetch(`/api/map/heatmap?${params}`);

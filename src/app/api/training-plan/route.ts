@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getWeekStart } from "@/lib/utils";
+import { getWeekStart, localDateStr } from "@/lib/utils";
 import { clearContext } from "@/lib/ai-conversation";
 import { PHASE_COLORS, SHORT_DAY_NAMES } from "@/lib/constants";
 import type {
@@ -139,22 +139,16 @@ function groupPhases(
 // ── Helpers ──────────────────────────────────────────────
 
 /**
- * Format a Date to a "YYYY-MM-DD" string using LOCAL timezone.
+ * Format a Date as "YYYY-MM-DD" using LOCAL timezone components.
  *
- * This MUST be used instead of `toISOString().split("T")[0]` when
- * comparing dates from different sources (plan vs training logs)
- * because:
- *   - Plan weekStartDate is stored as local midnight (from getWeekStart)
- *   - Training log startDate is the activity's UTC timestamp
- *   - toISOString() converts local midnight → previous day in UTC,
- *     breaking all date matches for timezones with a positive UTC offset
+ * Imported from lib/utils. Uses local-timezone getters so `toISOString()`'s
+ * UTC shift doesn't break date matching between plan dates (stored as
+ * midnight in the server timezone) and training log UTC timestamps.
+ *
+ * See lib/utils.ts `localDateStr()` for full docs.
  */
-function localDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+// Shared implementation in src/lib/utils.ts — imported above.
+// (Local copy removed in favor of shared utility.)
 
 // ── Route ───────────────────────────────────────────────
 

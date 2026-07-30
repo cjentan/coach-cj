@@ -22,6 +22,7 @@ import { simplifyTrackPoints } from "./simplify-trackpoints";
 import { generateActivityName } from "./activity-naming";
 import { snapshotWeek } from "./metrics-snapshot";
 import { classifyWorkoutType } from "./workout-classifier";
+import { parseClientDate } from "./utils";
 
 // ─── Local type shims ──────────────────────────────────────
 
@@ -266,7 +267,8 @@ export async function syncGarminActivities(
   fullSync?: boolean,
   lookbackDays?: number,
   fromDate?: string | null,
-  toDate?: string | null
+  toDate?: string | null,
+  tzOffset?: number,
 ): Promise<{ count: number; newActivityIds: string[] }> {
   const session = await prisma.garminSession.findUnique({
     where: { userId },
@@ -290,15 +292,15 @@ export async function syncGarminActivities(
     // Full sync with optional date range
     newActivities = activities;
     if (fromDate) {
-      const from = new Date(fromDate).getTime();
+      const from = parseClientDate(fromDate, tzOffset).getTime();
       newActivities = newActivities.filter(
         (a) => new Date(a.startTimeGMT).getTime() >= from
       );
     }
     if (toDate) {
-      const to = new Date(toDate).getTime();
+      const to = parseClientDate(toDate, tzOffset).getTime() + 86400000; // end of day
       newActivities = newActivities.filter(
-        (a) => new Date(a.startTimeGMT).getTime() <= to
+        (a) => new Date(a.startTimeGMT).getTime() < to
       );
     }
   } else {
@@ -493,10 +495,14 @@ export async function syncGarminActivities(
         await snapshotWeek(userId, parsed.startDate).catch(() => {});
       }
     } catch (err) {
-      console.error(
-        `[garmin] Failed to import activity ${externalId}:`,
-        err instanceof Error ? err.message : err
-      );
+      if (err instanceof Error) {
+        console.error(
+          `[garmin] Failed to import activity ${externalId}: ${err.message}`,
+          `\n  name: ${err.name}\n  stack: ${err.stack?.split("\n").slice(0, 8).join("\n  ")}`
+        );
+      } else {
+        console.error(`[garmin] Failed to import activity ${externalId}:`, err);
+      }
     }
   }
 

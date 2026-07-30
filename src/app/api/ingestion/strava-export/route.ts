@@ -21,7 +21,7 @@ import { parseStravaExportZip } from "@/lib/strava-export-parser";
 import { enrichNameWithArea, isDefaultPattern } from "@/lib/activity-naming";
 import { TrackPoint } from "@/lib/gpx-parser";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
-import { getWeekStart } from "@/lib/utils";
+import { getWeekStart, parseClientDate } from "@/lib/utils";
 import { classifyWorkoutType } from "@/lib/workout-classifier";
 import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
 
@@ -64,8 +64,12 @@ export async function POST(req: Request) {
   // Parse optional date range filter
   const fromDateStr = formData.get("fromDate") as string | null;
   const toDateStr = formData.get("toDate") as string | null;
-  const fromDate = fromDateStr ? new Date(fromDateStr + "T00:00:00Z") : null;
-  const toDate = toDateStr ? new Date(toDateStr + "T23:59:59Z") : null;
+  const rawTz = formData.get("tzOffset") as string | null;
+  const tzOffset = parseInt(rawTz || "0", 10);
+  const fromDate = fromDateStr ? parseClientDate(fromDateStr, tzOffset) : null;
+  const toDate = toDateStr ? parseClientDate(toDateStr, tzOffset) : null;
+  // Make toDate inclusive of the end of the selected day
+  if (toDate) toDate.setUTCDate(toDate.getUTCDate() + 1);
 
   console.log(`[import] Starting import: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` +
     (fromDate ? ` from ${fromDate.toISOString().slice(0, 10)}` : "") +

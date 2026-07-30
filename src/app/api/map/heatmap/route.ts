@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { parseClientDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,19 @@ export async function GET(req: Request) {
   const type = url.searchParams.get("type");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0");
 
   const baseWhere: Record<string, unknown> = {
     userId: session.user.id,
     mergedIntoId: null,
   };
   if (type && type !== "all") baseWhere.type = type;
-  if (from) baseWhere.startDate = { ...(baseWhere.startDate as object || {}), gte: new Date(from) };
-  if (to) baseWhere.startDate = { ...(baseWhere.startDate as object || {}), lte: new Date(to) };
+  if (from) baseWhere.startDate = { ...(baseWhere.startDate as object || {}), gte: parseClientDate(from, tzOffset) };
+  if (to) {
+    const endDate = parseClientDate(to, tzOffset);
+    endDate.setUTCDate(endDate.getUTCDate() + 1);
+    baseWhere.startDate = { ...(baseWhere.startDate as object || {}), lt: endDate };
+  }
 
   // Count all with GPS data and those already processed (has simplifiedTrackPoints)
   const allGpsWhere = { ...baseWhere, rawJson: { not: Prisma.DbNull } };

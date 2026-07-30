@@ -244,7 +244,8 @@ async function handleSync(
   userId: string
 ): Promise<NextResponse> {
   try {
-    const { fromDate, toDate } = await req.json().catch(() => ({}));
+    const { fromDate, toDate, tzOffset: rawTz } = await req.json().catch(() => ({}));
+    const tzOffset = parseInt(String(rawTz || "0"), 10);
 
     if (provider === "garmin") {
       const client = await getGarminClient(userId);
@@ -265,7 +266,8 @@ async function handleSync(
           true,
           undefined,
           fromDate,
-          toDate
+          toDate,
+          tzOffset
         ),
         syncGarminHealthData(client, userId),
       ]);
@@ -300,7 +302,7 @@ async function handleSync(
     }
 
     const { count: activitiesImported, newActivityIds } =
-      await syncCorosActivities(client, userId, true, fromDate, toDate);
+      await syncCorosActivities(client, userId, true, fromDate, toDate, tzOffset);
 
     if (newActivityIds.length > 0) {
       scheduleBatchAnalysis(

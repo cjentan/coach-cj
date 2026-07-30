@@ -178,8 +178,8 @@ describe('getWeekStart / getWeekEnd', () => {
   it('getWeekStart returns the Monday of the week', () => {
     // Wednesday Jan 15, 2025 → Monday Jan 13
     const result = getWeekStart(new Date('2025-01-15'));
-    expect(result.getDay()).toBe(1); // Monday
-    expect(result.getDate()).toBe(13);
+    expect(result.getUTCDay()).toBe(1); // Monday
+    expect(result.getUTCDate()).toBe(13);
   });
 
   it('getWeekEnd returns 6 days after start', () => {
@@ -192,13 +192,13 @@ describe('getWeekStart / getWeekEnd', () => {
 
   it('getMonthStart returns first of month', () => {
     const result = getMonthStart(new Date('2025-01-15'));
-    expect(result.getDate()).toBe(1);
-    expect(result.getMonth()).toBe(0); // January
+    expect(result.getUTCDate()).toBe(1);
+    expect(result.getUTCMonth()).toBe(0); // January
   });
 
   it('getMonthEnd returns last day of month', () => {
     const result = getMonthEnd(new Date('2025-01-15'));
-    expect(result.getDate()).toBe(31);
+    expect(result.getUTCDate()).toBe(31);
   });
 });
 

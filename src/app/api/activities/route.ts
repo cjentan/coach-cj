@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { parseClientDate } from "@/lib/utils";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
   const source = url.searchParams.get("source");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0");
   const limit = parseInt(url.searchParams.get("limit") || "50");
   const offset = parseInt(url.searchParams.get("offset") || "0");
 
@@ -23,8 +25,12 @@ export async function GET(req: Request) {
   if (type && type !== "all") where.type = type;
   if (subType && subType !== "all") where.subType = subType;
   if (source && source !== "all") where.source = source;
-  if (from) where.startDate = { ...(where.startDate as object || {}), gte: new Date(from) };
-  if (to) where.startDate = { ...(where.startDate as object || {}), lte: new Date(to) };
+  if (from) where.startDate = { ...(where.startDate as object || {}), gte: parseClientDate(from, tzOffset) };
+  if (to) {
+    const endDate = parseClientDate(to, tzOffset);
+    endDate.setUTCDate(endDate.getUTCDate() + 1); // exclusive next-day boundary in UTC
+    where.startDate = { ...(where.startDate as object || {}), lt: endDate };
+  }
 
   const [logs, total] = await Promise.all([
     prisma.trainingLog.findMany({

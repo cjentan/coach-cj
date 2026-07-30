@@ -82,6 +82,7 @@ function GarminSection({ t, common }: { t: ReturnType<typeof useTranslations>; c
       const body: Record<string, string> = {};
       if (syncFrom) body.fromDate = syncFrom;
       if (syncTo) body.toDate = syncTo;
+      body.tzOffset = String(new Date().getTimezoneOffset());
       const res = await fetch("/api/integrations/garmin/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (res.ok) setSyncResult({ type: "success", text: t("garmin.syncComplete", { count: data.activitiesImported, healthDays: data.healthDaysSynced }) });
@@ -190,6 +191,7 @@ function CorosSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
     try {
       const body: Record<string, string> = {};
       if (syncFrom) body.fromDate = syncFrom; if (syncTo) body.toDate = syncTo;
+      body.tzOffset = String(new Date().getTimezoneOffset());
       const res = await fetch("/api/integrations/coros/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (res.ok) setSyncResult({ type: "success", text: t("coros.syncComplete", { count: data.activitiesImported }) });

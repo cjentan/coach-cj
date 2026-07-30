@@ -78,7 +78,7 @@ describe('GET /api/activities', () => {
     const findManyCall = vi.mocked(prisma.trainingLog.findMany).mock.calls[0][0];
     const where = findManyCall?.where as any;
     expect(where.startDate.gte).toBeDefined();
-    expect(where.startDate.lte).toBeDefined();
+    expect(where.startDate.lt).toBeDefined();
   });
 
   it('ignores type=all filter', async () => {
