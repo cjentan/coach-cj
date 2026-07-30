@@ -11,10 +11,13 @@ export async function GET(request: Request) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const days = Math.min(365, Math.max(7, parseInt(searchParams.get("days") || "90")));
+  const displayDays = Math.min(365, Math.max(7, parseInt(searchParams.get("days") || "90")));
+  // CTL is a 42-day EWMA — compute from at least 90 days so it stabilizes
+  // before the displayed window, then trim to the requested range
+  const computeDays = Math.min(365, Math.max(displayDays, 90));
 
   const now = new Date();
-  const since = new Date(now.getTime() - days * 86400000);
+  const since = new Date(now.getTime() - computeDays * 86400000);
 
   const logs = await prisma.trainingLog.findMany({
     where: { userId: session.user.id, startDate: { gte: since }, mergedIntoId: null },
@@ -64,5 +67,10 @@ export async function GET(request: Request) {
     tsb: r.tsb,
   }));
 
-  return NextResponse.json({ days, series });
+  // Trim to the requested display window so CTL has stabilized before it
+  const trimmed = displayDays < computeDays && series.length > displayDays
+    ? series.slice(series.length - displayDays)
+    : series;
+
+  return NextResponse.json({ days: displayDays, series: trimmed });
 }
