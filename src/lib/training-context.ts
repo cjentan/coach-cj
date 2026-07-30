@@ -228,8 +228,23 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     const dateKey = log.startDate.toISOString().split("T")[0];
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + (log.tss || 50);
   }
-  const pmcInput = Object.entries(tssByDate).map(([date, tss]) => ({ date, tss }));
-  const pmcResults = computePMC(pmcInput);
+  // Fill in missing dates with tss: 0 so CTL/ATL/TSB decay properly on rest days
+  const pmcInput = Object.entries(tssByDate)
+    .map(([date, tss]) => ({ date, tss }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  let filledInput: { date: string; tss: number }[] = [];
+  if (pmcInput.length > 0) {
+    const startDate = new Date(pmcInput[0].date);
+    const endDate = new Date(pmcInput[pmcInput.length - 1].date);
+    const inputMap = new Map(pmcInput.map((d) => [d.date, d.tss]));
+    const cursor = new Date(startDate);
+    while (cursor <= endDate) {
+      const key = cursor.toISOString().split("T")[0];
+      filledInput.push({ date: key, tss: inputMap.get(key) ?? 0 });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+  }
+  const pmcResults = computePMC(filledInput);
   const latestPmc = pmcResults.length > 0
     ? pmcResults[pmcResults.length - 1]
     : { ctl: 30, atl: 30, tsb: 0 };

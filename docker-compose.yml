@@ -5,11 +5,15 @@ services:
       dockerfile: Dockerfile
       target: app-runner
     container_name: coach-app
+    deploy:
+      resources:
+        limits:
+          memory: 2g
     ports:
       - "3000:3000"
     environment:
-      - NODE_OPTIONS=--max-old-space-size=4096
-      - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public
+      - NODE_OPTIONS=--max-old-space-size=1536
+      - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public&connection_limit=4
       - REDIS_URL=redis://redis:6379
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me-in-production}
@@ -28,9 +32,13 @@ services:
       dockerfile: Dockerfile
       target: worker-runner
     container_name: coach-worker
-    entrypoint: ["node", "dist-workers/workers/entrypoint.js"]
+    deploy:
+      resources:
+        limits:
+          memory: 1.5g
+    entrypoint: ["node", "--expose-gc", "--max-old-space-size=1024", "dist-workers/workers/entrypoint.js"]
     environment:
-      - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public
+      - DATABASE_URL=postgresql://coach:coach@db:5432/coach?schema=public&connection_limit=4
       - REDIS_URL=redis://redis:6379
     depends_on:
       db:

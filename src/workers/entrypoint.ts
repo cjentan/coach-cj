@@ -81,7 +81,9 @@ const fatigueWorker = new Worker(
       }
     }
 
-    return { usersChecked: users.length, alertsCreated };
+    const fatigueResult = { usersChecked: users.length, alertsCreated };
+    if (global.gc) global.gc();
+    return fatigueResult;
   },
   { connection }
 );
@@ -199,7 +201,9 @@ const sundayWorker = new Worker(
       plansCreated++;
     }
 
-    return { usersChecked: users.length, plansCreated };
+    const reviewResult = { usersChecked: users.length, plansCreated };
+    if (global.gc) global.gc();
+    return reviewResult;
   },
   { connection }
 );
@@ -247,7 +251,9 @@ const garminWorker = new Worker(
       }
     }
 
-    return { usersChecked: users.length, activitiesImported, healthDaysSynced, errors };
+    const garminResult = { usersChecked: users.length, activitiesImported, healthDaysSynced, errors };
+    if (global.gc) global.gc();
+    return garminResult;
   },
   { connection }
 );
@@ -289,7 +295,9 @@ const corosWorker = new Worker(
       }
     }
 
-    return { usersChecked: users.length, activitiesImported, errors };
+    const corosResult = { usersChecked: users.length, activitiesImported, errors };
+    if (global.gc) global.gc();
+    return corosResult;
   },
   { connection }
 );
@@ -309,6 +317,7 @@ const activityAnalysisWorker = new Worker(
       console.log(`[activity-analysis] ❌ ${activityId}: ${result.code} — ${result.error}`);
     }
 
+    if (global.gc) global.gc();
     return result;
   },
   { connection, concurrency: 3 }
