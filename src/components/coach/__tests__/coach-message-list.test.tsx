@@ -32,6 +32,9 @@ describe('CoachMessageList', () => {
     const translations: Record<string, string> = {
       apply: 'Apply',
       dismiss: 'Dismiss',
+      saveToActivity: 'Save to activity',
+      saveAnalysisPrompt: 'Save this analysis to {name}?',
+      discard: 'Discard',
       conversationSummary: 'Earlier conversation summarized',
       trainingPlanProgress: 'Training Plan Progress',
       phase: 'Phase {phaseOrder}',
@@ -48,6 +51,9 @@ describe('CoachMessageList', () => {
       }
       if (typeof values.phaseOrder === 'number') {
         return val.replace('{phaseOrder}', String(values.phaseOrder));
+      }
+      if (typeof values.name === 'string') {
+        return val.replace('{name}', values.name);
       }
     }
     return val;
@@ -75,6 +81,10 @@ describe('CoachMessageList', () => {
     onProposalChange: vi.fn(),
     onApproveProposal: vi.fn(),
     onAdjustProposal: vi.fn(),
+    savePrompt: null,
+    savingAnalysis: false,
+    onSaveAnalysis: vi.fn(),
+    onDiscardAnalysis: vi.fn(),
   };
 
   it('renders nothing when no messages and not loading', () => {
@@ -207,5 +217,41 @@ describe('CoachMessageList', () => {
       statusFeed={[{ id: 1, text: 'Gathering data...', timestamp: 1000 }]}
     />);
     expect(screen.getByText('Gathering data...')).toBeInTheDocument();
+  });
+
+  it('renders the save-analysis prompt under the matching assistant message', () => {
+    render(<CoachMessageList
+      {...defaultProps}
+      messages={[{ ...sampleMessage, id: 'a1', role: 'assistant', content: '**Tempo Run** · ✅ Productive' }]}
+      savePrompt={{ activityId: 'act-1', activityName: 'Morning Run', messageId: 'a1' }}
+    />);
+    expect(screen.getByText('Save this analysis to Morning Run?')).toBeInTheDocument();
+    expect(screen.getByText('Save to activity')).toBeInTheDocument();
+    expect(screen.getByText('Discard')).toBeInTheDocument();
+  });
+
+  it('does not render the save prompt when it targets another message', () => {
+    render(<CoachMessageList
+      {...defaultProps}
+      messages={[{ ...sampleMessage, id: 'a1', role: 'assistant', content: 'Advice' }]}
+      savePrompt={{ activityId: 'act-1', activityName: 'Morning Run', messageId: 'other-id' }}
+    />);
+    expect(screen.queryByText(/Save this analysis to/)).not.toBeInTheDocument();
+  });
+
+  it('calls onSaveAnalysis and onDiscardAnalysis from the prompt buttons', () => {
+    const onSave = vi.fn();
+    const onDiscard = vi.fn();
+    render(<CoachMessageList
+      {...defaultProps}
+      messages={[{ ...sampleMessage, id: 'a1', role: 'assistant', content: 'Analysis' }]}
+      savePrompt={{ activityId: 'act-1', activityName: 'Morning Run', messageId: 'a1' }}
+      onSaveAnalysis={onSave}
+      onDiscardAnalysis={onDiscard}
+    />);
+    fireEvent.click(screen.getByText('Save to activity'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('Discard'));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
   });
 });

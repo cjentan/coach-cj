@@ -47,19 +47,27 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   const body = await req.json();
   const parsed = z.object({
-    remarks: z.string().nullable(),
+    remarks: z.string().nullable().optional(),
     isRace: z.boolean().optional(),
     clearAnalysis: z.boolean().optional(),
+    coachAnalysis: z.string().max(30000).nullable().optional(),
   }).safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
-  const updateData: Record<string, unknown> = { remarks: parsed.data.remarks };
+  const updateData: Record<string, unknown> = {};
+  if (parsed.data.remarks !== undefined) {
+    updateData.remarks = parsed.data.remarks;
+  }
   if (parsed.data.isRace !== undefined) {
     updateData.isRace = parsed.data.isRace;
   }
   if (parsed.data.clearAnalysis) {
     updateData.coachAnalysis = null;
     updateData.analysisStatus = null;
+  }
+  if (parsed.data.coachAnalysis !== undefined) {
+    updateData.coachAnalysis = parsed.data.coachAnalysis;
+    updateData.analysisStatus = parsed.data.coachAnalysis ? "completed" : null;
   }
 
   const log = await prisma.trainingLog.update({

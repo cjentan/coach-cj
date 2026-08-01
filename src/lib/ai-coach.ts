@@ -14,7 +14,7 @@ import { z } from "zod";
 import { prisma } from "./prisma";
 import { ask, chatWithTools, resolveUserLlmConfig, isLlmConfigured } from "./llm";
 import type { LlmMessage } from "./llm";
-import { ALL_COACH_TOOLS, executeTool, executeCreateTrainingPhase } from "./ai-coach-tools";
+import { ALL_COACH_TOOLS, QUERY_ACTIVITIES_TOOL, executeTool, executeCreateTrainingPhase } from "./ai-coach-tools";
 import { gatherTrainingContext } from "./training-context";
 import { getWeekStart, formatDistance, formatDuration } from "./utils";
 import { resolvePrompt, PROMPT_KEYS, getLanguageInstruction } from "./coach-prompts";
@@ -475,7 +475,13 @@ async function buildPageContextSummary(
         parts.push(`Avg HR: ${activity.averageHr} bpm`);
       }
       parts.push(`Date: ${activity.startDate.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" })}`);
-      return parts.join(" · ");
+      const summary = parts.join(" · ");
+
+      // Include any previously saved coach analysis so the coach can build on it.
+      if (activity.coachAnalysis) {
+        return `${summary}\n\n### Previous Coach Analysis for This Activity\n${activity.coachAnalysis}`;
+      }
+      return summary;
     }
 
     case "goal-detail": {
@@ -1412,6 +1418,8 @@ export async function chat(
         switch (name) {
           case "create_training_phase": return "Creating training phase";
           case "update_weekly_plan": return "Updating weekly plan";
+          case "get_weekly_plan": return "Looking up your training plan";
+          case "update_training_day": return "Updating a training day";
           case "manage_goals": return "Managing race goals";
           case "query_activities": return "Looking up your activity history";
           case "update_training_context": return "Updating training context";
@@ -1797,7 +1805,8 @@ const ActivityAnalysisResultSchema = z.object({
 export async function analyzeActivity(
   userId: string,
   activityId: string,
-  localeOverride?: string
+  localeOverride?: string,
+  options?: { persist?: boolean }
 ): Promise<{ success: true; analysis: string } | { error: string; code: string }> {
   // 1. Load activity
   const activity = await prisma.trainingLog.findUnique({
@@ -1923,11 +1932,13 @@ export async function analyzeActivity(
   const flagsStr = parsed.flags.length > 0 ? `\n\n**Flags:**\n- ${parsed.flags.join("\n- ")}` : "";
   const analysisText = `**${parsed.trainingTypeLabel}** · ${parsed.verdict === "productive" ? "✅ Productive" : parsed.verdict === "neutral" ? "➖ Neutral" : "⚠️ Unproductive"}${flagsStr}\n\n${parsed.analysis}`;
 
-  // 12. Save to DB
-  await prisma.trainingLog.update({
-    where: { id: activityId },
-    data: { coachAnalysis: analysisText, analysisStatus: "completed" },
-  });
+  // 12. Save to DB — skipped for dry-runs (e.g. chat analysis awaiting user confirmation)
+  if (options?.persist !== false) {
+    await prisma.trainingLog.update({
+      where: { id: activityId },
+      data: { coachAnalysis: analysisText, analysisStatus: "completed" },
+    });
+  }
 
   return { success: true, analysis: analysisText };
 }
@@ -1967,5 +1978,175 @@ export async function analyzeActivityWorker(
 
     return { error: (err as Error).message, code: "WORKER_FAILED" };
   }
+}
+
+/**
+ * Resolve the specific activity the athlete is asking to analyze from a
+ * free-form chat message. Uses the query_activities tool (via a short
+ * tool-calling loop) so the LLM can search by date, name, distance, etc.
+ * Returns the activity id + name, or null if no single activity matches.
+ */
+async function resolveActivityFromMessage(
+  userId: string,
+  message: string,
+  pageContext?: PageContext | null,
+  locale = "en"
+): Promise<{ activityId: string; activityName: string } | null> {
+  // Fast path: on the activity detail page and the message refers to the
+  // currently-viewed activity — no extra LLM call needed.
+  if (pageContext?.page === "activity-detail" && pageContext.activityId) {
+    const refersToCurrent =
+      /\b(this|the current|today's?)\s+(activity|workout|session|run|ride|race)\b/i.test(message) ||
+      /\banalyze this\b/i.test(message);
+    if (refersToCurrent) {
+      const currentActivity = await prisma.trainingLog.findUnique({
+        where: { id: pageContext.activityId, userId },
+        select: { id: true, name: true },
+      });
+      if (currentActivity) {
+        return { activityId: currentActivity.id, activityName: currentActivity.name };
+      }
+    }
+  }
+
+  const llmConfig = await resolveUserLlmConfig(userId);
+  if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) return null;
+
+  const langInstruction = getLanguageInstruction(locale);
+  const contextStr =
+    pageContext?.page === "activity-detail" && pageContext.activityId
+      ? `The athlete is currently viewing the activity with id "${pageContext.activityId}" — use it only if their message refers to it (e.g. "this activity").`
+      : "";
+  const systemPrompt = `${langInstruction}
+You identify which specific training activity an athlete is asking to have analyzed.
+
+The athlete's message: "${message}"
+
+Use the query_activities tool to search their activity history (by date, name, or distance) until you find the single activity they mean.
+${contextStr}
+Respond with ONLY a JSON object and nothing else:
+{"activityId": "<the activity id>", "activityName": "<the activity name>"}
+The activityId MUST come from a query_activities result. If you cannot determine a single specific activity, respond with {"activityId": null}.`;
+
+  const llmMessages: LlmMessage[] = [{ role: "system", content: systemPrompt }];
+  let finalContent = "";
+  const MAX_ITERATIONS = 6;
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    const response = await chatWithTools(llmMessages, {
+      temperature: 0.2,
+      maxTokens: 2048,
+      apiKey: llmConfig.apiKey,
+      baseUrl: llmConfig.baseUrl,
+      model: llmConfig.model,
+      tools: [QUERY_ACTIVITIES_TOOL],
+      toolChoice: "auto",
+    });
+    if (!response) return null;
+
+    llmMessages.push({
+      role: "assistant",
+      content: response.content || "",
+      tool_calls: response.toolCalls.length > 0 ? response.toolCalls : undefined,
+    });
+
+    if (response.toolCalls.length > 0) {
+      for (const toolCall of response.toolCalls) {
+        let args: Record<string, unknown> = {};
+        try { args = JSON.parse(toolCall.function.arguments); } catch { /* keep empty args */ }
+        const result = await executeTool(toolCall.function.name, args, userId);
+        llmMessages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result).slice(0, 4000),
+        });
+      }
+      continue;
+    }
+
+    finalContent = response.content || "";
+    break;
+  }
+
+  if (!finalContent) return null;
+
+  // Tolerantly parse the final JSON response
+  const tryParse = (text: string) => {
+    try {
+      const parsed = JSON.parse(sanitizeJsonText(text)) as { activityId?: string | null; activityName?: string | null };
+      if (parsed.activityId) {
+        return { activityId: parsed.activityId, activityName: parsed.activityName || "" };
+      }
+    } catch { /* try next strategy */ }
+    return null;
+  };
+
+  const direct = tryParse(finalContent);
+  if (direct) return direct;
+
+  // Fallback: extract the first JSON object from the text
+  const objectMatch = finalContent.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    const extracted = tryParse(objectMatch[0]);
+    if (extracted) return extracted;
+  }
+
+  return null;
+}
+
+/**
+ * Analyze a specific activity referenced in a chat message.
+ * Resolves the activity, runs the structured analysis as a dry-run
+ * (no TrainingLog write), and records the exchange in the conversation.
+ * The frontend offers to save the returned analysis under the activity.
+ */
+export async function analyzeActivityInChat(
+  conversationId: string,
+  userId: string,
+  message: string,
+  pageContext?: PageContext | null,
+  locale = "en"
+): Promise<
+  { conversationId: string; activityId: string; activityName: string; analysis: string }
+  | { error: string; code: string }
+> {
+  const conversation = await prisma.coachConversation.findUnique({
+    where: { id: conversationId },
+    select: { id: true, userId: true },
+  });
+  if (!conversation || conversation.userId !== userId) {
+    return { error: "Conversation not found.", code: "NOT_FOUND" };
+  }
+
+  const resolved = await resolveActivityFromMessage(userId, message, pageContext, locale);
+  if (!resolved) {
+    return {
+      error: "I couldn't identify the specific activity you'd like me to analyze. Try including its date or name, e.g. \"analyze my long run on June 15\".",
+      code: "NOT_FOUND",
+    };
+  }
+
+  const analysisResult = await analyzeActivity(userId, resolved.activityId, locale, { persist: false });
+  if ("error" in analysisResult) return analysisResult;
+
+  // Persist the exchange only after resolution + analysis succeeded, so a
+  // failed attempt can fall back to normal chat without duplicate messages.
+  await prisma.coachMessage.create({
+    data: { conversationId, role: "user", content: message },
+  });
+  await prisma.coachMessage.create({
+    data: { conversationId, role: "assistant", content: analysisResult.analysis },
+  });
+  await prisma.coachConversation.update({
+    where: { id: conversationId },
+    data: { updatedAt: new Date() },
+  });
+
+  return {
+    conversationId,
+    activityId: resolved.activityId,
+    activityName: resolved.activityName,
+    analysis: analysisResult.analysis,
+  };
 }
 

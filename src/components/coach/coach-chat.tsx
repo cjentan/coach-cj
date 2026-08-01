@@ -7,10 +7,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Brain, Sparkles, Wand2 } from "lucide-react";
 import { type PageContext } from "@/lib/page-context";
 import type { PlanProposal, PlanWeekData } from "@/lib/training-plan-types";
-import { notifyPlanUpdated } from "@/lib/coach-chat-events";
+import { notifyPlanUpdated, notifyActivityAnalysisSaved } from "@/lib/coach-chat-events";
+import { isActivityAnalysisRequest } from "@/lib/activity-analysis-intent";
 import CoachInitialState from "@/components/coach/coach-initial-state";
 import CoachMessageList from "@/components/coach/coach-message-list";
-import type { CoachMessage, CoachSuggestion, PhaseProgress, StatusEntry, SaveProgressInfo } from "@/components/coach/coach-message-list";
+import type { CoachMessage, CoachSuggestion, PhaseProgress, StatusEntry, SaveProgressInfo, SaveAnalysisPrompt } from "@/components/coach/coach-message-list";
 import type { PhaseSummary } from "@/components/coach/training-plan-summary-card";
 import CoachInputBar from "@/components/coach/coach-input-bar";
 
@@ -155,6 +156,8 @@ export default function CoachChat({
   const [completedPhases, setCompletedPhases] = useState<PhaseSummary[]>([]);
   const [internalPlan, setInternalPlan] = useState<PlanWeekData | null>(null);
   const [internalPlanLoading, setInternalPlanLoading] = useState(false);
+  const [pendingSave, setPendingSave] = useState<(SaveAnalysisPrompt & { analysis: string }) | null>(null);
+  const [savingAnalysis, setSavingAnalysis] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const feedIdRef = useRef(0);
   const pendingMessageRef = useRef<string | null>(null);
@@ -388,69 +391,99 @@ export default function CoachChat({
     abortRef.current = abortController;
 
     try {
-      // Try SSE streaming first
-      let finalResponse = "";
-      let suggestions: CoachSuggestion[] = [];
+      // Activity-analysis requests route through the structured dry-run flow,
+      // which returns { activityId, activityName, analysis } for the save prompt.
+      let analysisRouted = false;
+      if (isActivityAnalysisRequest(userMessage)) {
+        try {
+          const data = await coachApi("analyze-activity-in-chat", {
+            conversationId: cid, message: userMessage, pageContext, locale,
+          });
+          const assistantMsg: CoachMessage = {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            content: data.analysis,
+            createdAt: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+          setPendingSave({
+            activityId: data.activityId,
+            activityName: data.activityName,
+            messageId: assistantMsg.id,
+            analysis: data.analysis,
+          });
+          analysisRouted = true;
+          handlePlanApplied();
+        } catch {
+          // Resolution or analysis failed — fall through to the normal chat flow.
+        }
+      }
 
-      const streamResult = await coachApiStream(
-        "chat-stream",
-        { conversationId: cid, message: userMessage, pageContext, locale },
-        (data) => {
-          const pd = data as Record<string, unknown>;
-          const type = pd.type as string;
-          const id = feedIdRef.current++;
-          switch (type) {
-            case "phase_complete":
-              setPhaseProgress((prev) => [...prev, pd as unknown as PhaseProgress]);
-              break;
-            case "status":
-              setStatusFeed((prev) => [...prev, { id, text: pd.message as string, timestamp: Date.now() }]);
-              break;
-            case "tool_call": {
-              const tool = pd.tool as string;
-              let text = `🔧 ${tool}`;
-              if (pd.phaseName) text += ` — ${pd.phaseName}`;
-              if (pd.action) text += ` (${pd.action})`;
-              setStatusFeed((prev) => [...prev, { id, text, timestamp: Date.now() }]);
-              break;
+      if (!analysisRouted) {
+        // Try SSE streaming first
+        let finalResponse = "";
+        let suggestions: CoachSuggestion[] = [];
+
+        const streamResult = await coachApiStream(
+          "chat-stream",
+          { conversationId: cid, message: userMessage, pageContext, locale },
+          (data) => {
+            const pd = data as Record<string, unknown>;
+            const type = pd.type as string;
+            const id = feedIdRef.current++;
+            switch (type) {
+              case "phase_complete":
+                setPhaseProgress((prev) => [...prev, pd as unknown as PhaseProgress]);
+                break;
+              case "status":
+                setStatusFeed((prev) => [...prev, { id, text: pd.message as string, timestamp: Date.now() }]);
+                break;
+              case "tool_call": {
+                const tool = pd.tool as string;
+                let text = `🔧 ${tool}`;
+                if (pd.phaseName) text += ` — ${pd.phaseName}`;
+                if (pd.action) text += ` (${pd.action})`;
+                setStatusFeed((prev) => [...prev, { id, text, timestamp: Date.now() }]);
+                break;
+              }
+              case "progress":
+                setSaveProgress({
+                  phaseName: pd.phaseName as string,
+                  weekCurrent: pd.weekCurrent as number,
+                  weekTotal: pd.weekTotal as number,
+                  message: pd.message as string,
+                });
+                break;
             }
-            case "progress":
-              setSaveProgress({
-                phaseName: pd.phaseName as string,
-                weekCurrent: pd.weekCurrent as number,
-                weekTotal: pd.weekTotal as number,
-                message: pd.message as string,
-              });
-              break;
-          }
-        },
-        abortController.signal
-      );
+          },
+          abortController.signal
+        );
 
-      finalResponse = (streamResult.response as string) || "";
-      suggestions = ((streamResult.suggestions as unknown[]) || []).map(
-        (s) => s as CoachSuggestion
-      );
+        finalResponse = (streamResult.response as string) || "";
+        suggestions = ((streamResult.suggestions as unknown[]) || []).map(
+          (s) => s as CoachSuggestion
+        );
 
-      // Capture updated proposal from chat response (e.g. after plan adjustments)
-      const rawProposal = streamResult.proposal as Record<string, unknown> | undefined;
-      if (rawProposal) {
-        setCurrentProposal(rawProposal as unknown as PlanProposal);
-      }
+        // Capture updated proposal from chat response (e.g. after plan adjustments)
+        const rawProposal = streamResult.proposal as Record<string, unknown> | undefined;
+        if (rawProposal) {
+          setCurrentProposal(rawProposal as unknown as PlanProposal);
+        }
 
-      if (finalResponse) {
-        const assistantMsg: CoachMessage = {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content: finalResponse,
-          createdAt: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
+        if (finalResponse) {
+          const assistantMsg: CoachMessage = {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            content: finalResponse,
+            createdAt: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+        }
+        if (suggestions.length > 0) {
+          setSuggestions((prev) => [...prev, ...suggestions]);
+        }
+        handlePlanApplied();
       }
-      if (suggestions.length > 0) {
-        setSuggestions((prev) => [...prev, ...suggestions]);
-      }
-      handlePlanApplied();
     } catch {
       // Fallback to JSON mode if SSE fails
       console.error("[COACH-CHAT] SSE failed, falling back to JSON chat");
@@ -478,7 +511,7 @@ export default function CoachChat({
       setStatusFeed([]);
       setSaveProgress(null);
     }
-  }, [input, loading, conversationId, handlePlanApplied, pageContext]);
+  }, [input, loading, conversationId, handlePlanApplied, pageContext, locale]);
 
   // ── Track edits to the proposal card ─────────────────
 
@@ -603,6 +636,34 @@ export default function CoachChat({
 
   const dismissSuggestion = useCallback((suggestionId: string) => {
     setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+  }, []);
+
+  // ── Save / discard an activity analysis from chat ────
+
+  const saveAnalysis = useCallback(async () => {
+    if (!pendingSave || savingAnalysis) return;
+    setSavingAnalysis(true);
+    const activityId = pendingSave.activityId;
+    const activityName = pendingSave.activityName;
+    try {
+      const res = await fetch(`/api/activities/${activityId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coachAnalysis: pendingSave.analysis }),
+      });
+      if (!res.ok) throw new Error("Failed to save analysis");
+      setPendingSave(null);
+      setFeedback(t("savedToActivity", { name: activityName }));
+      setTimeout(() => setFeedback(null), 4000);
+      notifyActivityAnalysisSaved(activityId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save analysis");
+    }
+    setSavingAnalysis(false);
+  }, [pendingSave, savingAnalysis, t]);
+
+  const discardAnalysis = useCallback(() => {
+    setPendingSave(null);
   }, []);
 
   const summarize = useCallback(async () => {
@@ -750,6 +811,10 @@ export default function CoachChat({
             onProposalChange={handleProposalChange}
             onApproveProposal={handleApproveProposal}
             onAdjustProposal={handleAdjustProposal}
+            savePrompt={pendingSave}
+            savingAnalysis={savingAnalysis}
+            onSaveAnalysis={saveAnalysis}
+            onDiscardAnalysis={discardAnalysis}
           />
         </div>
 
@@ -842,6 +907,10 @@ export default function CoachChat({
           onProposalChange={handleProposalChange}
           onApproveProposal={handleApproveProposal}
           onAdjustProposal={handleAdjustProposal}
+          savePrompt={pendingSave}
+          savingAnalysis={savingAnalysis}
+          onSaveAnalysis={saveAnalysis}
+          onDiscardAnalysis={discardAnalysis}
         />
 
         {/* Input bar */}

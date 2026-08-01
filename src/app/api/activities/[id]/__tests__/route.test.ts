@@ -123,6 +123,38 @@ describe('PUT /api/activities/[id]', () => {
       isRace: true,
     });
   });
+
+  it('sets coachAnalysis with completed status when provided', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
+    vi.mocked(prisma.trainingLog.update).mockResolvedValue({
+      ...mockActivity,
+      coachAnalysis: '**Long Run** · ✅ Productive\n\nNice work.',
+      analysisStatus: 'completed',
+    });
+
+    const res = await PUT(jsonRequest('/api/activities/act-1', {
+      coachAnalysis: '**Long Run** · ✅ Productive\n\nNice work.',
+    }), { params: { id: 'act-1' } });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(prisma.trainingLog.update).mock.calls[0][0]?.data).toMatchObject({
+      coachAnalysis: '**Long Run** · ✅ Productive\n\nNice work.',
+      analysisStatus: 'completed',
+    });
+  });
+
+  it('clears analysis when coachAnalysis null provided', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
+    vi.mocked(prisma.trainingLog.update).mockResolvedValue({ ...mockActivity, coachAnalysis: null, analysisStatus: null });
+
+    const res = await PUT(jsonRequest('/api/activities/act-1', { coachAnalysis: null }), {
+      params: { id: 'act-1' },
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(prisma.trainingLog.update).mock.calls[0][0]?.data).toMatchObject({
+      coachAnalysis: null,
+      analysisStatus: null,
+    });
+  });
 });
 
 describe('DELETE /api/activities/[id]', () => {

@@ -50,6 +50,13 @@ export interface SaveProgressInfo {
   message: string;
 }
 
+/** Pending "save this analysis to the activity" prompt attached to an assistant message. */
+export interface SaveAnalysisPrompt {
+  activityId: string;
+  activityName: string;
+  messageId: string;
+}
+
 // ── Component Props ───────────────────────────────────────
 
 interface CoachMessageListProps {
@@ -72,6 +79,10 @@ interface CoachMessageListProps {
   onProposalChange: (proposal: PlanProposal) => void;
   onApproveProposal: () => void;
   onAdjustProposal: () => void;
+  savePrompt?: SaveAnalysisPrompt | null;
+  savingAnalysis?: boolean;
+  onSaveAnalysis: () => void;
+  onDiscardAnalysis: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -96,6 +107,10 @@ const CoachMessageList = memo(function CoachMessageList({
   onProposalChange,
   onApproveProposal,
   onAdjustProposal,
+  savePrompt,
+  savingAnalysis,
+  onSaveAnalysis,
+  onDiscardAnalysis,
 }: CoachMessageListProps) {
   const isFloating = variant === "floating";
   const [userScrolledUp, setUserScrolledUp] = useState(false);
@@ -191,6 +206,22 @@ const CoachMessageList = memo(function CoachMessageList({
                 </div>
                 {msg.id === "summary" && (
                   <p className="text-[0.625rem] text-muted-foreground mt-1 italic">{t("conversationSummary")}</p>
+                )}
+                {savePrompt && savePrompt.messageId === msg.id && (
+                  <div className="mt-2 pt-2 border-t border-border/60">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {t("saveAnalysisPrompt", { name: savePrompt.activityName })}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-7 text-xs" onClick={onSaveAnalysis} disabled={savingAnalysis}>
+                        {savingAnalysis ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                        {t("saveToActivity")}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onDiscardAnalysis}>
+                        <X className="h-3 w-3 mr-1" /> {t("discard")}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

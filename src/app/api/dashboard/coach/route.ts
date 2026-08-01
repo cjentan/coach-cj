@@ -7,6 +7,7 @@ import {
   approvePlanProposal,
   applySuggestion,
   analyzeActivity,
+  analyzeActivityInChat,
 } from "@/lib/ai-coach";
 import {
   listConversations,
@@ -338,6 +339,30 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: activityResult.error, code: activityResult.code }, { status });
       }
       return NextResponse.json(activityResult);
+    }
+
+    case "analyze-activity-in-chat": {
+      const conversationId = body.conversationId as string | undefined;
+      const message = body.message as string | undefined;
+      if (!conversationId || !message) {
+        return NextResponse.json({ error: "conversationId and message are required" }, { status: 400 });
+      }
+
+      const chatAnalysisResult = await analyzeActivityInChat(
+        conversationId,
+        userId,
+        message,
+        body.pageContext as PageContext | undefined,
+        locale,
+      );
+      if ("error" in chatAnalysisResult) {
+        const status =
+          chatAnalysisResult.code === "NOT_FOUND" ? 404
+          : chatAnalysisResult.code === "NOT_CONFIGURED" ? 503
+          : 500;
+        return NextResponse.json({ error: chatAnalysisResult.error, code: chatAnalysisResult.code }, { status });
+      }
+      return NextResponse.json(chatAnalysisResult);
     }
 
     default:

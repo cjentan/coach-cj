@@ -11,6 +11,8 @@ export const COACH_CHAT_EVENTS = {
   OPEN: "coachChat:open",
   /** Dispatch to signal that the training plan was created / cleared / changed. */
   PLAN_UPDATED: "trainingPlan:updated",
+  /** Dispatch to signal that an activity's coach analysis was saved. Detail: { activityId } */
+  ACTIVITY_ANALYSIS_SAVED: "activity:analysis-saved",
 } as const;
 
 /**
@@ -32,4 +34,15 @@ export function openCoachChat(startInterview = false): void {
 export function notifyPlanUpdated(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(COACH_CHAT_EVENTS.PLAN_UPDATED));
+}
+
+/**
+ * Dispatch an activity-analysis-saved event so an open activity detail page
+ * (for that activity) can refresh its coach analysis card.
+ */
+export function notifyActivityAnalysisSaved(activityId: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, {
+    detail: { activityId },
+  }));
 }

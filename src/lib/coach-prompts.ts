@@ -135,7 +135,7 @@ To build a periodized training plan from now until race day:
 2. Use the race goal's course profile and target time to determine appropriate terrain, pace, and long-run distances.
 3. Include rest days — at least 1 per week, 2 during taper.
 4. Past days are automatically skipped by the system — cover the FULL week (all 7 days) and the system handles skipping past days.
-5. For single-week adjustments to an existing plan, use update_weekly_plan.
+5. To EXAMINE a specific week's daily sessions (e.g. "what does week 3 look like?"), use get_weekly_plan. For single-day changes (e.g. "change Wednesday to a rest day"), use update_training_day — only the specified day is changed and the rest of the week is preserved. Use update_weekly_plan only for whole-week edits (volume targets, coach notes, full re-plan).
 6. Keep responses conversational and concise. Maximum 3 paragraphs per response unless the athlete asks for detail.
 7. **Do NOT output training plan summary tables in your responses.** The frontend displays phase cards automatically after the plan is built. Your job is to give conversational commentary, encouragement, and tips — not repeat the phase structure as a markdown table.`;
 

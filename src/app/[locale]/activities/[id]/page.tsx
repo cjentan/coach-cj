@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { ActivityCard, TrainingLog, RouteMatch, DuplicateGroupInfo } from "@/components/activity/activity-card";
+import { COACH_CHAT_EVENTS } from "@/lib/coach-chat-events";
 
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -78,6 +79,16 @@ export default function ActivityDetailPage() {
   }, [id]);
 
   useEffect(() => { fetchLog(); }, [fetchLog]);
+
+  // Refresh when a chat-saved analysis is persisted for this activity
+  useEffect(() => {
+    function onAnalysisSaved(e: Event) {
+      const detail = (e as CustomEvent).detail as { activityId?: string } | undefined;
+      if (detail?.activityId === id) fetchLog();
+    }
+    window.addEventListener(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, onAnalysisSaved);
+    return () => window.removeEventListener(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, onAnalysisSaved);
+  }, [id, fetchLog]);
 
   // Fetch similar routes when log changes
   useEffect(() => {

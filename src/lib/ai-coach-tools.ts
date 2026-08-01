@@ -174,6 +174,72 @@ export const UPDATE_WEEKLY_PLAN_TOOL: ToolDefinition = {
   },
 };
 
+export const GET_WEEKLY_PLAN_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "get_weekly_plan",
+    description: "Read the detailed daily sessions for a specific week of the athlete's training plan. Returns every planned session for that week (one per day: type, description, distance/elevation/duration targets) plus the week's volume/elevation/duration targets and coach notes. Use this to EXAMINE a specific week or a specific day's planned workout before suggesting or making changes. If weekStart is omitted, returns the current week.",
+    parameters: {
+      type: "object",
+      properties: {
+        weekStart: {
+          type: "string",
+          description: "Optional ISO date (YYYY-MM-DD) of the Monday of the week to read. Omit to read the current week.",
+        },
+      },
+    },
+  },
+};
+
+export const UPDATE_TRAINING_DAY_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "update_training_day",
+    description: "Change ONE day's planned session in a specific week of the athlete's training plan — e.g. turn a workout into a rest day, adjust a target distance, or rewrite the session description. Only the fields you provide are changed; all other days in that week are left untouched. Use this for single-day adjustments. For whole-week edits (volume targets, coach notes, full re-plan), use update_weekly_plan instead. Past days (already passed) are automatically rejected.",
+    parameters: {
+      type: "object",
+      properties: {
+        weekStart: {
+          type: "string",
+          description: "Required ISO date (YYYY-MM-DD) of the Monday of the week containing the day to change.",
+        },
+        dayOfWeek: {
+          type: "integer",
+          minimum: 0,
+          maximum: 6,
+          description: "Day of the week to change (0=Sunday, 1=Monday, ..., 6=Saturday).",
+        },
+        type: {
+          type: "string",
+          enum: ["run", "ride", "swim", "rest", "workout", "hike", "other"],
+          description: "New session type. Set to 'rest' to make this day a rest day.",
+        },
+        description: {
+          type: "string",
+          description: "New session description (workout details, pace zones, duration, etc.).",
+        },
+        targetDistance: {
+          type: "number",
+          description: "New target distance in meters. Use 0 for rest days.",
+        },
+        targetElevation: {
+          type: "number",
+          description: "New target elevation gain in meters.",
+        },
+        targetDuration: {
+          type: "integer",
+          description: "New target duration in seconds. Use 0 for rest days.",
+        },
+        facility: {
+          type: "string",
+          description: "Optional facility/location for the session.",
+        },
+      },
+      required: ["weekStart", "dayOfWeek"],
+    },
+  },
+};
+
 export const QUERY_ACTIVITIES_TOOL: ToolDefinition = {
   type: "function",
   function: {
@@ -393,6 +459,8 @@ export const ALL_COACH_TOOLS: ToolDefinition[] = [
   MANAGE_GOALS_TOOL,
   SET_ACTIVITY_AS_GOAL_TOOL,
   UPDATE_WEEKLY_PLAN_TOOL,
+  GET_WEEKLY_PLAN_TOOL,
+  UPDATE_TRAINING_DAY_TOOL,
   QUERY_ACTIVITIES_TOOL,
   CREATE_TRAINING_PHASE_TOOL,
   LOOKUP_RACE_TOOL,
@@ -429,6 +497,10 @@ export async function executeTool(
       return executeSetActivityAsGoal(userId, args);
     case "update_weekly_plan":
       return executeUpdateWeeklyPlan(userId, args);
+    case "get_weekly_plan":
+      return executeGetWeeklyPlan(userId, args);
+    case "update_training_day":
+      return executeUpdateTrainingDay(userId, args);
     case "query_activities":
       return executeQueryActivities(userId, args);
     case "create_training_phase":
@@ -696,6 +768,193 @@ async function executeUpdateWeeklyPlan(
   };
 }
 
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/**
+ * Read one week's planned sessions from the training plan.
+ * Returns the full daily breakdown so the LLM can examine a specific
+ * week or day before proposing changes.
+ */
+async function executeGetWeeklyPlan(
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  let weekStart: Date;
+  if (args.weekStart) {
+    const ws = new Date(args.weekStart as string);
+    if (isNaN(ws.getTime())) {
+      return { success: false, message: "Invalid weekStart date. Use YYYY-MM-DD format." };
+    }
+    weekStart = getWeekStart(ws);
+  } else {
+    weekStart = getWeekStart(new Date());
+  }
+  const weekStartStr = weekStart.toISOString().split("T")[0];
+
+  const plan = await prisma.weeklyPlan.findUnique({
+    where: { userId_weekStartDate: { userId, weekStartDate: weekStart } },
+  });
+
+  if (!plan) {
+    return {
+      success: true,
+      message: `No training plan exists for the week of ${weekStartStr}.`,
+      data: { weekStart: weekStartStr, sessions: [] },
+    };
+  }
+
+  const sessions = (Array.isArray(plan.plannedSessions) ? plan.plannedSessions : []) as Array<Record<string, unknown>>;
+  const dayLabels = DAY_NAMES.map((n, i) => {
+    const s = sessions.find((x) => x.dayOfWeek === i);
+    return s ? `${n}: ${s.type}${s.description ? ` — ${(s.description as string).slice(0, 60)}` : ""}` : `${n}: no plan`;
+  });
+
+  return {
+    success: true,
+    message: `Week of ${weekStartStr}: ${sessions.length} planned session(s).\n${dayLabels.join("\n")}`,
+    data: {
+      weekStart: weekStartStr,
+      targetVolumeMeters: plan.targetVolumeMeters,
+      targetElevationMeters: plan.targetElevationMeters,
+      targetDurationSeconds: plan.targetDurationSeconds,
+      coachNotes: plan.coachNotes,
+      sessions: sessions.map((s) => ({
+        dayOfWeek: s.dayOfWeek,
+        type: s.type,
+        description: s.description,
+        targetDistance: s.targetDistance,
+        targetElevation: s.targetElevation,
+        targetDuration: s.targetDuration,
+        facility: s.facility,
+      })),
+    },
+  };
+}
+
+/**
+ * Change a single day's planned session in a specific week.
+ * Only the provided fields are merged onto that day's session — all other
+ * days in the week are preserved. Creates the weekly plan if none exists.
+ */
+async function executeUpdateTrainingDay(
+  userId: string,
+  args: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const weekStartStr = args.weekStart as string;
+  if (!weekStartStr) {
+    return { success: false, message: "weekStart (YYYY-MM-DD) is required." };
+  }
+  const parsedWeekStart = new Date(weekStartStr);
+  if (isNaN(parsedWeekStart.getTime())) {
+    return { success: false, message: "Invalid weekStart date. Use YYYY-MM-DD format." };
+  }
+  const weekStart = getWeekStart(parsedWeekStart);
+  const dayOfWeek = args.dayOfWeek as number;
+  if (dayOfWeek === undefined || dayOfWeek === null || dayOfWeek < 0 || dayOfWeek > 6) {
+    return { success: false, message: "dayOfWeek (0-6) is required." };
+  }
+
+  // Merge only the fields the LLM provided
+  const overrides: Record<string, unknown> = {};
+  if (args.type !== undefined) overrides.type = args.type;
+  if (args.description !== undefined) overrides.description = args.description;
+  if (args.targetDistance !== undefined) overrides.targetDistance = args.targetDistance;
+  if (args.targetElevation !== undefined) overrides.targetElevation = args.targetElevation;
+  if (args.targetDuration !== undefined) overrides.targetDuration = args.targetDuration;
+  if (args.facility !== undefined) overrides.facility = args.facility;
+
+  if (Object.keys(overrides).length === 0) {
+    return { success: false, message: "Provide at least one field to change (type, description, targetDistance, targetElevation, targetDuration, or facility)." };
+  }
+
+  // A rest day carries no training targets — zero them so a workout's stale
+  // distance/duration don't linger on the rest session.
+  if (overrides.type === "rest") {
+    if (overrides.targetDistance === undefined) overrides.targetDistance = null;
+    if (overrides.targetElevation === undefined) overrides.targetElevation = null;
+    if (overrides.targetDuration === undefined) overrides.targetDuration = 0;
+  }
+
+  // Reject changes to days that have already passed
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const sessionDate = new Date(weekStart);
+  sessionDate.setDate(sessionDate.getDate() + dayOfWeek);
+  if (sessionDate < todayStart) {
+    const dateStr = `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, "0")}-${String(sessionDate.getDate()).padStart(2, "0")}`;
+    return { success: false, message: `Cannot change ${DAY_NAMES[dayOfWeek]} (${dateStr}) — this day has already passed.` };
+  }
+
+  // Load the current week's sessions (or start fresh)
+  const existingPlan = await prisma.weeklyPlan.findUnique({
+    where: { userId_weekStartDate: { userId, weekStartDate: weekStart } },
+  });
+  const sessions = (Array.isArray(existingPlan?.plannedSessions) ? existingPlan.plannedSessions : []) as Array<Record<string, unknown>>;
+
+  const idx = sessions.findIndex((s) => s.dayOfWeek === dayOfWeek);
+  if (idx >= 0) {
+    sessions[idx] = { ...sessions[idx], ...overrides };
+  } else {
+    sessions.push({ dayOfWeek, ...overrides });
+  }
+
+  const updated = sessions[idx >= 0 ? idx : sessions.length - 1];
+  const changeSummary = updated.type === "rest"
+    ? `${DAY_NAMES[dayOfWeek]} set to rest day`
+    : `${DAY_NAMES[dayOfWeek]} updated to ${updated.type}: ${String(updated.description || "").slice(0, 80)}`;
+
+  const adjEntry = {
+    timestamp: now.toISOString(),
+    prompt: "AI Coach: Training day update",
+    summary: changeSummary,
+    dayChanges: [{ dayOfWeek, reason: `Updated: ${changeSummary}` }],
+  };
+
+  const updateData: Record<string, unknown> = {
+    plannedSessions: structuredClone(sessions) as any,
+    overridesExisting: true,
+    generatedAt: now,
+  };
+
+  if (existingPlan) {
+    const history = (existingPlan.adjustmentHistory as Array<Record<string, unknown>>) || [];
+    history.push(adjEntry);
+    updateData.adjustmentHistory = history;
+    updateData.adjustments = [`🤖 ${changeSummary}`, ...(existingPlan.adjustments || [])];
+    await prisma.weeklyPlan.update({ where: { id: existingPlan.id }, data: updateData });
+  } else {
+    await prisma.weeklyPlan.create({
+      data: {
+        userId,
+        weekStartDate: weekStart,
+        plannedSessions: structuredClone(sessions) as any,
+        overridesExisting: true,
+        generatedAt: now,
+        adjustments: [`🤖 ${changeSummary}`],
+        adjustmentHistory: [adjEntry],
+      },
+    });
+  }
+
+  return {
+    success: true,
+    message: `Week of ${weekStartStr}, ${changeSummary}.`,
+    data: {
+      weekStart: weekStartStr,
+      dayOfWeek,
+      session: {
+        dayOfWeek: updated.dayOfWeek,
+        type: updated.type,
+        description: updated.description,
+        targetDistance: updated.targetDistance,
+        targetElevation: updated.targetElevation,
+        targetDuration: updated.targetDuration,
+        facility: updated.facility,
+      },
+    },
+  };
+}
+
 export async function executeCreateTrainingPhase(
   userId: string,
   args: Record<string, unknown>,
@@ -898,6 +1157,7 @@ async function executeQueryActivities(
     orderBy,
     take: limit,
     select: {
+      id: true,
       name: true, type: true, subType: true, startDate: true,
       durationSeconds: true, distanceMeters: true, elevationGainMeters: true,
       averageHr: true, maxHr: true, averagePower: true,
@@ -910,6 +1170,7 @@ async function executeQueryActivities(
     const pacePerKm = a.distanceMeters && a.distanceMeters > 0 && a.durationSeconds > 0
       ? (a.durationSeconds / (a.distanceMeters / 1000)) : null;
     return {
+      id: a.id,
       name: a.name, type: a.type, subType: a.subType,
       date: a.startDate.toISOString().split("T")[0],
       distanceKm: parseFloat(distanceKm),
