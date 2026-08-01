@@ -77,14 +77,55 @@ function getMonthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/**
+ * Monday of the week containing `date`, in the viewer's local timezone.
+ * Distinct from the UTC-based `getWeekStart` util — this one drives the
+ * date range sent to the API, which is expressed in local dates.
+ */
+function getWeekStartLocal(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sunday
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Sunday of the week containing `date`, in the viewer's local timezone. */
+function getWeekEndLocal(date: Date): Date {
+  const end = getWeekStartLocal(date);
+  end.setDate(end.getDate() + 6);
+  return end;
+}
+
+/**
+ * Month range, extended to the full training weeks that straddle the month
+ * boundaries. A week that starts in one month and ends in the next (e.g.
+ * Mon Jul 27 – Sun Aug 2) therefore shows up complete in BOTH monthly views:
+ * July's range is extended forward, August's backward.
+ */
 function getMonthRange(key: string): { from: string; to: string } {
   const [year, month] = key.split("-").map(Number);
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0);
+  const monthStart = new Date(year, month - 1, 1); // local midnight, first day
+  const monthEnd = new Date(year, month, 0); // local midnight, last day
   return {
-    from: localDateStr(monthStart),
-    to: localDateStr(monthEnd),
+    from: localDateStr(getWeekStartLocal(monthStart)),
+    to: localDateStr(getWeekEndLocal(monthEnd)),
   };
+}
+
+/**
+ * True when the training week starting on `weekKey` overlaps `monthKey`.
+ * The extended fetch range can pull in weeks from the neighbouring months;
+ * this drops any that don't actually touch the selected month.
+ */
+function weekOverlapsMonth(weekKey: string, monthKey: string): boolean {
+  const [year, month] = monthKey.split("-").map(Number);
+  const firstOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastOfMonth = localDateStr(new Date(year, month, 0));
+  const sunday = new Date(weekKey + "T00:00:00");
+  sunday.setDate(sunday.getDate() + 6);
+  return weekKey <= lastOfMonth && localDateStr(sunday) >= firstOfMonth;
 }
 
 function getWeekRange(key: string): { from: string; to: string } {
@@ -94,8 +135,14 @@ function getWeekRange(key: string): { from: string; to: string } {
   return { from: key, to: localDateStr(sunday) };
 }
 
-function getWeekLabel(date: Date): string {
-  const start = getWeekStart(date);
+/**
+ * Label for a week keyed by its local Monday ("YYYY-MM-DD"). Computed
+ * directly from the local date — NOT via the UTC-based `getWeekStart` —
+ * so a Monday like "2026-07-27" labels as "Jul 27 – Aug 2" even for
+ * positive UTC offsets, where the UTC week helper would shift back a week.
+ */
+function getWeekLabel(weekKey: string): string {
+  const start = new Date(weekKey + "T00:00:00");
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
   const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -113,7 +160,7 @@ function groupLogsByWeek(logs: ActivityLog[]): { weekKey: string; label: string;
   return Object.entries(groups)
     .map(([weekKey, weekLogs]) => ({
       weekKey,
-      label: getWeekLabel(new Date(weekKey + "T00:00:00")),
+      label: getWeekLabel(weekKey),
       logs: weekLogs.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()),
     }))
     .sort((a, b) => new Date(b.weekKey + "T00:00:00").getTime() - new Date(a.weekKey + "T00:00:00").getTime());
@@ -164,7 +211,10 @@ export default function ActivitiesPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const bar = params.get("bar");
-      if (bar) return getMonthRange(bar).from;
+      if (bar) {
+        const range = viewMode === "weekly" ? getWeekRange(bar) : getMonthRange(bar);
+        return range.from;
+      }
     }
     return defaultRange.from;
   });
@@ -172,7 +222,10 @@ export default function ActivitiesPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const bar = params.get("bar");
-      if (bar) return getMonthRange(bar).to;
+      if (bar) {
+        const range = viewMode === "weekly" ? getWeekRange(bar) : getMonthRange(bar);
+        return range.to;
+      }
     }
     return defaultRange.to;
   });
@@ -473,12 +526,19 @@ export default function ActivitiesPage() {
   // ── Group logs by week ───────────────────────────────
   const weekGroups = useMemo(() => groupLogsByWeek(allLogs), [allLogs]);
 
+  // In monthly view the fetch range is extended to include straddling weeks,
+  // so drop any week group that doesn't actually overlap the selected month.
+  const visibleWeekGroups = useMemo(
+    () => (viewMode === "monthly" ? weekGroups.filter((w) => weekOverlapsMonth(w.weekKey, selectedBar)) : weekGroups),
+    [weekGroups, viewMode, selectedBar]
+  );
+
   // Expand all weeks by default when month changes
   useEffect(() => {
-    if (weekGroups.length > 0 && expandedWeeks.size === 0) {
-      setExpandedWeeks(new Set(weekGroups.map(w => w.weekKey)));
+    if (visibleWeekGroups.length > 0 && expandedWeeks.size === 0) {
+      setExpandedWeeks(new Set(visibleWeekGroups.map(w => w.weekKey)));
     }
-  }, [weekGroups.length]);
+  }, [visibleWeekGroups.length]);
 
   // ── Active bar stats ─────────────────────────────────
   const activeBar = barStats.find((m) => m.key === selectedBar);
@@ -768,14 +828,14 @@ export default function ActivitiesPage() {
       </div>
 
       {/* ═══ WEEK-GROUPED ACTIVITIES ═══ */}
-      {allLogs.length === 0 ? (
+      {visibleWeekGroups.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
           <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <p className="text-muted-foreground">{t("noActivities")}</p>
         </CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {weekGroups.map((week) => {
+          {visibleWeekGroups.map((week) => {
             const isExpanded = expandedWeeks.has(week.weekKey);
             const weekDist = week.logs.reduce((s, l) => s + (l.distanceMeters || 0), 0);
             const weekElev = week.logs.reduce((s, l) => s + (l.elevationGainMeters || 0), 0);
