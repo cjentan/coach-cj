@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getWeekStart, localDateStr } from "@/lib/utils";
+import { localDateStr, localDayOfWeek, localWeekStart } from "@/lib/utils";
 import { clearContext } from "@/lib/ai-conversation";
 import { PHASE_COLORS, SHORT_DAY_NAMES } from "@/lib/constants";
 import type {
@@ -136,6 +136,21 @@ function groupPhases(
   return phases;
 }
 
+/** Add `days` to a "YYYY-MM-DD" date string (calendar arithmetic, TZ-independent). */
+function addDaysToDateStr(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const jsDate = new Date(Date.UTC(y, m - 1, d));
+  jsDate.setUTCDate(jsDate.getUTCDate() + days);
+  const my = String(jsDate.getUTCMonth() + 1).padStart(2, "0");
+  const md = String(jsDate.getUTCDate()).padStart(2, "0");
+  return `${jsDate.getUTCFullYear()}-${my}-${md}`;
+}
+
+/** Day of week (0=Sun..6=Sat) of a "YYYY-MM-DD" date string. */
+function dayOfWeekFromDateStr(dateStr: string): number {
+  return new Date(dateStr + "T00:00:00Z").getUTCDay();
+}
+
 // ── Helpers ──────────────────────────────────────────────
 
 /**
@@ -152,13 +167,19 @@ function groupPhases(
 
 // ── Route ───────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const userId = session.user.id;
+
+  // The browser reports its local timezone offset (minutes, negative for
+  // UTC+). The server runs in UTC, so all day bucketing below is shifted by
+  // this offset so activities land on the date the user actually sees.
+  const url = new URL(request.url);
+  const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0", 10);
 
   // 1. Find the earliest weekly plan to determine the plan start date
   const earliestPlan = await prisma.weeklyPlan.findFirst({
@@ -232,17 +253,20 @@ export async function GET() {
     },
   });
 
-  // Group logs by date string for O(1) lookup.
-  // Use localDateStr() instead of toISOString() to match plan day
-  // dates computed in the server's local timezone (see localDateStr doc).
+  // Group logs by the USER's local date string for O(1) lookup. startDate is a
+  // UTC timestamp, so we shift by the browser's tzOffset before formatting —
+  // otherwise a 6am UTC+8 run (10pm UTC the previous day) would land on the
+  // wrong calendar day (see localDateStr doc).
   const logsByDate = new Map<string, typeof logs>();
   for (const log of logs) {
-    const dateKey = localDateStr(log.startDate);
+    const dateKey = localDateStr(log.startDate, tzOffset);
     if (!logsByDate.has(dateKey)) logsByDate.set(dateKey, []);
     logsByDate.get(dateKey)!.push(log);
   }
 
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // "Today" from the user's perspective — compare as YYYY-MM-DD strings so
+  // the UTC server's clock can't highlight the wrong day.
+  const todayStr = localDateStr(now, tzOffset);
 
   // 5. Build weeks + derived phases
   const weekResults: PlanWeekData[] = [];
@@ -297,10 +321,10 @@ export async function GET() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + i);
-      const dateStr = localDateStr(d);
+      const dateStr = localDateStr(d, tzOffset);
       const dow = d.getDay();
-      const isPast = d < todayStart;
-      const isToday = d.getTime() === todayStart.getTime();
+      const isPast = dateStr < todayStr;
+      const isToday = dateStr === todayStr;
 
       const session = sessions.find((s) => s.dayOfWeek === dow);
       const changeInfo = changedDays.get(dow);
@@ -375,21 +399,22 @@ export async function GET() {
     }
   }
 
-  // Group orphan logs into calendar weeks (Mon–Sun) via getWeekStart
+  // Group orphan logs into the USER's local Mon–Sun weeks. Each activity's
+  // local date string is its key and its local day-of-week places it in the
+  // right cell.
   const orphanWeeksMap = new Map<
     string,
-    { weekStart: Date; days: Map<number, PlanDayActual> }
+    { weekStartStr: string; days: Map<number, PlanDayActual> }
   >();
   for (const [dateStr, dateLogs] of Array.from(logsByDate)) {
     if (planDates.has(dateStr)) continue; // already covered by a planned week
 
     const best = dateLogs[0];
-    const ws = getWeekStart(best.startDate);
-    const weekKey = localDateStr(ws);
-    const dow = best.startDate.getDay();
+    const weekKey = localWeekStart(best.startDate, tzOffset);
+    const dow = dayOfWeekFromDateStr(dateStr);
 
     if (!orphanWeeksMap.has(weekKey)) {
-      orphanWeeksMap.set(weekKey, { weekStart: ws, days: new Map() });
+      orphanWeeksMap.set(weekKey, { weekStartStr: weekKey, days: new Map() });
     }
     orphanWeeksMap.get(weekKey)!.days.set(dow, {
       type: best.type,
@@ -405,17 +430,13 @@ export async function GET() {
   // Convert orphan weeks to PlanWeekData (full 7-day array, only actual days populated)
   const orphanWeeks: PlanWeekData[] = [];
   for (const [, wd] of Array.from(orphanWeeksMap)) {
-    const we = new Date(wd.weekStart);
-    we.setDate(we.getDate() + 6);
     const days: PlanDay[] = [];
 
     for (let i = 0; i < 7; i++) {
-      const d = new Date(wd.weekStart);
-      d.setDate(d.getDate() + i);
-      const dateStr = localDateStr(d);
-      const dow = d.getDay();
-      const isPast = d < todayStart;
-      const isToday = d.getTime() === todayStart.getTime();
+      const dateStr = addDaysToDateStr(wd.weekStartStr, i);
+      const dow = dayOfWeekFromDateStr(dateStr);
+      const isPast = dateStr < todayStr;
+      const isToday = dateStr === todayStr;
 
       days.push({
         date: dateStr,
@@ -429,8 +450,8 @@ export async function GET() {
     }
 
     orphanWeeks.push({
-      weekStart: localDateStr(wd.weekStart),
-      weekEnd: localDateStr(we),
+      weekStart: wd.weekStartStr,
+      weekEnd: addDaysToDateStr(wd.weekStartStr, 6),
       days,
     });
   }

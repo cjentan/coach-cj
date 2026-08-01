@@ -43,7 +43,9 @@ export default function TrainingPlanPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/training-plan");
+      const res = await fetch(
+        `/api/training-plan?tzOffset=${new Date().getTimezoneOffset()}`,
+      );
       if (!res.ok) throw new Error(`Failed: ${res.status}`);
       const data: TrainingPlanResponse = await res.json();
       setPlanData(data);

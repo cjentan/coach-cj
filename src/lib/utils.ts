@@ -79,11 +79,48 @@ export function formatPace(metersPerSecond: number, type?: string, locale = "en"
  *
  * For UTC-accurate DB timestamps, use `toISOString().split("T")[0]` or `utcDateStr()`.
  */
-export function localDateStr(d: Date): string {
+export function localDateStr(d: Date, tzOffset?: number): string {
+  if (tzOffset != null) {
+    // Convert the UTC instant to the user's local time using the offset the
+    // browser reported via Date.getTimezoneOffset() (negative for UTC+).
+    // Reading UTC components of the shifted instant keeps this independent
+    // of the server's own timezone (which may be UTC in production).
+    const shifted = new Date(d.getTime() - tzOffset * 60000);
+    const y = shifted.getUTCFullYear();
+    const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(shifted.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/**
+ * Day of week (0=Sun..6=Sat) of a UTC instant in the user's local timezone.
+ * Mirrors `localDateStr(d, tzOffset)`'s shifting so the two always agree.
+ */
+export function localDayOfWeek(date: Date, tzOffset: number): number {
+  const shifted = new Date(date.getTime() - tzOffset * 60000);
+  return shifted.getUTCDay();
+}
+
+/**
+ * Monday of the week containing the user's local date, as "YYYY-MM-DD".
+ * Unlike `getWeekStart()` (which aligns to UTC weeks), this aligns to the
+ * user's own Mon–Sun week boundaries.
+ */
+export function localWeekStart(date: Date, tzOffset: number): string {
+  const dateStr = localDateStr(date, tzOffset);
+  const dow = localDayOfWeek(date, tzOffset);
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const jsDate = new Date(Date.UTC(y, m - 1, d));
+  const diff = dow === 0 ? -6 : 1 - dow;
+  jsDate.setUTCDate(jsDate.getUTCDate() + diff);
+  const my = String(jsDate.getUTCMonth() + 1).padStart(2, "0");
+  const md = String(jsDate.getUTCDate()).padStart(2, "0");
+  return `${jsDate.getUTCFullYear()}-${my}-${md}`;
 }
 
 /**
