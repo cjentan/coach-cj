@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,15 @@ import {
   HrZoneBar, VamCard,
   CombinedMetricsChart,
 } from "@/components/training/training-charts";
-import { SplitsTable, LapTable, RouteMap } from "@/components/training/training-tables";
+import { SplitsTable, LapTable } from "@/components/training/training-tables";
 import { SOURCE_LABELS, SOURCE_COLORS } from "@/lib/constants";
+
+// Leaflet touches `window` at module load, so it must never enter the SSR bundle.
+// Isolated in its own module and loaded on demand.
+const RouteMap = dynamic(
+  () => import("@/components/training/route-map").then((m) => m.RouteMap),
+  { ssr: false },
+);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
