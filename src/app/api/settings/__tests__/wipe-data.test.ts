@@ -29,7 +29,7 @@ describe('DELETE /api/settings/wipe-data', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await DELETE(createRequest('/api/settings/wipe-data'));
     expect(res.status).toBe(401);
   });

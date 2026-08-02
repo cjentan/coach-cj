@@ -21,7 +21,7 @@ describe('GET /api/goals', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await GET();
     expect(res.status).toBe(401);
   });
@@ -67,7 +67,7 @@ describe('POST /api/goals', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await POST(jsonRequest('/api/goals', { name: 'Test' }));
     expect(res.status).toBe(401);
   });

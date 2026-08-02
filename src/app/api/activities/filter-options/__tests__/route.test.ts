@@ -19,7 +19,7 @@ describe('GET /api/activities/filter-options', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await GET();
     expect(res.status).toBe(401);
   });
@@ -27,9 +27,9 @@ describe('GET /api/activities/filter-options', () => {
   it('returns aggregated filter options for the user', async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
     vi.mocked(prisma.trainingLog.findMany)
-      .mockResolvedValueOnce([{ type: 'run' }, { type: 'ride' }])
-      .mockResolvedValueOnce([{ source: 'garmin' }, { source: 'strava' }])
-      .mockResolvedValueOnce([{ subType: 'trail_running' }, { subType: 'road_cycling' }]);
+      .mockResolvedValueOnce([{ type: 'run' }, { type: 'ride' }] as any)
+      .mockResolvedValueOnce([{ source: 'garmin' }, { source: 'strava' }] as any)
+      .mockResolvedValueOnce([{ subType: 'trail_running' }, { subType: 'road_cycling' }] as any);
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -42,8 +42,8 @@ describe('GET /api/activities/filter-options', () => {
   it('filters empty values from results', async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
     vi.mocked(prisma.trainingLog.findMany)
-      .mockResolvedValueOnce([{ type: null }, { type: 'run' }])
-      .mockResolvedValueOnce([{ source: 'garmin' }])
+      .mockResolvedValueOnce([{ type: null }, { type: 'run' }] as any)
+      .mockResolvedValueOnce([{ source: 'garmin' }] as any)
       .mockResolvedValueOnce([]);
 
     const res = await GET();

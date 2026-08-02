@@ -6,7 +6,9 @@ import type {
   GoalPriority,
   DuplicateStatus,
   AlertSeverity,
+  AnalysisStatus,
 } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 /** Generate a random UUID-like string for tests. */
 export function testId(): string {
@@ -74,6 +76,14 @@ export function buildTrainingLog(
     calories: number | null;
     tss: number | null;
     workoutType: string | null;
+    rawJson: Prisma.JsonValue | null;
+    simplifiedTrackPoints: Prisma.JsonValue | null;
+    trackMinLat: number | null;
+    trackMaxLat: number | null;
+    trackMinLng: number | null;
+    trackMaxLng: number | null;
+    analysisStatus: AnalysisStatus | null;
+    updatedAt: Date;
     duplicateGroupId: string | null;
     duplicateStatus: DuplicateStatus | null;
     mergedIntoId: string | null;
@@ -111,7 +121,9 @@ export function buildTrainingLog(
     duplicateGroupId: null,
     duplicateStatus: null,
     mergedIntoId: null,
+    analysisStatus: null,
     createdAt: new Date(),
+    updatedAt: new Date(),
     ...overrides,
   };
 }
@@ -131,7 +143,7 @@ export function buildRaceGoal(
     status: GoalStatus;
     notes: string | null;
     goalStatement: string | null;
-    courseProfile: unknown;
+    courseProfile: Prisma.JsonValue | null;
   }> = {},
 ) {
   return {

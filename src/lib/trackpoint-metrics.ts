@@ -20,6 +20,15 @@ import {
   estimateTss,
 } from "@/lib/training-math";
 
+/**
+ * Trackpoints with optional fields.
+ *
+ * These metric functions only read the subset of fields they need (hr, power,
+ * speed, distance) and treat each as nullable, so they accept partial
+ * trackpoints. Full TrackPoint[] from parsers is a valid input too.
+ */
+export type TrackpointInput = Array<Partial<TrackPoint>>;
+
 // ─── Types ──────────────────────────────────────────────────
 
 export interface HrTssResult {
@@ -116,7 +125,7 @@ const POWER_ZONE_PCTS = [0.55, 0.75, 0.90, 1.05, 1.20, 1.50];
  * Zone weights: Z1=0.5, Z2=0.65, Z3=0.8, Z4=1.0, Z5=1.3
  */
 export function computeHrTss(
-  trackPoints: TrackPoint[],
+  trackPoints: TrackpointInput,
   maxHr: number,
   restingHr?: number
 ): HrTssResult | null {
@@ -180,7 +189,7 @@ export function computeHrTss(
  * Threshold-heavy = Moderate > 30%
  */
 export function computeIntensityDistribution(
-  trackPoints: TrackPoint[],
+  trackPoints: TrackpointInput,
   maxHr: number
 ): IntensityDistribution | null {
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
@@ -245,7 +254,7 @@ export function computeIntensityDistribution(
  * we estimate FTP as 95% of best 20-minute power from the data.
  */
 export function computePowerMetrics(
-  trackPoints: TrackPoint[],
+  trackPoints: TrackpointInput,
   ftp?: number,
   weightKg?: number,
 ): PowerMetrics | null {
@@ -333,7 +342,7 @@ export function computePowerMetrics(
  * > 10% = significant decoupling — possible dehydration, fatigue, or lack of endurance
  */
 export function computeDecoupling(
-  trackPoints: TrackPoint[],
+  trackPoints: TrackpointInput,
   usePower: boolean = false
 ): DecouplingResult | null {
   const validPoints = trackPoints.filter((tp) => {
@@ -350,7 +359,7 @@ export function computeDecoupling(
   const firstAvgHr = firstHalf.reduce((s, tp) => s + tp.hr!, 0) / firstHalf.length;
   const secondAvgHr = secondHalf.reduce((s, tp) => s + tp.hr!, 0) / secondHalf.length;
 
-  const getOutput = (tp: TrackPoint): number => {
+  const getOutput = (tp: Partial<TrackPoint>): number => {
     if (usePower) return tp.power!;
     return tp.speed || 1; // fallback to speed
   };
@@ -389,7 +398,7 @@ export function computeDecoupling(
  * which is more comparable as body weight changes.
  */
 export function computeEfficiencyFactor(
-  trackPoints: TrackPoint[],
+  trackPoints: TrackpointInput,
   weightKg?: number,
 ): { ef: number; efWkg: number | null } | null {
   const valid = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0 && tp.power != null && tp.power > 0);
@@ -431,7 +440,7 @@ export function computeEfficiencyFactor(
  * Best-available TSS: uses power TSS if power data available,
  * falls back to hrTSS if HR data available, falls back to estimate.
  */
-export function computeBestTss(trackPoints: TrackPoint[] | null, avgHr: number | null, maxHr: number | null, durationSeconds: number): number {
+export function computeBestTss(trackPoints: TrackpointInput | null, avgHr: number | null, maxHr: number | null, durationSeconds: number): number {
   if (trackPoints && trackPoints.length >= 30) {
     // Try power-based TSS first
     const powerMetrics = computePowerMetrics(trackPoints);

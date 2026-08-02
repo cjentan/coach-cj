@@ -29,7 +29,7 @@ export interface ClassifierInput {
   maxHr?: number | null;
   averagePower?: number | null;
   normalizedPower?: number | null;
-  trackPoints?: TrackPoint[] | null;
+  trackPoints?: Array<Partial<TrackPoint>> | null;
 }
 
 /**

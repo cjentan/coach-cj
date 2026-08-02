@@ -24,7 +24,7 @@ describe('GET /api/goals/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await GET(createRequest('/api/goals/goal-1'), { params: { id: 'goal-1' } });
     expect(res.status).toBe(401);
   });
@@ -62,7 +62,7 @@ describe('PUT /api/goals/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await PUT(jsonRequest('/api/goals/goal-1', { name: 'Updated' }), {
       params: { id: 'goal-1' },
     });
@@ -98,7 +98,7 @@ describe('DELETE /api/goals/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await DELETE(createRequest('/api/goals/goal-1'), { params: { id: 'goal-1' } });
     expect(res.status).toBe(401);
   });

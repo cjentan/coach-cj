@@ -21,7 +21,7 @@ describe('GET /api/activities', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await GET(createRequest('/api/activities'));
     expect(res.status).toBe(401);
     const body = await res.json();

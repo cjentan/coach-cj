@@ -179,7 +179,7 @@ describe('computeDecoupling', () => {
     }));
     const result = computeDecoupling(points);
     expect(result).not.toBeNull();
-    expect(result!.firstHalfHr).toBeLessThan(result!.secondHalfHr);
+    expect(result!.firstHalfHr!).toBeLessThan(result!.secondHalfHr!);
   });
 
   it('computes decoupling from power data', () => {

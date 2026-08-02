@@ -28,7 +28,7 @@ describe('GET /api/activities/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await GET(createRequest('/api/activities/act-1'), { params: { id: 'act-1' } });
     expect(res.status).toBe(401);
   });
@@ -65,7 +65,7 @@ describe('GET /api/activities/[id]', () => {
   it('returns neighbors when neighbors=true', async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
     vi.mocked(prisma.trainingLog.findUnique).mockResolvedValue(mockActivity);
-    vi.mocked(prisma.trainingLog.findFirst).mockResolvedValue({ id: 'prev-id' });
+    vi.mocked(prisma.trainingLog.findFirst).mockResolvedValue({ id: 'prev-id' } as any);
 
     const res = await GET(createRequest('/api/activities/act-1?neighbors=true'), {
       params: { id: 'act-1' },
@@ -82,7 +82,7 @@ describe('PUT /api/activities/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await PUT(jsonRequest('/api/activities/act-1', { remarks: 'Great run' }), {
       params: { id: 'act-1' },
     });
@@ -163,7 +163,7 @@ describe('DELETE /api/activities/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await DELETE(createRequest('/api/activities/act-1'), { params: { id: 'act-1' } });
     expect(res.status).toBe(401);
   });

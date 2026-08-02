@@ -15,7 +15,7 @@ describe('POST /api/duplicates/detect', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue(null);
+    vi.mocked(auth).mockResolvedValue(null as any);
     const res = await POST(createRequest('/api/duplicates/detect'));
     expect(res.status).toBe(401);
   });

@@ -338,8 +338,8 @@ describe('resolveDuplicateGroup', () => {
     const updateCalls = mockPrisma.trainingLog.update.mock.calls;
     const mergedUpdate = updateCalls.find((c: any[]) => c[0].where.id === 'other');
     expect(mergedUpdate).toBeDefined();
-    expect(mergedUpdate[0].data.mergedIntoId).toBe('keep');
-    expect(mergedUpdate[0].data.duplicateStatus).toBe('resolved_merged');
+    expect(mergedUpdate![0].data.mergedIntoId).toBe('keep');
+    expect(mergedUpdate![0].data.duplicateStatus).toBe('resolved_merged');
   });
 
   it('throws when group not found', async () => {
