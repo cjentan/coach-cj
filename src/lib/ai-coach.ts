@@ -1893,7 +1893,10 @@ export async function analyzeActivity(
 
   const result = await ask(systemPrompt, userPrompt, {
     temperature: 0.3,
-    maxTokens: 1024,
+    // deepseek-v4-flash is a reasoning model: reasoning_content consumes most of
+    // the output budget before content is produced. 1024 caps the reasoning and
+    // leaves the JSON empty/truncated, so use a budget in line with the chat path.
+    maxTokens: 4096,
     jsonMode: true,
     apiKey: llmConfig.apiKey,
     baseUrl: llmConfig.baseUrl,
@@ -1916,7 +1919,7 @@ export async function analyzeActivity(
     const retry = await ask(
       systemPrompt,
       `Your previous response was invalid JSON. Return ONLY valid JSON matching the schema exactly.`,
-      { temperature: 0.2, maxTokens: 1024, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model }
+      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model }
     );
     if (!retry) return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     try {
@@ -2035,7 +2038,7 @@ The activityId MUST come from a query_activities result. If you cannot determine
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const response = await chatWithTools(llmMessages, {
       temperature: 0.2,
-      maxTokens: 2048,
+      maxTokens: 4096,
       apiKey: llmConfig.apiKey,
       baseUrl: llmConfig.baseUrl,
       model: llmConfig.model,

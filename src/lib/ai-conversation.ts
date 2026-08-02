@@ -76,7 +76,9 @@ export async function summarizeConversation(
 
   const summary = await ask(systemPrompt, thread, {
     temperature: 0.3,
-    maxTokens: 1024,
+    // deepseek-v4-flash is a reasoning model — keep the budget aligned with the
+    // chat path so reasoning_content doesn't consume the whole output budget.
+    maxTokens: 4096,
     apiKey: llmConfig.apiKey,
     baseUrl: llmConfig.baseUrl,
     model: llmConfig.model,
