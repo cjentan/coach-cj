@@ -450,6 +450,7 @@
     "analyze": "Analyze",
     "analyzing": "Analyzing...",
     "summarize": "Summarize",
+    "summarized": "Conversation summarized ✓",
     "createPlan": "Create Plan",
     "resetPlan": "Reset Plan",
     "resetPlanConfirm": "Reset Plan?",

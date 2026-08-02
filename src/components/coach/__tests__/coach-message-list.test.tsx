@@ -168,7 +168,16 @@ describe('CoachMessageList', () => {
     render(<CoachMessageList
       {...defaultProps}
       messages={[{ ...sampleMessage, content: 'Proposal ready' }]}
-      currentProposal={{ proposedStartDate: '2025-01-01', phases: [], peakVolume: 80, goalRaceName: 'Marathon' }}
+      currentProposal={{
+        totalWeeks: 16,
+        raceGoalName: 'Marathon',
+        raceDate: '2025-06-01',
+        currentVolume: '45 km/wk',
+        peakVolume: '80 km/wk',
+        proposedStartDate: '2025-01-01',
+        phases: [],
+        adjustments: [],
+      }}
     />);
     expect(screen.getByTestId('plan-proposal')).toBeInTheDocument();
   });
@@ -192,7 +201,7 @@ describe('CoachMessageList', () => {
         phaseOrder: 1,
         phaseGoal: 'Build base',
         weekCount: 4,
-        sessionsCount: 12,
+        sessionCount: 12,
         weeks: ['1', '2', '3', '4'],
       }]}
     />);

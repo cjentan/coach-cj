@@ -450,6 +450,7 @@
     "analyze": "分析",
     "analyzing": "分析中...",
     "summarize": "总结",
+    "summarized": "对话已总结 ✓",
     "createPlan": "创建计划",
     "resetPlan": "重置计划",
     "resetPlanConfirm": "重置计划？",

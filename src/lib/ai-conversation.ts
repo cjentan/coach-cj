@@ -88,6 +88,27 @@ export async function summarizeConversation(
     return { error: "LLM returned no response.", code: "LLM_FAILED" };
   }
 
+  // Compress the conversation: replace all stored messages with a single
+  // summary message so the LLM context window stays small on future turns.
+  // The id `summary-${conversationId}` is deterministic per conversation and
+  // globally unique (CoachMessage.id is the primary key), and matches the
+  // CoachMessageList special rendering (msg.id.startsWith("summary")).
+  await prisma.$transaction([
+    prisma.coachMessage.deleteMany({ where: { conversationId } }),
+    prisma.coachMessage.create({
+      data: {
+        id: `summary-${conversationId}`,
+        conversationId,
+        role: "assistant",
+        content: summary,
+      },
+    }),
+    prisma.coachConversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() },
+    }),
+  ]);
+
   return { summary };
 }
 

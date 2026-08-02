@@ -197,14 +197,14 @@ const CoachMessageList = memo(function CoachMessageList({
               <div className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm ${
                 msg.role === "user"
                   ? "bg-primary text-primary-foreground"
-                  : msg.id === "summary"
+                  : msg.id.startsWith("summary")
                     ? "bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
                     : "bg-muted"
               }`}>
                 <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
-                {msg.id === "summary" && (
+                {msg.id.startsWith("summary") && (
                   <p className="text-[0.625rem] text-muted-foreground mt-1 italic">{t("conversationSummary")}</p>
                 )}
                 {savePrompt && savePrompt.messageId === msg.id && (

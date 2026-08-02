@@ -679,6 +679,8 @@ export default function CoachChat({
         if (convData.conversation) {
           setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
           setSuggestions([]);
+          setFeedback(t("summarized"));
+          setTimeout(() => setFeedback(null), 4000);
         }
       }
     } catch (err) {
@@ -746,37 +748,38 @@ export default function CoachChat({
   if (isFloating) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex-1 overflow-y-auto px-4 py-2">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-primary" />
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
-                {t("title")}
-              </h2>
-              {initialNotesAt && !hasMessages && (
-                <span className="text-[0.625rem] text-muted-foreground">
-                  {new Date(initialNotesAt).toLocaleDateString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              {hasMessages && messages.length >= 2 && (
-                <Button size="sm" variant="ghost" onClick={summarize} disabled={summarizing} title={t("summarizeTitle")}>
-                  {summarizing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                  {t("summarize")}
-                </Button>
-              )}
-              <Button size="sm" onClick={analyze} disabled={analyzing} title={t("analyzeTitle")}>
-                {analyzing ? (
-                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("analyzing")}</>
-                ) : (
-                  <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
-                )}
-              </Button>
-            </div>
+        {/* Header — pinned, stays visible while scrolling the chat */}
+        <div className="flex items-center justify-between px-4 py-2 border-b shrink-0">
+          <div className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+              {t("title")}
+            </h2>
+            {initialNotesAt && !hasMessages && (
+              <span className="text-[0.625rem] text-muted-foreground">
+                {new Date(initialNotesAt).toLocaleDateString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
           </div>
+          <div className="flex items-center gap-1">
+            {hasMessages && messages.length >= 2 && (
+              <Button size="sm" variant="ghost" onClick={summarize} disabled={summarizing} title={t("summarizeTitle")}>
+                {summarizing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                {t("summarize")}
+              </Button>
+            )}
+            <Button size="sm" onClick={analyze} disabled={analyzing} title={t("analyzeTitle")}>
+              {analyzing ? (
+                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("analyzing")}</>
+              ) : (
+                <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
+              )}
+            </Button>
+          </div>
+        </div>
 
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
           {/* Initial state — page-aware greeting + quick actions */}
           <CoachInitialState
             pageContext={pageContext}
@@ -819,7 +822,7 @@ export default function CoachChat({
         </div>
 
         {/* Input bar — pinned to bottom in floating mode */}
-        <div className="px-4 pb-4 pt-2 border-t">
+        <div className="px-4 pb-4 pt-2 border-t shrink-0">
           <CoachInputBar
             ref={inputRef}
             input={input}
