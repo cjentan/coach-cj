@@ -11,7 +11,7 @@
  */
 
 const ANALYSIS_INTENT =
-  /\b(analy[sz]e|analy[sz]is|review|assess|evaluate|break\s?down|feedback|critique|comment on|how'?s|how (was|were|did|is|are))\b/i;
+  /\b(analy[sz]e|analy[sz]is|review|assess|evaluate|break\s?down|feedback|critique|comment on|how'?s|how (was|were|did|is|are)|what (do|did) you think|was my|did my|tell me about|look at|recap)\b/i;
 
 const ACTIVITY_REF =
   /\b(activity|workout|session|run|running|ride|riding|bike|biking|swim|swimming|hike|hiking|race|tempo|interval|threshold|fartlek|long run|marathon|half\s?marathon|10k|5k|sprint|brick|recovery|hill repeats?)\b/i;

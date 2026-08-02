@@ -2000,8 +2000,15 @@ async function resolveActivityFromMessage(
   if (pageContext?.page === "activity-detail" && pageContext.activityId) {
     const refersToCurrent =
       /\b(this|the current|today's?)\s+(activity|workout|session|run|ride|race)\b/i.test(message) ||
-      /\banalyze this\b/i.test(message);
-    if (refersToCurrent) {
+      /\bmy\s+(activity|workout|session|run|ride|race|long run|tempo|interval)\b/i.test(message) ||
+      /\banalyze this\b/i.test(message) ||
+      /\bhow'?s\s+(my\s+)?(run|workout|session|activity|ride|race)\b/i.test(message) ||
+      /\bwhat (do|did) (you|ya) think (of|about)\s+(my\s+)?(run|workout|session|activity|ride|race)\b/i.test(message);
+    // Don't hijack requests that point at a specific past session ("my run
+    // from yesterday", "last Sunday's long run") — those need real resolution.
+    const hasPastDateRef =
+      /\b(yesterday|last\s+(night|week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\w+)|ago|previous|\d+\s+(days?|weeks?)|on\s+(mon|tue|wed|thu|fri|sat|sun))\b/i.test(message);
+    if (refersToCurrent && !hasPastDateRef) {
       const currentActivity = await prisma.trainingLog.findUnique({
         where: { id: pageContext.activityId, userId },
         select: { id: true, name: true },
@@ -2092,6 +2099,25 @@ The activityId MUST come from a query_activities result. If you cannot determine
   if (objectMatch) {
     const extracted = tryParse(objectMatch[0]);
     if (extracted) return extracted;
+  }
+
+  // Last resort: the LLM couldn't pin down a specific activity. If the
+  // athlete is on the activity-detail page and their message doesn't point
+  // at a specific past session, default to the activity they're viewing —
+  // that's overwhelmingly what they mean, and it keeps the structured
+  // save-prompt flow from silently falling back to plain chat.
+  if (pageContext?.page === "activity-detail" && pageContext.activityId) {
+    const hasPastDateRef =
+      /\b(yesterday|last\s+(night|week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\w+)|ago|previous|\d+\s+(days?|weeks?)|on\s+(mon|tue|wed|thu|fri|sat|sun))\b/i.test(message);
+    if (!hasPastDateRef) {
+      const currentActivity = await prisma.trainingLog.findUnique({
+        where: { id: pageContext.activityId, userId },
+        select: { id: true, name: true },
+      });
+      if (currentActivity) {
+        return { activityId: currentActivity.id, activityName: currentActivity.name };
+      }
+    }
   }
 
   return null;
