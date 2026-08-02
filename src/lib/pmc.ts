@@ -21,6 +21,35 @@ export interface PmcResult {
 const CTL_TC = 42;
 const ATL_TC = 7;
 
+/**
+ * Fill in missing dates between the first activity and today (UTC) with tss: 0,
+ * so rest days are counted and CTL/ATL/TSB decay to reflect recovery.
+ *
+ * Extends through today even when the last activity was earlier, so the
+ * dashboard scores and PMC chart reflect the current date rather than
+ * stopping at the last workout.
+ */
+export function fillDailyTss(input: { date: string; tss: number }[]): { date: string; tss: number }[] {
+  if (input.length === 0) return [];
+
+  const startDate = new Date(input[0].date);
+  const lastActivityDate = input[input.length - 1].date;
+  const todayKey = new Date().toISOString().split("T")[0];
+  // Don't truncate if an activity is dated after today (clock skew)
+  const endKey = lastActivityDate > todayKey ? lastActivityDate : todayKey;
+  const endDate = new Date(endKey);
+
+  const inputMap = new Map(input.map((d) => [d.date, d.tss]));
+  const filled: { date: string; tss: number }[] = [];
+  const cursor = new Date(startDate);
+  while (cursor <= endDate) {
+    const key = cursor.toISOString().split("T")[0];
+    filled.push({ date: key, tss: inputMap.get(key) ?? 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return filled;
+}
+
 export function computePMC(dailyTss: DailyTss[], initialCtl: number = 30, initialAtl: number = 30): PmcResult[] {
   if (dailyTss.length === 0) return [];
 

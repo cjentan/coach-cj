@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { computePMC } from "@/lib/pmc";
+import { computePMC, fillDailyTss } from "@/lib/pmc";
 import { cache } from "react";
 
 const cachedComputePMC = cache(computePMC);
@@ -41,20 +41,10 @@ export async function GET(request: Request) {
     .map(([date, tss]) => ({ date, tss }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Fill in missing dates with tss: 0 so the chart's x-axis is continuous
-  // and CTL/ATL/TSB decay naturally on rest days
-  const filledInput: { date: string; tss: number }[] = [];
-  if (pmcInput.length > 0) {
-    const startDate = new Date(pmcInput[0].date);
-    const endDate = new Date(pmcInput[pmcInput.length - 1].date);
-    const inputMap = new Map(pmcInput.map((d) => [d.date, d.tss]));
-    const cursor = new Date(startDate);
-    while (cursor <= endDate) {
-      const key = cursor.toISOString().split("T")[0];
-      filledInput.push({ date: key, tss: inputMap.get(key) ?? 0 });
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-  }
+  // Fill in missing dates with tss: 0 so the chart's x-axis is continuous,
+  // CTL/ATL/TSB decay naturally on rest days, and the series extends through
+  // today even when the last activity was earlier.
+  const filledInput = fillDailyTss(pmcInput);
 
   const pmcResults = cachedComputePMC(filledInput);
 

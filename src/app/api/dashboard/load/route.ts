@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getWeekStart, getMonthStart, getMonthEnd } from "@/lib/utils";
-import { computePMC } from "@/lib/pmc";
+import { computePMC, fillDailyTss } from "@/lib/pmc";
 import { computeReadinessScore } from "@/lib/training-health";
 
 interface PeriodStats {
@@ -157,24 +157,14 @@ export async function GET() {
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + tss;
   }
 
-  // Fill in missing dates with tss: 0 so CTL/ATL/TSB decay properly on rest days,
-  // matching the PMC chart computation in pmc-history/route.ts
+  // Fill in missing dates with tss: 0 so CTL/ATL/TSB decay properly on rest
+  // days, extending through today so the scores reflect the current date even
+  // when the last activity was earlier.
   const pmcInput = Object.entries(tssByDate)
     .map(([date, tss]) => ({ date, tss }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  let filledInput: { date: string; tss: number }[] = [];
-  if (pmcInput.length > 0) {
-    const startDate = new Date(pmcInput[0].date);
-    const endDate = new Date(pmcInput[pmcInput.length - 1].date);
-    const inputMap = new Map(pmcInput.map((d) => [d.date, d.tss]));
-    const cursor = new Date(startDate);
-    while (cursor <= endDate) {
-      const key = cursor.toISOString().split("T")[0];
-      filledInput.push({ date: key, tss: inputMap.get(key) ?? 0 });
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-  }
+  const filledInput = fillDailyTss(pmcInput);
 
   const pmcResults = computePMC(filledInput);
   const latestPmc = pmcResults.length > 0

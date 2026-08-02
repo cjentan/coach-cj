@@ -3,6 +3,7 @@ import {
   computePMC,
   computeMonotony,
   computeStrain,
+  fillDailyTss,
 } from '../pmc';
 import { computeLinearRegression } from '../training-load';
 
@@ -94,6 +95,68 @@ describe('computePMC', () => {
       const decimals = (r.ctl.toString().split('.')[1] || '').length;
       expect(decimals).toBeLessThanOrEqual(1);
     }
+  });
+
+  it('reflects recovery on rest days after the last activity', () => {
+    const results = computePMC([
+      { date: '2025-01-15', tss: 200 },
+      { date: '2025-01-16', tss: 0 },
+      { date: '2025-01-17', tss: 0 },
+      { date: '2025-01-18', tss: 0 },
+    ]);
+    // Fatigue (ATL) decays faster than fitness (CTL), so TSB should rise
+    // across the rest days — i.e. the athlete is recovering.
+    expect(results[3].atl).toBeLessThan(results[0].atl);
+    expect(results[3].ctl).toBeLessThan(results[0].ctl);
+    expect(results[3].tsb).toBeGreaterThan(results[0].tsb);
+  });
+});
+
+describe('fillDailyTss', () => {
+  it('returns empty for empty input', () => {
+    expect(fillDailyTss([])).toEqual([]);
+  });
+
+  it('preserves activity TSS and fills gaps and rest days with 0', () => {
+    const input = [
+      { date: '2026-07-28', tss: 100 },
+      { date: '2026-07-30', tss: 80 },
+    ];
+    const result = fillDailyTss(input);
+    // Gaps between activities and days after the last activity get tss 0
+    const byDate = new Map(result.map((d) => [d.date, d.tss]));
+    expect(byDate.get('2026-07-28')).toBe(100);
+    expect(byDate.get('2026-07-29')).toBe(0);
+    expect(byDate.get('2026-07-30')).toBe(80);
+    expect(byDate.get('2026-07-31')).toBe(0);
+    // First and last entries match the input boundaries / today
+    expect(result[0].date).toBe('2026-07-28');
+    expect(result[0].tss).toBe(100);
+    expect(result[result.length - 1].date).toBe(
+      new Date().toISOString().split('T')[0]
+    );
+    expect(result[result.length - 1].tss).toBe(0);
+  });
+
+  it('extends the series through today (UTC) with tss 0 on rest days', () => {
+    const input = [{ date: '2026-07-30', tss: 100 }];
+    const result = fillDailyTss(input);
+    const todayKey = new Date().toISOString().split('T')[0];
+    expect(result[result.length - 1].date).toBe(todayKey);
+    expect(result[result.length - 1].tss).toBe(0);
+    // All dates are consecutive
+    for (let i = 1; i < result.length; i++) {
+      const prev = new Date(result[i - 1].date);
+      const curr = new Date(result[i].date);
+      expect((curr.getTime() - prev.getTime()) / 86400000).toBe(1);
+    }
+  });
+
+  it('does not truncate when the last activity is dated after today', () => {
+    const futureDate = new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0];
+    const result = fillDailyTss([{ date: futureDate, tss: 50 }]);
+    expect(result[result.length - 1].date).toBe(futureDate);
+    expect(result[result.length - 1].tss).toBe(50);
   });
 });
 
