@@ -443,14 +443,6 @@
       "saveChanges": "保存更改"
     }
   },
-  "heatmap": {
-    "title": "热力图",
-    "build": "生成热力图",
-    "activityType": "活动类型",
-    "from": "从",
-    "to": "至",
-    "processing": "处理数据中..."
-  },
   "coach": {
     "title": "AI教练",
     "placeholder": "提出问题或请求调整训练计划...",

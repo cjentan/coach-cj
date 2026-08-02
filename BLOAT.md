@@ -113,9 +113,8 @@ Used in `ai-coach.ts` and `ai-coach-tools.ts` for deep cloning
 ### 17. i18n Duplication Across Namespaces
 - 858 keys/language, `settings` = 326 (38%)
 - `settings.goals` duplicates top-level `goals` (~25 keys)
-- `map` (5 keys) duplicates `heatmap` (6 keys)
 - `dashboard.noPlanSet` / `training-plan.noPlanSet`
-- **Fix:** Hoist shared to `common`, merge `map→heatmap`
+- **Fix:** Hoist shared to `common`
 
 ### 18. `backup/route.ts` (480) + `restore/route.ts` (491) — Heavy `any`
 - ~70 `as any` / `: any` casts combined
@@ -162,11 +161,10 @@ Both `executeUpdateWeeklyPlan` and `executeCreateTrainingPhase` repeat the same 
 ### 27. ~55 `any` Type Abuses
 Clustered in `backup/route.ts`, `restore/route.ts`, `garmin.ts`, `coros.ts`, `metrics-snapshot.ts`
 
-### 28. 31 `console.log` in Production Code
+### 28. 28 `console.log` in Production Code
 - `plan-adjuster.ts` = 8 (plain English, no tags — fix)
-- `coach-notes.ts` = 4 (plain English)
-- `workers/entrypoint.ts` = 16 (structured tags — acceptable)
-- `heatmap/page.tsx` = 1 (client-side — unwanted)
+- `strava-export/route.ts` = 2, `strava-export-parser.ts` = 1, `activity-analysis-queue.ts` = 2 (plain English)
+- `workers/entrypoint.ts` = 15 (structured tags — acceptable)
 
 ### 29. `DailyHealth` Over-Collection
 ~12 fields synced from Garmin but never surfaced: `deepSleepSeconds`, `lightSleepSeconds`, `remSleepSeconds`, `awakeSeconds`, `minHeartRate`, `maxHeartRate`, `stepGoal`, `hrvBalance`, `sleepStartLocal`, `sleepEndLocal`, `maxStress`
@@ -221,10 +219,9 @@ Seen on backup route etc. — likely left over from debugging.
 1. **Remove dead code:** 10 dead API routes + `coach-notes.ts` + `plan-generator.ts` (~1,200 lines)
 2. **Deduplicate types:** `PlanDay*` from `coach-chat.tsx`, `PHASE_COLORS`, `ACTIVITY_TYPES`, `SOURCE_LABELS`
 3. **Extract `StatRow`** from MonthlySummary/WeeklySummary
-4. **Merge `map→heatmap`** i18n namespace
-5. **Move 12 redirect stubs** to `next.config.js`
-6. **Extract `sendChatCompletion()`** in `llm.ts`
-7. **Hoist shared i18n keys** (`settings.goals→goals`, dashboard→`common`)
+4. **Move 12 redirect stubs** to `next.config.js`
+5. **Extract `sendChatCompletion()`** in `llm.ts`
+6. **Hoist shared i18n keys** (`settings.goals→goals`, dashboard→`common`)
 
 ### Phase 2 — Structural refactors
 8. **Extract shared algorithms:** Haversine, TSS, NP, sport-type mappings → `utils.ts` or `geo.ts`

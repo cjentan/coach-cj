@@ -218,7 +218,7 @@ export async function POST(req: Request) {
                     : undefined,
                 });
 
-                // Compute simplified trackpoints for heatmap (when GPS data available)
+                // Compute simplified trackpoints for route rendering (when GPS data available)
                 const simplified = activity.hasRichData && activity.rawJson
                   ? simplifyTrackPoints(
                       (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined,

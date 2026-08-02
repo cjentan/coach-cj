@@ -16,7 +16,6 @@ const routes = [
   "/settings/integrations",
   "/settings/backup-restore",
   "/settings/danger-zone",
-  "/heatmap",
   "/duplicates",
   "/ingestion",
   "/onboarding",

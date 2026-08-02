@@ -1,13 +1,13 @@
 /**
  * Simplify raw trackpoints to a compact coordinate array for storage
- * and fast retrieval in heatmap/route views.
+ * and fast retrieval in route views.
  *
  * The stored format is a simple array of [lat, lon] pairs — no TrackPoint
  * objects, no metadata. This keeps the column tiny and avoids re-parsing
- * the full rawJson just to render the heatmap.
+ * the full rawJson just to render a route.
  *
  * Also computes the bounding box of the track for spatial index queries
- * (used by the tile server to efficiently find intersecting tiles).
+ * (used to find intersecting/overlapping tracks, e.g. similar-route matching).
  */
 import type { TrackPoint } from "./gpx-parser";
 import { downsample } from "./trackpoint-charts";

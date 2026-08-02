@@ -443,14 +443,6 @@
       "saveChanges": "Save Changes"
     }
   },
-  "heatmap": {
-    "title": "Heatmap",
-    "build": "Build my heatmap",
-    "activityType": "Activity Type",
-    "from": "From",
-    "to": "To",
-    "processing": "Processing your data..."
-  },
   "coach": {
     "title": "AI Coach",
     "placeholder": "Ask a question or request plan changes...",
