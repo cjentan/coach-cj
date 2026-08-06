@@ -1367,7 +1367,7 @@ export async function chat(
       options.onProgress({
         type: "status",
         message: iterations === 1
-          ? "Analyzing your training data and crafting a plan..."
+          ? "Analyzing your training data and preparing a response..."
           : `Working on next steps (iteration ${iterations})...`,
       });
     }

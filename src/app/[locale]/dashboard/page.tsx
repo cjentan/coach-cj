@@ -816,50 +816,53 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                       {day.dayLabel} {new Date(day.date).getDate()}
                     </span>
 
-                    {/* Planned content */}
-                    {hasPlanned ? (
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <span className={`${day.isPast ? "text-muted-foreground line-through decoration-1" : "font-medium"}`}>
-                          {day.planned!.description}
+                    {/* Main column: planned workout + actual activity stacked */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      {/* Planned content */}
+                      {hasPlanned ? (
+                        <div className="space-y-0.5">
+                          <span className={`${day.isPast ? "text-muted-foreground line-through decoration-1" : "font-medium"}`}>
+                            {day.planned!.description}
+                          </span>
+                          {day.planned!.targetDistance && (
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {Math.round(day.planned!.targetDistance / 1000)}km
+                            </span>
+                          )}
+                          {/* Change indicator */}
+                          {isChanged && (
+                            <span
+                              className="inline-flex items-center justify-center shrink-0 cursor-help"
+                              title={day.planned!.changeReason}
+                            >
+                              <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title={day.planned!.changeReason} />
+                            </span>
+                          )}
+                        </div>
+                      ) : day.isPast ? (
+                        <span className="block text-xs text-muted-foreground italic">
+                          {hasActual ? t("unplanned") : t("noPlanNoActivity")}
                         </span>
-                        {day.planned!.targetDistance && (
-                          <span className="text-xs text-muted-foreground shrink-0">
-                            {Math.round(day.planned!.targetDistance / 1000)}km
-                          </span>
-                        )}
-                        {/* Change indicator */}
-                        {isChanged && (
-                          <span
-                            className="inline-flex items-center justify-center shrink-0 cursor-help"
-                            title={day.planned!.changeReason}
-                          >
-                            <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title={day.planned!.changeReason} />
-                          </span>
-                        )}
-                      </div>
-                    ) : day.isPast ? (
-                      <span className="flex-1 text-xs text-muted-foreground italic">
-                        {hasActual ? t("unplanned") : t("noPlanNoActivity")}
-                      </span>
-                    ) : (
-                      <span className="flex-1 text-xs text-muted-foreground italic">{t("noPlanSet")}</span>
-                    )}
+                      ) : (
+                        <span className="block text-xs text-muted-foreground italic">{t("noPlanSet")}</span>
+                      )}
 
-                    {/* Actual activity (past days) */}
-                    {hasActual && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <div className="h-1 w-1 rounded-full bg-green-500 shrink-0" />
-                        <span className="text-xs font-medium">{day.actual!.name}</span>
-                        {day.actual!.distanceMeters && (
-                          <span className="text-xs text-muted-foreground">
-                            {(day.actual!.distanceMeters / 1000).toFixed(1)}km
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {day.isPast && !hasActual && (
-                      <span className="text-[10px] text-muted-foreground italic shrink-0">—</span>
-                    )}
+                      {/* Actual activity (past days) — new line under the planned workout */}
+                      {hasActual && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="h-1 w-1 rounded-full bg-green-500 shrink-0" />
+                          <span className="text-xs font-medium">{day.actual!.name}</span>
+                          {day.actual!.distanceMeters && (
+                            <span className="text-xs text-muted-foreground">
+                              {(day.actual!.distanceMeters / 1000).toFixed(1)}km
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {day.isPast && !hasActual && hasPlanned && (
+                        <span className="text-[10px] text-muted-foreground italic">—</span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
