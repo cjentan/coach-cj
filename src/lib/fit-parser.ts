@@ -89,7 +89,7 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
         const activities: ParsedFileActivity[] = [];
         const sessions = data?.activity?.sessions || [];
         // Some FIT parsers (fit-file-parser v2+) store records at the top level
-        const records = data?.records || data?.activity?.records || [];
+        let records = data?.records || data?.activity?.records || [];
 
         // Extract the Garmin device-local timestamp (reflects the watch's timezone).
         // When available, use it for time-of-day naming instead of UTC start_time.
@@ -146,26 +146,30 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
             .replace(/_/g, " ")
             .replace(/\b\w/g, (c) => c.toUpperCase());
 
-          // Convert FIT records to TrackPoints (filter to those within this session's time range)
-          const sessionRecords = records.filter((r) => {
-            if (!r.timestamp || !startTime) return true;
-            const rt = new Date(r.timestamp).getTime();
-            const st = startTime.getTime();
-            const et = st + duration * 1000;
-            return rt >= st - 60000 && rt <= et + 60000; // 1min tolerance
-          });
-
-          const trackPoints: TrackPoint[] = sessionRecords.map((r) => ({
-            lat: r.position_lat != null ? r.position_lat : null,
-            lon: r.position_long != null ? r.position_long : null,
-            ele: r.altitude ?? r.enhanced_altitude ?? null,
-            time: r.timestamp ? new Date(r.timestamp).toISOString() : null,
-            hr: r.heart_rate || null,
-            cadence: r.cadence || null,
-            power: r.power || null,
-            distance: r.distance || null,
-            speed: r.speed || null,
-          }));
+          // Convert FIT records to TrackPoints (filter to those within this session's
+          // time range) in a single pass — avoids materializing an intermediate
+          // filtered copy, which matters for long activities with many records.
+          const st = startTime.getTime();
+          const et = st + duration * 1000;
+          const trackPoints: TrackPoint[] = [];
+          for (let i = 0; i < records.length; i++) {
+            const r = records[i];
+            if (r.timestamp) {
+              const rt = new Date(r.timestamp).getTime();
+              if (rt < st - 60000 || rt > et + 60000) continue; // 1min tolerance
+            }
+            trackPoints.push({
+              lat: r.position_lat != null ? r.position_lat : null,
+              lon: r.position_long != null ? r.position_long : null,
+              ele: r.altitude ?? r.enhanced_altitude ?? null,
+              time: r.timestamp ? new Date(r.timestamp).toISOString() : null,
+              hr: r.heart_rate || null,
+              cadence: r.cadence || null,
+              power: r.power || null,
+              distance: r.distance || null,
+              speed: r.speed || null,
+            });
+          }
 
           activities.push({
             name: generateBaseName(sportType, subType, startTime, undefined, localTimestamp),
@@ -199,6 +203,14 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
             if (activity) activities.push(activity);
           }
         }
+
+        // Free the large parsed record arrays now that the TrackPoints are copied
+        // into `activities` — the source records can be tens of thousands of
+        // objects. Releasing them here (before the caller persists/analyzes)
+        // keeps peak memory bounded for long activities.
+        records = [];
+        (data as any).records = [];
+        if (data?.activity) (data as any).activity.records = [];
 
         resolve(activities);
       } catch (err) {

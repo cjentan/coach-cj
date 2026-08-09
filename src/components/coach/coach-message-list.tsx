@@ -35,6 +35,8 @@ export interface PhaseProgress {
   weekCount: number;
   weeks: string[];
   sessionCount: number;
+  workoutCount?: number;
+  restCount?: number;
 }
 
 export interface StatusEntry {
@@ -258,26 +260,31 @@ const CoachMessageList = memo(function CoachMessageList({
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {isFloating ? t("trainingPlanProgress") : "Training Plan Progress"}
               </p>
-              {phaseProgress.map((p, i) => (
-                <div key={i} className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-                      <Check className="h-3 w-3 text-green-600" />
-                    </div>
-                    <span className="font-medium">{p.phaseName}</span>
-                    <Badge variant="outline" className="ml-auto text-[0.625rem]">
-                      {isFloating ? t("phase", { phaseOrder: p.phaseOrder }) : `Phase ${p.phaseOrder}`}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 ml-7">{p.phaseGoal}</p>
-                  <p className="text-xs text-muted-foreground ml-7">
-                    {isFloating
+              {phaseProgress.map((p, i) => {
+                const countStr =
+                  p.workoutCount !== undefined && p.restCount !== undefined
+                    ? isFloating
+                      ? `${t("weeksCount", { count: p.weekCount })} · ${t("workoutsCount", { count: p.workoutCount })} · ${t("restCount", { count: p.restCount })}`
+                      : `${p.weekCount} week${p.weekCount !== 1 ? "s" : ""} · ${p.workoutCount} workout${p.workoutCount !== 1 ? "s" : ""} · ${p.restCount} rest`
+                    : isFloating
                       ? `${t("weeksCount", { count: p.weekCount })} · ${t("sessionsCount", { count: p.sessionCount })}`
-                      : `${p.weekCount} week${p.weekCount !== 1 ? "s" : ""} · ${p.sessionCount} session${p.sessionCount !== 1 ? "s" : ""}`
-                    }
-                  </p>
-                </div>
-              ))}
+                      : `${p.weekCount} week${p.weekCount !== 1 ? "s" : ""} · ${p.sessionCount} session${p.sessionCount !== 1 ? "s" : ""}`;
+                return (
+                  <div key={i} className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3 text-green-600" />
+                      </div>
+                      <span className="font-medium">{p.phaseName}</span>
+                      <Badge variant="outline" className="ml-auto text-[0.625rem]">
+                        {isFloating ? t("phase", { phaseOrder: p.phaseOrder }) : `Phase ${p.phaseOrder}`}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 ml-7">{p.phaseGoal}</p>
+                    <p className="text-xs text-muted-foreground ml-7">{countStr}</p>
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">

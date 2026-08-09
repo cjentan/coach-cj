@@ -136,8 +136,9 @@ info "Starting Next.js dev server..."
 
 if [ "$RUN_WORKER" = true ]; then
   info "Also starting background worker..."
-  # Start worker in background, kill it when this script exits
-  npx tsx src/workers/entrypoint.ts &
+  # Start worker in background, kill it when this script exits.
+  # Match prod flags so forced GC (global.gc) works and the heap is bounded.
+  NODE_OPTIONS="--expose-gc --max-old-space-size=1024" npx tsx src/workers/entrypoint.ts &
   WORKER_PID=$!
   trap "kill $WORKER_PID 2>/dev/null; exit" INT TERM EXIT
   ok "Worker started (PID $WORKER_PID)"

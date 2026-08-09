@@ -596,6 +596,8 @@ export default function CoachChat({
           weekCount: (p.weekCount as number) || 0,
           sessionCount: (p.sessionCount as number) || 0,
           phaseOrder: p.phaseOrder as number | undefined,
+          workoutCount: (p.workoutCount as number | undefined),
+          restCount: (p.restCount as number | undefined),
         }));
         setCompletedPhases(mapped);
       }

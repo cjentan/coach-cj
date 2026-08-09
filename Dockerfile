@@ -127,4 +127,4 @@ COPY --from=builder /app/node_modules ./node_modules
 RUN npm prune --production
 
 USER node
-ENTRYPOINT ["node", "dist-workers/workers/entrypoint.js"]
+ENTRYPOINT ["node", "--expose-gc", "--max-old-space-size=1024", "dist-workers/workers/entrypoint.js"]

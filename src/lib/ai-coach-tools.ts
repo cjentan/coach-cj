@@ -987,6 +987,8 @@ export async function executeCreateTrainingPhase(
 
   const savedWeeks: string[] = [];
   let totalSessionsSaved = 0;
+  let totalWorkoutsSaved = 0;
+  let totalRestSaved = 0;
   let totalPastSkipped = 0;
 
   const totalWeeks = weeks.length;
@@ -1035,6 +1037,13 @@ export async function executeCreateTrainingPhase(
         perDayChanges.push({ dayOfWeek: dow, reason: `Created: ${desc.slice(0, 80)}` });
         validSessions.push(s);
         totalSessionsSaved++;
+        // Separate rest days from actual workouts so phase summaries don't
+        // read like every day is a training session.
+        if (String(s.type) === "rest") {
+          totalRestSaved++;
+        } else {
+          totalWorkoutsSaved++;
+        }
       }
     }
 
@@ -1099,7 +1108,7 @@ export async function executeCreateTrainingPhase(
 
   return {
     success: true,
-    message: `Phase "${phaseName}" (${phaseOrder}) saved: ${savedWeeks.length} weeks from ${savedWeeks[0]} to ${savedWeeks[savedWeeks.length - 1]}. ${totalSessionsSaved} sessions planned, ${totalPastSkipped} past day(s) skipped.`,
+    message: `Phase "${phaseName}" (${phaseOrder}) saved: ${savedWeeks.length} weeks from ${savedWeeks[0]} to ${savedWeeks[savedWeeks.length - 1]}. ${totalWorkoutsSaved} workouts + ${totalRestSaved} rest day(s), ${totalPastSkipped} past day(s) skipped.`,
     data: {
       phaseName,
       phaseOrder,
@@ -1107,6 +1116,8 @@ export async function executeCreateTrainingPhase(
       weekCount: savedWeeks.length,
       weeks: savedWeeks,
       sessionCount: totalSessionsSaved,
+      workoutCount: totalWorkoutsSaved,
+      restCount: totalRestSaved,
       pastDaysSkipped: totalPastSkipped,
     },
   };
@@ -1431,7 +1442,7 @@ export async function executeCreateFullTrainingPlan(
     return { success: false, message: "phases array is required with at least one phase." };
   }
 
-  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number }> = [];
+  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> = [];
 
   for (const phase of phases) {
     const result = await executeCreateTrainingPhase(userId, phase, onProgress);
@@ -1446,16 +1457,20 @@ export async function executeCreateFullTrainingPlan(
       phaseOrder: (phase.phaseOrder as number) || 0,
       weekCount: (result.data?.weekCount as number) || 0,
       sessionCount: (result.data?.sessionCount as number) || 0,
+      workoutCount: (result.data?.workoutCount as number) || 0,
+      restCount: (result.data?.restCount as number) || 0,
     });
   }
 
   return {
     success: true,
-    message: `Full plan created: ${savedPhases.map((p) => `${p.name} (${p.weekCount}w, ${p.sessionCount} sessions)`).join(", ")}`,
+    message: `Full plan created: ${savedPhases.map((p) => `${p.name} (${p.weekCount}w, ${p.workoutCount} workouts + ${p.restCount} rest)`).join(", ")}`,
     data: {
       phases: savedPhases,
       totalWeeks: savedPhases.reduce((sum, p) => sum + p.weekCount, 0),
       totalSessions: savedPhases.reduce((sum, p) => sum + p.sessionCount, 0),
+      totalWorkouts: savedPhases.reduce((sum, p) => sum + p.workoutCount, 0),
+      totalRest: savedPhases.reduce((sum, p) => sum + p.restCount, 0),
     },
   };
 }

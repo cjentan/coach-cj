@@ -381,7 +381,8 @@
     "tabs": {
       "users": "用户",
       "email": "邮件设置",
-      "prompts": "提示词"
+      "prompts": "提示词",
+      "trainingPlan": "训练计划"
     },
     "statLabels": {
       "totalUsers": "总用户数",
@@ -441,6 +442,16 @@
       "saved": "已保存",
       "saving": "保存中",
       "saveChanges": "保存更改"
+    },
+    "planEngine": {
+      "title": "训练计划生成引擎",
+      "description": "选择用于生成训练计划的 AI 引擎。v1 每次调用生成整个阶段；v2 先规划阶段，再每周生成一周。下一次构建计划时对所有用户生效。",
+      "label": "引擎",
+      "v1": "v1 — 原始版（一次调用生成整个阶段）",
+      "v2": "v2 — 先规划阶段（逐周生成）",
+      "saved": "引擎已更新。",
+      "saving": "保存中...",
+      "save": "保存引擎"
     }
   },
   "coach": {
@@ -502,6 +513,8 @@
     "phase": "第{phaseOrder}阶段",
     "weeksCount": "{count}周",
     "sessionsCount": "{count}次训练",
+    "workoutsCount": "{count}次训练",
+    "restCount": "{count}天休息",
     "processing": "处理中...",
     "proposalTitle": "计划提案",
     "proposalVolume": "训练量",

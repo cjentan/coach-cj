@@ -253,10 +253,10 @@ export async function syncCorosActivities(
       const response = await fetch(fileUrl);
       if (!response.ok) continue;
 
-      const fileBuffer = Buffer.from(await response.arrayBuffer());
+      let fileBuffer: Buffer | null = Buffer.from(await response.arrayBuffer());
 
       // Parse the FIT file
-      let parsedActivities: ParsedFileActivity[];
+      let parsedActivities: ParsedFileActivity[] | null = null;
       try {
         parsedActivities = await parseFitFile(fileBuffer);
       } catch {
@@ -264,10 +264,16 @@ export async function syncCorosActivities(
         console.error(
           `[coros] Failed to parse FIT for activity ${externalId}`
         );
+        fileBuffer = null;
+        if (global.gc) global.gc();
         continue;
       }
 
-      if (!parsedActivities || parsedActivities.length === 0) continue;
+      if (!parsedActivities || parsedActivities.length === 0) {
+        fileBuffer = null;
+        if (global.gc) global.gc();
+        continue;
+      }
 
       // Upsert each parsed activity
       const hasMultiple = parsedActivities.length > 1;
@@ -359,6 +365,12 @@ export async function syncCorosActivities(
         // Snapshot the affected week
         await snapshotWeek(userId, parsed.startDate).catch(() => {});
       }
+
+      // Free the file buffer + parsed data and force GC before the next
+      // activity, so memory doesn't accumulate during large syncs.
+      fileBuffer = null;
+      parsedActivities = [];
+      if (global.gc) global.gc();
     } catch (err) {
       console.error(
         `[coros] Failed to import activity ${externalId}:`,

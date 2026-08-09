@@ -79,6 +79,8 @@ export interface PhaseProgressEvent {
   weekCount: number;
   weeks: string[];
   sessionCount: number;
+  workoutCount?: number;
+  restCount?: number;
 }
 
 export interface StatusEvent {
@@ -131,7 +133,7 @@ async function getActivityAnalyzePrompt(): Promise<string> {
 
 // ── Helpers ────────────────────────────────────────────
 
-function buildContextSummary(ctx: Awaited<ReturnType<typeof gatherTrainingContext>>, locale = "en"): string {
+export function buildContextSummary(ctx: Awaited<ReturnType<typeof gatherTrainingContext>>, locale = "en"): string {
   const today = new Date().toLocaleDateString(locale, {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
@@ -235,14 +237,14 @@ function buildContextSummary(ctx: Awaited<ReturnType<typeof gatherTrainingContex
   return s;
 }
 
-function sanitizeJsonText(text: string): string {
+export function sanitizeJsonText(text: string): string {
   // Strip markdown code fences if the LLM wraps JSON in them
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   return fenceMatch ? fenceMatch[1].trim() : text.trim();
 }
 
 /** Derive phase structure (name + weeks) from athlete's training context. */
-function derivePhaseStructure(ctx: Awaited<ReturnType<typeof gatherTrainingContext>>): Array<{ name: string; weeks: number }> {
+export function derivePhaseStructure(ctx: Awaited<ReturnType<typeof gatherTrainingContext>>): Array<{ name: string; weeks: number }> {
   const goal = ctx.goals[0];
   if (!goal) return [{ name: "Base", weeks: 4 }, { name: "Build", weeks: 4 }, { name: "Peak", weeks: 2 }, { name: "Taper", weeks: 1 }];
 
@@ -263,7 +265,7 @@ function derivePhaseStructure(ctx: Awaited<ReturnType<typeof gatherTrainingConte
 }
 
 /** Return the next Monday as YYYY-MM-DD (or today if Monday). */
-function getNextMondayStr(): string {
+export function getNextMondayStr(): string {
   const d = new Date();
   const day = d.getDay();
   const daysUntilMonday = day === 0 ? 1 : day === 1 ? 0 : 8 - day;
@@ -272,7 +274,7 @@ function getNextMondayStr(): string {
 }
 
 /** Generate a phase goal string from the phase name. */
-function generatePhaseGoal(name: string): string {
+export function generatePhaseGoal(name: string): string {
   switch (name) {
     case "Base": return "Build aerobic foundation and endurance base";
     case "Build": return "Introduce race-specific intensity and quality workouts";
@@ -580,6 +582,7 @@ export async function analyze(
     apiKey: llmConfig.apiKey,
     baseUrl: llmConfig.baseUrl,
     model: llmConfig.model,
+    thinking: "disabled",
   });
 
   if (!result) {
@@ -595,7 +598,7 @@ export async function analyze(
     const retry = await ask(
       systemPrompt,
       `Your previous response was invalid JSON. Return ONLY valid JSON matching the schema.`,
-      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model }
+      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model, thinking: "disabled" }
     );
     if (!retry) return { error: "AI coach failed to generate valid analysis.", code: "PARSE_FAILED" };
     try {
@@ -841,6 +844,7 @@ ${contextStr}`;
     baseUrl: llmConfig.baseUrl,
     model: llmConfig.model,
     signal: options?.signal,
+    thinking: "disabled",
   });
 
   const elapsed = Date.now() - t0;
@@ -864,6 +868,7 @@ ${contextStr}`;
       apiKey: llmConfig.apiKey,
       baseUrl: llmConfig.baseUrl,
       model: llmConfig.model,
+      thinking: "disabled",
     });
     if (retry) {
       try {
@@ -978,7 +983,7 @@ export async function approvePlanProposal(
   locale = "en",
   proposalOverrides?: Record<string, unknown>,
 ): Promise<
-  | { success: true; response: string; phases: Array<{ name: string; weekCount: number; sessionCount: number }> }
+  | { success: true; response: string; phases: Array<{ name: string; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> }
   | { error: string; code: string }
 > {
   // 1. Load conversation + config
@@ -1096,7 +1101,7 @@ export async function approvePlanProposal(
     ? (event: Record<string, unknown>) => { options.onProgress!(event as ChatProgressEvent); }
     : undefined;
 
-  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number }> = [];
+  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> = [];
   let currentStartDate = new Date(startDate);
   let anyFailure: string | null = null;
 
@@ -1163,6 +1168,7 @@ Design rules:
       apiKey: llmConfig.apiKey,
       baseUrl: llmConfig.baseUrl,
       model: llmConfig.model,
+      thinking: "disabled",
     });
 
     if (!rawResult) {
@@ -1184,7 +1190,7 @@ Design rules:
       // Parse failed — retry this phase once
       const retry = await ask(phaseSystemPrompt, "Your previous response wasn't valid JSON. Output ONLY a JSON object with a weeks array. No other text.", {
         temperature: 0.2, maxTokens: 16384, jsonMode: true,
-        apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model,
+        apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model, thinking: "disabled",
       });
       if (retry) {
         try {
@@ -1229,6 +1235,8 @@ Design rules:
       weekCount: (saveResult.data?.weekCount as number) || weeksData.length,
       weeks: (saveResult.data?.weeks as string[]) || [],
       sessionCount: (saveResult.data?.sessionCount as number) || 0,
+      workoutCount: (saveResult.data?.workoutCount as number) || 0,
+      restCount: (saveResult.data?.restCount as number) || 0,
     } as PhaseProgressEvent);
 
     savedPhases.push({
@@ -1236,6 +1244,8 @@ Design rules:
       phaseOrder,
       weekCount: (saveResult.data?.weekCount as number) || weeksData.length,
       sessionCount: (saveResult.data?.sessionCount as number) || 0,
+      workoutCount: (saveResult.data?.workoutCount as number) || 0,
+      restCount: (saveResult.data?.restCount as number) || 0,
     });
 
     // Advance the start date for the next phase
@@ -1255,7 +1265,7 @@ Design rules:
     },
   });
 
-  const phaseSummary = savedPhases.map(p => `${p.name} (${p.weekCount}w, ${p.sessionCount} sessions)`).join(", ");
+  const phaseSummary = savedPhases.map(p => `${p.name} (${p.weekCount}w, ${p.workoutCount} workouts + ${p.restCount} rest)`).join(", ");
   const finalText = `Your training plan is ready! ${phaseSummary}`;
 
   await prisma.coachMessage.create({
@@ -1513,6 +1523,8 @@ export async function chat(
           weekCount: (result.data.weekCount as number) || 0,
           weeks: (result.data.weeks as string[]) || [],
           sessionCount: (result.data.sessionCount as number) || 0,
+          workoutCount: (result.data.workoutCount as number) || 0,
+          restCount: (result.data.restCount as number) || 0,
         });
       }
 
@@ -1893,14 +1905,12 @@ export async function analyzeActivity(
 
   const result = await ask(systemPrompt, userPrompt, {
     temperature: 0.3,
-    // deepseek-v4-flash is a reasoning model: reasoning_content consumes most of
-    // the output budget before content is produced. 1024 caps the reasoning and
-    // leaves the JSON empty/truncated, so use a budget in line with the chat path.
     maxTokens: 4096,
     jsonMode: true,
     apiKey: llmConfig.apiKey,
     baseUrl: llmConfig.baseUrl,
     model: llmConfig.model,
+    thinking: "disabled",
   });
 
   if (!result) {
@@ -1919,7 +1929,7 @@ export async function analyzeActivity(
     const retry = await ask(
       systemPrompt,
       `Your previous response was invalid JSON. Return ONLY valid JSON matching the schema exactly.`,
-      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model }
+      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model, thinking: "disabled" }
     );
     if (!retry) return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     try {

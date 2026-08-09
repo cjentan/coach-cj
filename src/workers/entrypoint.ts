@@ -20,7 +20,21 @@ import { scheduleBatchAnalysis } from "../lib/activity-analysis-queue";
 import { getGarminClient, syncGarminActivities, syncGarminHealthData } from "../lib/garmin";
 import { getCorosClient, syncCorosActivities } from "../lib/coros";
 
-
+/**
+ * Best-effort forced GC with a diagnostic log when the heap is large.
+ * Only effective when Node is started with --expose-gc (prod compose sets it).
+ */
+function gcNow(tag: string): void {
+  if (!global.gc) return;
+  const before = process.memoryUsage();
+  global.gc();
+  if (before.heapUsed > 600 * 1024 * 1024) {
+    const after = process.memoryUsage();
+    console.log(
+      `[worker:${tag}] forced GC: heap ${(before.heapUsed / 1e6).toFixed(0)}→${(after.heapUsed / 1e6).toFixed(0)}MB, rss ${(after.rss / 1e6).toFixed(0)}MB`
+    );
+  }
+}
 
 // ─── Queues ─────────────────────────────────────────────
 const fatigueQueue = new Queue("fatigue-monitor", { connection });
@@ -82,7 +96,7 @@ const fatigueWorker = new Worker(
     }
 
     const fatigueResult = { usersChecked: users.length, alertsCreated };
-    if (global.gc) global.gc();
+    gcNow("fatigue");
     return fatigueResult;
   },
   { connection }
@@ -198,11 +212,14 @@ const sundayWorker = new Worker(
         console.error(`[sunday-review] User ${user.id}: AI coach error:`, (err as Error).message);
       }
 
+      // Release per-user training context + LLM buffers before the next user
+      gcNow("sunday");
+
       plansCreated++;
     }
 
     const reviewResult = { usersChecked: users.length, plansCreated };
-    if (global.gc) global.gc();
+    gcNow("sunday");
     return reviewResult;
   },
   { connection }
@@ -252,7 +269,7 @@ const garminWorker = new Worker(
     }
 
     const garminResult = { usersChecked: users.length, activitiesImported, healthDaysSynced, errors };
-    if (global.gc) global.gc();
+    gcNow("garmin");
     return garminResult;
   },
   { connection }
@@ -296,7 +313,7 @@ const corosWorker = new Worker(
     }
 
     const corosResult = { usersChecked: users.length, activitiesImported, errors };
-    if (global.gc) global.gc();
+    gcNow("coros");
     return corosResult;
   },
   { connection }
@@ -317,10 +334,12 @@ const activityAnalysisWorker = new Worker(
       console.log(`[activity-analysis] ❌ ${activityId}: ${result.code} — ${result.error}`);
     }
 
-    if (global.gc) global.gc();
+    gcNow("analysis");
     return result;
   },
-  { connection, concurrency: 3 }
+  // Concurrency 2 (was 3): each analysis job loads the full training context
+  // plus an LLM call; 3 concurrent jobs under a 1GB heap can OOM.
+  { connection, concurrency: 2 }
 );
 
 // ─── Scheduler (simple in-process cron-like scheduling) ──

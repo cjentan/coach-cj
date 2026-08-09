@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Calendar, TrendingUp, Brain } from "lucide-react";
+import { Check, Calendar, TrendingUp, Moon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PHASE_COLORS } from "@/lib/constants";
 
@@ -11,6 +11,8 @@ export interface PhaseSummary {
   weekCount: number;
   sessionCount: number;
   phaseOrder?: number;
+  workoutCount?: number;
+  restCount?: number;
 }
 
 interface TrainingPlanSummaryCardProps {
@@ -51,8 +53,12 @@ export default function TrainingPlanSummaryCard({
 
   if (visible.length === 0) return null;
 
-  // Compute total sessions
+  // Compute total sessions, plus the workouts/rest split when the phase data
+  // carries it (older phase records fall back to the legacy session count).
   const totalSessions = visible.reduce((s, p) => s + p.sessionCount, 0);
+  const hasSplit = visible.every((p) => p.workoutCount !== undefined && p.restCount !== undefined);
+  const totalWorkouts = visible.reduce((s, p) => s + (p.workoutCount ?? 0), 0);
+  const totalRest = visible.reduce((s, p) => s + (p.restCount ?? 0), 0);
 
   return (
     <div className="rounded-xl border border-green-200 dark:border-green-900 bg-gradient-to-b from-green-50/50 to-background dark:from-green-950/20 p-4 max-w-[420px] w-full">
@@ -67,7 +73,10 @@ export default function TrainingPlanSummaryCard({
               Your training plan is built!
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {totalWeeks} week{totalWeeks !== 1 ? "s" : ""} · {totalSessions} session{totalSessions !== 1 ? "s" : ""}
+              {totalWeeks} week{totalWeeks !== 1 ? "s" : ""} ·{" "}
+              {hasSplit
+                ? `${totalWorkouts} workout${totalWorkouts !== 1 ? "s" : ""} · ${totalRest} rest`
+                : `${totalSessions} session${totalSessions !== 1 ? "s" : ""}`}
             </p>
           </div>
         </div>
@@ -136,10 +145,23 @@ export default function TrainingPlanSummaryCard({
                       <Calendar className="h-3 w-3" />
                       {phase.weekCount} week{phase.weekCount !== 1 ? "s" : ""}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" />
-                      {phase.sessionCount} session{phase.sessionCount !== 1 ? "s" : ""}
-                    </span>
+                    {phase.workoutCount !== undefined && phase.restCount !== undefined ? (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          {phase.workoutCount} workout{phase.workoutCount !== 1 ? "s" : ""}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Moon className="h-3 w-3" />
+                          {phase.restCount} rest
+                        </span>
+                      </>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        {phase.sessionCount} session{phase.sessionCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

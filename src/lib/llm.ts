@@ -47,6 +47,8 @@ export interface LlmOptions {
   toolChoice?: "auto" | "none" | { type: "function"; function: { name: string } };
   /** External abort signal (e.g. from request.signal) — paired with the internal timeout. */
   signal?: AbortSignal;
+  /** DeepSeek only: "disabled" forces non-thinking mode; "low" keeps thinking on at low effort. Ignored for other providers. */
+  thinking?: "disabled" | "low";
 }
 
 /**
@@ -118,6 +120,7 @@ async function sendChatCompletion(
     tools?: ToolDefinition[];
     toolChoice?: LlmOptions["toolChoice"];
     signal?: AbortSignal;
+    thinking?: LlmOptions["thinking"];
   }
 ): Promise<{ content: string | null; toolCalls: ToolCall[] } | null> {
   const body: Record<string, unknown> = {
@@ -136,10 +139,27 @@ async function sendChatCompletion(
     if (opts.toolChoice) body.tool_choice = opts.toolChoice;
   }
 
+  // DeepSeek thinking-mode control. deepseek-v4-flash defaults to high-effort
+  // thinking, which can dominate wall-clock time before any output is produced.
+  // "disabled" forces non-thinking mode; "low" keeps thinking on at low effort.
+  // Gated on DeepSeek so OpenAI/Ollama/Anthropic payloads are never touched.
+  const isDeepSeek =
+    opts.baseUrl.toLowerCase().includes("deepseek.com") ||
+    model.toLowerCase().startsWith("deepseek");
+  if (isDeepSeek && opts.thinking) {
+    if (opts.thinking === "disabled") {
+      // Must NOT pair reasoning_effort with a disabled thinking block.
+      body.thinking = { type: "disabled" };
+    } else {
+      body.reasoning_effort = "low";
+    }
+  }
+
+  const t0 = Date.now();
   try {
-    // Internal timeout (110s) raced with the caller's signal (client disconnect / platform timeout).
+    // Internal timeout (300s) raced with the caller's signal (client disconnect / platform timeout).
     // This lets the app respond gracefully before the platform kills the function.
-    const internalTimeout = AbortSignal.timeout(110000);
+    const internalTimeout = AbortSignal.timeout(300000);
     const abortSignal = opts.signal
       ? AbortSignal.any([internalTimeout, opts.signal])
       : internalTimeout;
@@ -154,33 +174,42 @@ async function sendChatCompletion(
       signal: abortSignal,
     });
 
+    const ttfb = Date.now() - t0;
     if (!res.ok) {
-      console.error(`LLM error ${res.status}: ${(await res.text().catch(() => "")).slice(0, 500)}`);
+      const respBody = (await res.text().catch(() => "")).slice(0, 500);
+      console.error(`[llm] model=${model} maxTokens=${opts.maxTokens} FAILED status=${res.status} in ${Date.now() - t0}ms: ${respBody}`);
       return null;
     }
 
     const data = await res.json();
+    // Total latency must include reading the full response body — DeepSeek's
+    // thinking mode sends headers early, so time-to-headers alone (ttfb) can
+    // under-report a 35s call as a few hundred ms.
+    const dur = Date.now() - t0;
     const message = data.choices?.[0]?.message;
+    const usage = (data.usage ?? null) as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
     if (!message) {
-      console.error(`LLM response missing message — status=${res.status}, choices=${data.choices?.length || 0}, finish_reason=${data.choices?.[0]?.finish_reason || "none"}`);
+      console.error(`[llm] model=${model} maxTokens=${opts.maxTokens} FAILED missing message in ${dur}ms — status=${res.status}, choices=${data.choices?.length || 0}, finish_reason=${data.choices?.[0]?.finish_reason || "none"}, usage=${usage ? JSON.stringify(usage) : "n/a"}`);
       if (data.choices?.[0]?.message) {
-        console.error(`LLM response message keys: ${Object.keys(data.choices[0].message).join(", ")}`);
+        console.error(`[llm] response message keys: ${Object.keys(data.choices[0].message).join(", ")}`);
       }
       return null;
     }
 
+    console.log(`[llm] model=${model} maxTokens=${opts.maxTokens} OK in ${dur}ms (ttfb=${ttfb}ms) finish=${data.choices?.[0]?.finish_reason ?? "n/a"} content=${message.content?.trim()?.length ?? 0}ch toolCalls=${message.tool_calls?.length ?? 0} usage=${usage ? JSON.stringify(usage) : "n/a"}`);
     return {
       content: message.content?.trim() || null,
       toolCalls: message.tool_calls || [],
     };
   } catch (err) {
+    const dur = Date.now() - t0;
     const msg = (err as Error).message || "unknown";
     if ((err as Error).name === "TimeoutError" || msg.includes("timed out")) {
-      console.error(`LLM request timed out after 110s`);
+      console.error(`[llm] model=${model} TIMED OUT after ${dur}ms`);
     } else if ((err as Error).name === "AbortError") {
-      console.error(`LLM request aborted (client disconnect or platform timeout)`);
+      console.error(`[llm] model=${model} ABORTED after ${dur}ms`);
     } else {
-      console.error("LLM request failed:", msg);
+      console.error(`[llm] model=${model} FAILED after ${dur}ms:`, msg);
     }
     return null;
   }
@@ -204,6 +233,7 @@ export async function chat(
     baseUrl,
     model,
     signal,
+    thinking,
   } = opts;
 
   if (!apiKey || !baseUrl || !model) {
@@ -218,6 +248,7 @@ export async function chat(
     baseUrl,
     jsonMode,
     signal,
+    thinking,
   });
 
   return result?.content ?? null;
@@ -298,6 +329,7 @@ export async function chatWithTools(
     tools,
     toolChoice,
     signal,
+    thinking,
   } = opts;
 
   if (!apiKey || !baseUrl || !model) {
@@ -313,6 +345,7 @@ export async function chatWithTools(
     tools,
     toolChoice,
     signal,
+    thinking,
   });
 
   if (result) {

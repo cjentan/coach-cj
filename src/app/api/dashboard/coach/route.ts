@@ -9,6 +9,8 @@ import {
   analyzeActivity,
   analyzeActivityInChat,
 } from "@/lib/ai-coach";
+import { approvePlanProposalV2 } from "@/lib/plan-generation-v2";
+import { resolvePlanGenerationEngine } from "@/lib/plan-generation-engine";
 import {
   listConversations,
   getConversation,
@@ -62,6 +64,8 @@ export async function POST(request: Request) {
     }
 
     case "start-interview": {
+      const actionT0 = Date.now();
+      console.log(`[coach] start-interview begin`);
       const encoder = new TextEncoder();
 
       const stream = new ReadableStream({
@@ -87,8 +91,10 @@ export async function POST(request: Request) {
             }, locale, body.pageContext as PageContext | undefined);
 
             if ("error" in result) {
+              console.error(`[coach] start-interview ERROR after ${Date.now() - actionT0}ms: ${result.error} (${result.code})`);
               sendEvent("error", { error: result.error, code: result.code });
             } else {
+              console.log(`[coach] start-interview complete after ${Date.now() - actionT0}ms (proposal=${result.proposal ? "yes" : "no"}, needsGoal=${result.needsGoal})`);
               sendEvent("complete", {
                 conversationId: result.conversationId,
                 response: result.response,
@@ -97,6 +103,7 @@ export async function POST(request: Request) {
               });
             }
           } catch (err) {
+            console.error(`[coach] start-interview THREW after ${Date.now() - actionT0}ms:`, (err as Error).message);
             sendEvent("error", { error: (err as Error).message || "Unexpected error" });
           }
 
@@ -200,6 +207,8 @@ export async function POST(request: Request) {
     }
 
     case "approve-plan": {
+      const actionT0 = Date.now();
+      console.log(`[coach] approve-plan begin`);
       const conversationId = body.conversationId as string | undefined;
       const proposalOverrides = body.proposalOverrides as Record<string, unknown> | undefined;
 
@@ -226,21 +235,39 @@ export async function POST(request: Request) {
           if (request.signal.aborted) return;
 
           try {
-            const result = await approvePlanProposal(
-              conversationId!, userId!,
-              {
-                onProgress: (event) => {
-                  sendEvent(event.type, event);
-                },
-                signal: request.signal,
-              },
-              locale,
-              proposalOverrides,
-            );
+            // Admin toggle (plan_generation_engine AppSetting): "v1" = original
+            // one-call-per-phase engine, "v2" = phase-plan-first per-week engine.
+            const engine = await resolvePlanGenerationEngine();
+            console.log(`[coach] approve-plan engine=${engine}`);
+            const result = engine === "v2"
+              ? await approvePlanProposalV2(
+                  conversationId!, userId!,
+                  {
+                    onProgress: (event) => {
+                      sendEvent(event.type, event);
+                    },
+                    signal: request.signal,
+                  },
+                  locale,
+                  proposalOverrides,
+                )
+              : await approvePlanProposal(
+                  conversationId!, userId!,
+                  {
+                    onProgress: (event) => {
+                      sendEvent(event.type, event);
+                    },
+                    signal: request.signal,
+                  },
+                  locale,
+                  proposalOverrides,
+                );
 
             if ("error" in result) {
+              console.error(`[coach] approve-plan ERROR after ${Date.now() - actionT0}ms: ${result.error} (${result.code})`);
               sendEvent("error", { error: result.error, code: result.code });
             } else {
+              console.log(`[coach] approve-plan complete after ${Date.now() - actionT0}ms (${result.phases?.length ?? 0} phases)`);
               sendEvent("complete", {
                 success: true,
                 response: result.response,
@@ -248,6 +275,7 @@ export async function POST(request: Request) {
               });
             }
           } catch (err) {
+            console.error(`[coach] approve-plan THREW after ${Date.now() - actionT0}ms:`, (err as Error).message);
             sendEvent("error", { error: (err as Error).message || "Unexpected error" });
           }
 

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Users, Key, Copy, Check, Shield, ShieldOff, Activity,
   Target, Dumbbell, Scale, AlertTriangle, Calendar, Loader2,
@@ -113,6 +114,12 @@ export default function AdminPage() {
   const [promptsSaving, setPromptsSaving] = useState<Record<string, boolean>>({});
   const [promptsSaved, setPromptsSaved] = useState<Record<string, boolean>>({});
 
+  // ── Plan generation engine state ──
+  const [engine, setEngine] = useState<"v1" | "v2">("v1");
+  const [engineLoading, setEngineLoading] = useState(true);
+  const [engineSaving, setEngineSaving] = useState(false);
+  const [engineSaved, setEngineSaved] = useState(false);
+
   const fetchUsers = async () => {
     try {
       const res = await fetch("/api/admin/users");
@@ -152,6 +159,34 @@ export default function AdminPage() {
     setPromptsLoading(false);
   };
 
+  const fetchEngine = async () => {
+    try {
+      const res = await fetch("/api/admin/plan-engine");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.engine === "v1" || data.engine === "v2") setEngine(data.engine);
+      }
+    } catch { /* ignore */ }
+    setEngineLoading(false);
+  };
+
+  const saveEngine = async () => {
+    setEngineSaving(true);
+    setEngineSaved(false);
+    try {
+      const res = await fetch("/api/admin/plan-engine", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engine }),
+      });
+      if (res.ok) {
+        setEngineSaved(true);
+        timeoutIds.current.add(setTimeout(() => setEngineSaved(false), 3000));
+      }
+    } catch { /* ignore */ }
+    setEngineSaving(false);
+  };
+
   const savePrompt = async (key: string, value: string) => {
     setPromptsSaving((p) => ({ ...p, [key]: true }));
     try {
@@ -172,6 +207,7 @@ export default function AdminPage() {
       fetchUsers();
       fetchEmailSettings();
       fetchPrompts();
+      fetchEngine();
     }
   }, [status, router]);
 
@@ -286,6 +322,9 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="prompts" className="gap-2">
             <FileText className="h-4 w-4" /> {t("tabs.prompts")}
+          </TabsTrigger>
+          <TabsTrigger value="training-plan" className="gap-2">
+            <Calendar className="h-4 w-4" /> {t("tabs.trainingPlan")}
           </TabsTrigger>
         </TabsList>
 
@@ -540,6 +579,56 @@ export default function AdminPage() {
                   saving={promptsSaving[p.key] || false}
                 />
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Training Plan Tab ── */}
+        <TabsContent value="training-plan">
+          {engineLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="max-w-2xl space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> {t("planEngine.title")}</CardTitle>
+                  <CardDescription>{t("planEngine.description")}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="plan-engine">{t("planEngine.label")}</Label>
+                      <Select
+                        value={engine}
+                        onValueChange={(v) => { setEngine(v as "v1" | "v2"); setEngineSaved(false); }}
+                      >
+                        <SelectTrigger id="plan-engine" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="v1">{t("planEngine.v1")}</SelectItem>
+                          <SelectItem value="v2">{t("planEngine.v2")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {engineSaved && (
+                      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                        <Check className="h-4 w-4 shrink-0" />
+                        <span>{t("planEngine.saved")}</span>
+                      </div>
+                    )}
+
+                    <Button onClick={saveEngine} disabled={engineSaving}>
+                      {engineSaving ? (
+                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("planEngine.saving")}</>
+                      ) : (
+                        t("planEngine.save")
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </TabsContent>

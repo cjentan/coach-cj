@@ -351,9 +351,11 @@ export async function syncGarminActivities(
       if (!fs.existsSync(zipPath)) continue;
 
       // Extract FIT from ZIP
-      let parsedActivities: ParsedFileActivity[];
+      let parsedActivities: ParsedFileActivity[] | null = null;
+      let zip: any = null;
+      let fitBuffer: Buffer | null = null;
       try {
-        const zip = new AdmZip(fs.readFileSync(zipPath));
+        zip = new AdmZip(fs.readFileSync(zipPath));
         const fitEntry = zip
           .getEntries()
           .find(
@@ -378,11 +380,12 @@ export async function syncGarminActivities(
           continue;
         }
 
-        const fitBuffer: Buffer =
+        fitBuffer =
           fitEntry.entryName.toLowerCase().endsWith(".gz")
             ? require("zlib").gunzipSync(fitEntry.getData())
             : fitEntry.getData();
 
+        if (!fitBuffer) continue;
         parsedActivities = await parseFitFile(fitBuffer);
       } finally {
         // Cleanup downloaded ZIP
@@ -391,7 +394,15 @@ export async function syncGarminActivities(
         } catch {
           // Non-critical
         }
+        // Drop the ZIP + FIT buffers now that parsing is done. These are
+        // external memory (not counted in the V8 heap cap) and can be several
+        // MB each — releasing them before the memory-heavy DB upsert keeps
+        // peak RSS bounded during large syncs.
+        zip = null;
+        fitBuffer = null;
       }
+
+      if (!parsedActivities) continue;
 
       // Upsert each parsed activity (usually 1, but multisport can be multiple)
       const hasMultiple = parsedActivities.length > 1;
@@ -494,6 +505,12 @@ export async function syncGarminActivities(
         // Snapshot the affected week
         await snapshotWeek(userId, parsed.startDate).catch(() => {});
       }
+
+      // Free the parsed data and force GC before the next activity, so memory
+      // doesn't accumulate across hundreds of activities processed in one job
+      // (rawJson can exceed 10MB per activity).
+      parsedActivities = [];
+      if (global.gc) global.gc();
     } catch (err) {
       if (err instanceof Error) {
         console.error(

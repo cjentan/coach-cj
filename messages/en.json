@@ -381,7 +381,8 @@
     "tabs": {
       "users": "Users",
       "email": "Email Settings",
-      "prompts": "Prompts"
+      "prompts": "Prompts",
+      "trainingPlan": "Training Plan"
     },
     "statLabels": {
       "totalUsers": "Total Users",
@@ -441,6 +442,16 @@
       "saved": "Saved",
       "saving": "Saving",
       "saveChanges": "Save Changes"
+    },
+    "planEngine": {
+      "title": "Plan Generation Engine",
+      "description": "Choose which AI engine builds training plans. v1 generates each phase in one call; v2 plans phases first, then generates one week per call. Applies to all users on the next plan build.",
+      "label": "Engine",
+      "v1": "v1 — Original (one call per phase)",
+      "v2": "v2 — Phase-plan first (per-week)",
+      "saved": "Engine updated.",
+      "saving": "Saving...",
+      "save": "Save Engine"
     }
   },
   "coach": {
@@ -502,6 +513,8 @@
     "phase": "Phase {phaseOrder}",
     "weeksCount": "{count} week{count, plural, one {} other {s}}",
     "sessionsCount": "{count} session{count, plural, one {} other {s}}",
+    "workoutsCount": "{count} workout{count, plural, one {} other {s}}",
+    "restCount": "{count} rest",
     "processing": "Processing...",
     "proposalTitle": "Plan Proposal",
     "proposalVolume": "Volume",

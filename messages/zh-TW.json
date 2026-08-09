@@ -381,7 +381,8 @@
     "tabs": {
       "users": "使用者",
       "email": "郵件設定",
-      "prompts": "提示詞"
+      "prompts": "提示詞",
+      "trainingPlan": "訓練計畫"
     },
     "statLabels": {
       "totalUsers": "總使用者數",
@@ -441,6 +442,16 @@
       "saved": "已儲存",
       "saving": "儲存中",
       "saveChanges": "儲存變更"
+    },
+    "planEngine": {
+      "title": "訓練計畫生成引擎",
+      "description": "選擇用於生成訓練計畫的 AI 引擎。v1 每次呼叫生成整個階段；v2 先規劃階段，再每週生成一週。下一次建置計畫時對所有使用者生效。",
+      "label": "引擎",
+      "v1": "v1 — 原始版（一次呼叫生成整個階段）",
+      "v2": "v2 — 先規劃階段（逐週生成）",
+      "saved": "引擎已更新。",
+      "saving": "儲存中...",
+      "save": "儲存引擎"
     }
   },
   "coach": {
@@ -502,6 +513,8 @@
     "phase": "第{phaseOrder}階段",
     "weeksCount": "{count}週",
     "sessionsCount": "{count}次訓練",
+    "workoutsCount": "{count}次訓練",
+    "restCount": "{count}天休息",
     "processing": "處理中...",
     "proposalTitle": "計劃提案",
     "proposalVolume": "訓練量",
