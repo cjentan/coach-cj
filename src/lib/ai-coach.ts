@@ -701,7 +701,7 @@ export async function startInterview(
   options?: ChatOptions,
   locale = "en",
   pageContext?: PageContext | null,
-): Promise<{ conversationId: string; response: string; proposal: z.infer<typeof PlanProposalSchema> | null; needsGoal?: boolean } | { error: string; code: string }> {
+): Promise<{ conversationId: string; response: string; proposal: z.infer<typeof PlanProposalSchema> | null; needsGoal?: boolean; needsContext?: boolean } | { error: string; code: string }> {
   // 1. Resolve LLM config
   const llmConfig = await resolveUserLlmConfig(userId);
   if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) {
@@ -711,6 +711,8 @@ export async function startInterview(
   // 2. Gather training context
   options?.onProgress?.({ type: "status", message: "Loading your training data from recent activities..." });
   const ctx = await gatherTrainingContext(userId);
+  // Whether the athlete has a saved free-text training context to build on
+  const needsContext = !ctx.trainingContext?.trim();
   let contextStr = buildContextSummary(ctx, locale);
 
   // Append page context if available (e.g. user was on a specific activity/goal page)
@@ -758,6 +760,7 @@ export async function startInterview(
       response: noGoalResponse,
       proposal: null,
       needsGoal: true,
+      needsContext,
     };
   }
 
@@ -978,6 +981,7 @@ ${contextStr}`;
     conversationId: conversation.id,
     response: parsed.summary,
     proposal: parsed.proposal || null,
+    needsContext,
   };
 }
 
@@ -1374,6 +1378,8 @@ export async function chat(
   let finalResponse = "I wasn't able to complete that request. Please try again.";
   const suggestions: CoachChatResult["suggestions"] = [];
   let allToolCallsExecuted = false;
+  let producedFinal = false;
+  const builtPhases: { name: string; weeks: number }[] = [];
 
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++;
@@ -1383,6 +1389,7 @@ export async function chat(
     if (options?.signal?.aborted) {
       console.error(`[AI-COACH] Request aborted by client, breaking tool loop`);
       finalResponse = "Request was cancelled.";
+      producedFinal = true;
       break;
     }
 
@@ -1398,7 +1405,10 @@ export async function chat(
 
     const response = await chatWithTools(llmMessages, {
       temperature: 0.3,
-      maxTokens: 4096,
+      // Reasoning models spend a large share of this budget on hidden reasoning, and
+      // plan-building emits big structured tool args (weeks × days × sessions). 4096 was
+      // starved: full-budget zero-content bails + truncated create_training_phase JSON.
+      maxTokens: 8192,
       apiKey: llmConfig.apiKey,
       baseUrl: llmConfig.baseUrl,
       model: llmConfig.model,
@@ -1473,6 +1483,7 @@ export async function chat(
       }
 
       finalResponse = assistantContent || "Done.";
+      producedFinal = true;
       console.error(`[AI-COACH] No tool calls, final response: "${finalResponse.slice(0, 100)}"`);
       break;
     }
@@ -1509,6 +1520,7 @@ export async function chat(
         : undefined;
 
       const result = await executeTool(toolCall.function.name, args, userId, toolProgressCb);
+      if (result.success) allToolCallsExecuted = true;
       console.error(`[AI-COACH] Tool result: success=${result.success}, message="${result.message?.slice(0, 100)}"`);
 
       const resultContent = JSON.stringify(result);
@@ -1521,6 +1533,14 @@ export async function chat(
         tool_call_id: toolCall.id,
         content: trimmedContent,
       });
+
+      // Track successfully built phases so we can summarize if the loop caps out
+      if (toolCall.function.name === "create_training_phase" && result.success && result.data) {
+        builtPhases.push({
+          name: (args.phaseName as string) || "Unknown Phase",
+          weeks: (result.data.weekCount as number) || 0,
+        });
+      }
 
       // Fire progress callback after a training phase is saved
       if (
@@ -1557,6 +1577,23 @@ export async function chat(
           status: "applied",
         });
       }
+    }
+  }
+
+  // If the tool loop ended before the model produced a final response (e.g. it hit the
+  // iteration cap after successfully executing tools), summarize what was actually done
+  // instead of reporting a failure.
+  if (!producedFinal && allToolCallsExecuted) {
+    if (builtPhases.length > 0) {
+      finalResponse = [
+        "✅ I've built your training plan.",
+        "",
+        ...builtPhases.map((p) => `- **${p.name}** — ${p.weeks} weeks`),
+        "",
+        "You can review the week-by-week plan in the Training Plan view. Want me to adjust any phase?",
+      ].join("\n");
+    } else {
+      finalResponse = "Done — I've updated your training data. What would you like to do next?";
     }
   }
 

@@ -162,6 +162,8 @@ export default function CoachChat({
   const feedIdRef = useRef(0);
   const pendingMessageRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [showContextOffer, setShowContextOffer] = useState(false);
+  const contextOfferStartedRef = useRef(false);
 
   // In floating mode, fetch plan data internally if no plan prop provided
   const effectivePlan = isFloating && plan === undefined ? internalPlan : plan;
@@ -293,6 +295,8 @@ export default function CoachChat({
     setConfirmClear(false);
     setCurrentProposal(null);
     setCompletedPhases([]);
+    setShowContextOffer(false);
+    contextOfferStartedRef.current = false;
     try {
       // Start a fresh conversation with interview mode
       const newConv = await coachApi("new-conversation");
@@ -343,6 +347,9 @@ export default function CoachChat({
           inputRef.current?.focus();
         }, 100);
       }
+
+      // Offer to build the athlete's training context if they don't have one saved yet
+      setShowContextOffer(!!data.needsContext);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Interview failed");
     } finally {
@@ -716,6 +723,19 @@ export default function CoachChat({
     sendMessage();
   }, [sendMessage]);
 
+  /** Kick off the context-building Q&A through the normal chat tool loop. */
+  const handleStartContextInterview = useCallback(() => {
+    if (contextOfferStartedRef.current || loading) return;
+    contextOfferStartedRef.current = true;
+    setShowContextOffer(false);
+    handleQuickActionMessage(t("contextOfferTrigger"));
+  }, [handleQuickActionMessage, loading, t]);
+
+  /** Dismiss the offer for this interview session only. */
+  const handleSkipContextInterview = useCallback(() => {
+    setShowContextOffer(false);
+  }, []);
+
   /** Focus the input bar — used by the "Ask a question" quick action. */
   const focusInput = useCallback(() => {
     // Small delay so the component has a chance to settle (e.g. after open animation)
@@ -820,6 +840,9 @@ export default function CoachChat({
             savingAnalysis={savingAnalysis}
             onSaveAnalysis={saveAnalysis}
             onDiscardAnalysis={discardAnalysis}
+            showContextOffer={showContextOffer}
+            onStartContextInterview={handleStartContextInterview}
+            onSkipContextInterview={handleSkipContextInterview}
           />
         </div>
 
@@ -916,6 +939,9 @@ export default function CoachChat({
           savingAnalysis={savingAnalysis}
           onSaveAnalysis={saveAnalysis}
           onDiscardAnalysis={discardAnalysis}
+          showContextOffer={showContextOffer}
+          onStartContextInterview={handleStartContextInterview}
+          onSkipContextInterview={handleSkipContextInterview}
         />
 
         {/* Input bar */}

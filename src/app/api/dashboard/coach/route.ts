@@ -94,12 +94,13 @@ export async function POST(request: Request) {
               console.error(`[coach] start-interview ERROR after ${Date.now() - actionT0}ms: ${result.error} (${result.code})`);
               sendEvent("error", { error: result.error, code: result.code });
             } else {
-              console.log(`[coach] start-interview complete after ${Date.now() - actionT0}ms (proposal=${result.proposal ? "yes" : "no"}, needsGoal=${result.needsGoal})`);
+              console.log(`[coach] start-interview complete after ${Date.now() - actionT0}ms (proposal=${result.proposal ? "yes" : "no"}, needsGoal=${result.needsGoal}, needsContext=${result.needsContext})`);
               sendEvent("complete", {
                 conversationId: result.conversationId,
                 response: result.response,
                 proposal: result.proposal,
                 needsGoal: result.needsGoal,
+                needsContext: result.needsContext,
               });
             }
           } catch (err) {

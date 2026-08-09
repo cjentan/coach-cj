@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Check, X, AlertCircle } from "lucide-react";
 import type { PlanProposal } from "@/lib/training-plan-types";
 import PlanProposalCard from "@/components/coach/plan-proposal-card";
+import TrainingContextOfferCard from "@/components/coach/training-context-offer-card";
 import TrainingPlanSummaryCard, { type PhaseSummary } from "@/components/coach/training-plan-summary-card";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -85,6 +86,9 @@ interface CoachMessageListProps {
   savingAnalysis?: boolean;
   onSaveAnalysis: () => void;
   onDiscardAnalysis: () => void;
+  showContextOffer?: boolean;
+  onStartContextInterview?: () => void;
+  onSkipContextInterview?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────
@@ -113,6 +117,9 @@ const CoachMessageList = memo(function CoachMessageList({
   savingAnalysis,
   onSaveAnalysis,
   onDiscardAnalysis,
+  showContextOffer,
+  onStartContextInterview,
+  onSkipContextInterview,
 }: CoachMessageListProps) {
   const isFloating = variant === "floating";
   const [userScrolledUp, setUserScrolledUp] = useState(false);
@@ -179,6 +186,16 @@ const CoachMessageList = memo(function CoachMessageList({
                 onProposalChange={onProposalChange}
                 onApprove={onApproveProposal}
                 onAdjust={onAdjustProposal}
+              />
+            </div>
+          )}
+
+          {/* Non-blocking training-context offer (shown when the athlete has no saved context) */}
+          {showContextOffer && !loading && (
+            <div className={`flex justify-start${isFloating ? "" : " mb-3"}`}>
+              <TrainingContextOfferCard
+                onStart={onStartContextInterview ?? (() => {})}
+                onSkip={onSkipContextInterview ?? (() => {})}
               />
             </div>
           )}

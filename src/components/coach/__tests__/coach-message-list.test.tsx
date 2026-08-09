@@ -19,6 +19,14 @@ vi.mock('@/components/coach/plan-proposal-card', () => ({
 vi.mock('@/components/coach/training-plan-summary-card', () => ({
   default: () => <div data-testid="plan-summary">Plan Summary</div>,
 }));
+vi.mock('@/components/coach/training-context-offer-card', () => ({
+  default: ({ onStart, onSkip }: { onStart: () => void; onSkip: () => void }) => (
+    <div data-testid="context-offer">
+      <button onClick={onStart}>Start</button>
+      <button onClick={onSkip}>Skip</button>
+    </div>
+  ),
+}));
 vi.mock('next-intl', () => require('@/test/mocks/next-intl'));
 
 /**
@@ -262,5 +270,50 @@ describe('CoachMessageList', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByText('Discard'));
     expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the training-context offer card when showContextOffer and not loading', () => {
+    render(<CoachMessageList
+      {...defaultProps}
+      messages={[{ ...sampleMessage, content: 'Interview started' }]}
+      showContextOffer={true}
+    />);
+    expect(screen.getByTestId('context-offer')).toBeInTheDocument();
+    expect(screen.getByText('Start')).toBeInTheDocument();
+    expect(screen.getByText('Skip')).toBeInTheDocument();
+  });
+
+  it('does not render the offer card when showContextOffer is false', () => {
+    render(<CoachMessageList
+      {...defaultProps}
+      messages={[{ ...sampleMessage, content: 'Interview started' }]}
+    />);
+    expect(screen.queryByTestId('context-offer')).not.toBeInTheDocument();
+  });
+
+  it('does not render the offer card while loading', () => {
+    render(<CoachMessageList
+      {...defaultProps}
+      loading={true}
+      messages={[{ ...sampleMessage, content: 'Interview started' }]}
+      showContextOffer={true}
+    />);
+    expect(screen.queryByTestId('context-offer')).not.toBeInTheDocument();
+  });
+
+  it('calls onStartContextInterview and onSkipContextInterview from the offer card buttons', () => {
+    const onStart = vi.fn();
+    const onSkip = vi.fn();
+    render(<CoachMessageList
+      {...defaultProps}
+      messages={[{ ...sampleMessage, content: 'Interview started' }]}
+      showContextOffer={true}
+      onStartContextInterview={onStart}
+      onSkipContextInterview={onSkip}
+    />);
+    fireEvent.click(screen.getByText('Start'));
+    expect(onStart).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('Skip'));
+    expect(onSkip).toHaveBeenCalledTimes(1);
   });
 });
