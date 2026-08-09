@@ -47,57 +47,85 @@ const analysisQueue = new Queue("activity-analysis", { connection });
 const fatigueWorker = new Worker(
   "fatigue-monitor",
   async () => {
-    const users = await prisma.user.findMany({
-      where: { trainingLogs: { some: {} } },
-      include: { bodyMetrics: { orderBy: { recordedAt: "desc" }, take: 30 }, trainingLogs: { orderBy: { startDate: "desc" }, take: 90 } },
-    });
-
     let alertsCreated = 0;
+    let usersChecked = 0;
 
-    for (const user of users) {
-      const tssByDate: Record<string, number> = {};
-      for (const log of user.trainingLogs) {
-        const dateKey = log.startDate.toISOString().split("T")[0];
-        tssByDate[dateKey] = (tssByDate[dateKey] || 0) + (log.tss || 50);
-      }
-      const pmcInput = Object.entries(tssByDate).map(([date, tss]) => ({ date, tss }));
-      const pmcResults = computePMC(pmcInput);
+    // Page over users with a cursor so the result set stays bounded. Each page
+    // carries up to 90 training logs + 30 body metrics per user, and the
+    // `select` keeps the heavy columns (rawJson with full trackpoints, can be
+    // >10MB/activity) off the wire entirely — the previous `include` loaded
+    // every user's raw logs into the 1GB heap at once and could OOM.
+    const PAGE_SIZE = 50;
+    let cursor: string | undefined;
 
-      const dailyTss = Object.values(tssByDate);
-      const restingHrHistory = user.bodyMetrics
-        .filter((metric) => metric.restingHr)
-        .map((metric) => ({ date: metric.recordedAt.toISOString().split("T")[0], value: metric.restingHr! }))
-        .reverse();
-      const weightHistory = user.bodyMetrics
-        .map((metric) => ({ date: metric.recordedAt.toISOString().split("T")[0], weightKg: metric.weightKg }))
-        .reverse();
-
-      const result = detectFatigue({
-        pmcResults,
-        dailyTss: dailyTss.slice(-42),
-        restingHrHistory,
-        weightHistory,
-        recentAvgHr: null,
-        baselineAvgHr: null,
+    do {
+      const users = await prisma.user.findMany({
+        where: { trainingLogs: { some: {} } },
+        select: {
+          id: true,
+          bodyMetrics: {
+            select: { recordedAt: true, restingHr: true, weightKg: true },
+            orderBy: { recordedAt: "desc" },
+            take: 30,
+          },
+          trainingLogs: {
+            select: { startDate: true, tss: true },
+            orderBy: { startDate: "desc" },
+            take: 90,
+          },
+        },
+        orderBy: { id: "asc" },
+        take: PAGE_SIZE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });
 
-      if (result.severity !== "low") {
-        await prisma.fatigueAlert.create({
-          data: {
-            userId: user.id,
-            severity: result.severity,
-            signals: structuredClone(result.signals) as any,
-            recommendation: result.recommendation,
-            recommendedRestDays: result.recommendedRestDays,
-          },
-        });
-        alertsCreated++;
-      }
-    }
+      for (const user of users) {
+        const tssByDate: Record<string, number> = {};
+        for (const log of user.trainingLogs) {
+          const dateKey = log.startDate.toISOString().split("T")[0];
+          tssByDate[dateKey] = (tssByDate[dateKey] || 0) + (log.tss || 50);
+        }
+        const pmcInput = Object.entries(tssByDate).map(([date, tss]) => ({ date, tss }));
+        const pmcResults = computePMC(pmcInput);
 
-    const fatigueResult = { usersChecked: users.length, alertsCreated };
-    gcNow("fatigue");
-    return fatigueResult;
+        const dailyTss = Object.values(tssByDate);
+        const restingHrHistory = user.bodyMetrics
+          .filter((metric) => metric.restingHr)
+          .map((metric) => ({ date: metric.recordedAt.toISOString().split("T")[0], value: metric.restingHr! }))
+          .reverse();
+        const weightHistory = user.bodyMetrics
+          .map((metric) => ({ date: metric.recordedAt.toISOString().split("T")[0], weightKg: metric.weightKg }))
+          .reverse();
+
+        const result = detectFatigue({
+          pmcResults,
+          dailyTss: dailyTss.slice(-42),
+          restingHrHistory,
+          weightHistory,
+          recentAvgHr: null,
+          baselineAvgHr: null,
+        });
+
+        if (result.severity !== "low") {
+          await prisma.fatigueAlert.create({
+            data: {
+              userId: user.id,
+              severity: result.severity,
+              signals: structuredClone(result.signals) as any,
+              recommendation: result.recommendation,
+              recommendedRestDays: result.recommendedRestDays,
+            },
+          });
+          alertsCreated++;
+        }
+      }
+
+      usersChecked += users.length;
+      cursor = users.length === PAGE_SIZE ? users[users.length - 1].id : undefined;
+      gcNow("fatigue");
+    } while (cursor);
+
+    return { usersChecked, alertsCreated };
   },
   { connection }
 );
@@ -111,14 +139,29 @@ const sundayWorker = new Worker(
       ? { id: targetUserId, raceGoals: { some: { status: "active" as const } } }
       : { raceGoals: { some: { status: "active" as const } } };
 
+    // Nested relations use explicit `select` so rawJson (full trackpoints, can
+    // be >10MB/activity) is never pulled into the worker heap — the aggregation
+    // below only needs the scalars. The previous nested spec returned full rows.
     const users = await prisma.user.findMany({
       where,
       select: {
         id: true,
         name: true,
-        raceGoals: { where: { status: "active" } },
-        trainingLogs: { orderBy: { startDate: "desc" }, take: 100 },
-        fatigueAlerts: { where: { acknowledged: false }, orderBy: { detectedAt: "desc" }, take: 1 },
+        raceGoals: {
+          select: { id: true, name: true, targetDate: true, distanceMeters: true, elevationGainMeters: true, priority: true },
+          where: { status: "active" },
+        },
+        trainingLogs: {
+          select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true },
+          orderBy: { startDate: "desc" },
+          take: 100,
+        },
+        fatigueAlerts: {
+          select: { severity: true },
+          where: { acknowledged: false },
+          orderBy: { detectedAt: "desc" },
+          take: 1,
+        },
       },
     });
 
@@ -337,9 +380,10 @@ const activityAnalysisWorker = new Worker(
     gcNow("analysis");
     return result;
   },
-  // Concurrency 2 (was 3): each analysis job loads the full training context
-  // plus an LLM call; 3 concurrent jobs under a 1GB heap can OOM.
-  { connection, concurrency: 2 }
+  // Concurrency 1 (was 2): each analysis job loads the training context plus
+  // an LLM call, and shares the 1GB heap with the sync workers in this process;
+  // >1 concurrent analysis on top of a large sync can OOM.
+  { connection, concurrency: 1 }
 );
 
 // ─── Scheduler (simple in-process cron-like scheduling) ──

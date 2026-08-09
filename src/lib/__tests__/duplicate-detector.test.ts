@@ -122,6 +122,7 @@ const mockPrisma = vi.hoisted(() => ({
   },
   trainingLog: {
     findMany: vi.fn(),
+    findUnique: vi.fn(),
     update: vi.fn(),
     updateMany: vi.fn(),
   },
@@ -301,6 +302,13 @@ describe('persistDuplicateGroups', () => {
 describe('resolveDuplicateGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default rawJson presence: kept activity has none, the other member does.
+    // Tests that don't involve the rawJson merge simply ignore these.
+    mockPrisma.$queryRaw.mockResolvedValue([
+      { id: 'keep', has_raw_json: false },
+      { id: 'other', has_raw_json: true },
+    ]);
+    mockPrisma.trainingLog.findUnique.mockResolvedValue({ rawJson: { trackPoints: [] } });
   });
 
   const baseMembers = [

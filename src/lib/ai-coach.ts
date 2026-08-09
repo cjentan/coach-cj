@@ -453,8 +453,22 @@ async function buildPageContextSummary(
 
     case "activity-detail": {
       if (!pageContext.activityId) return null;
+      // Select only the fields used below — the full row carries rawJson
+      // (full trackpoints, can exceed 10MB) which this summary never reads.
       const activity = await prisma.trainingLog.findUnique({
         where: { id: pageContext.activityId },
+        select: {
+          userId: true,
+          name: true,
+          type: true,
+          startDate: true,
+          distanceMeters: true,
+          durationSeconds: true,
+          elevationGainMeters: true,
+          averageHr: true,
+          tss: true,
+          coachAnalysis: true,
+        },
       });
       if (!activity || activity.userId !== userId) return null;
 
@@ -1820,9 +1834,26 @@ export async function analyzeActivity(
   localeOverride?: string,
   options?: { persist?: boolean }
 ): Promise<{ success: true; analysis: string } | { error: string; code: string }> {
-  // 1. Load activity
+  // 1. Load activity — select only the scalar fields used below. The full row
+  //    carries rawJson (full trackpoints, can exceed 10MB) which this analysis
+  //    never touches; loading it inflated the worker heap on every analysis job.
   const activity = await prisma.trainingLog.findUnique({
     where: { id: activityId },
+    select: {
+      userId: true,
+      name: true,
+      type: true,
+      subType: true,
+      isRace: true,
+      startDate: true,
+      distanceMeters: true,
+      durationSeconds: true,
+      elevationGainMeters: true,
+      averageHr: true,
+      maxHr: true,
+      averagePower: true,
+      tss: true,
+    },
   });
 
   if (!activity || activity.userId !== userId) {

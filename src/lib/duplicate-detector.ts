@@ -12,7 +12,7 @@
  */
 
 import { prisma } from "./prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 // ─── Helpers for the lightweight fetch ────────────────────────
 
@@ -472,9 +472,23 @@ export async function resolveDuplicateGroup(
 ): Promise<void> {
   const { groupId, userId, keepActivityId, resolution } = options;
 
-  // Get all activities in the group
+  // Get all activities in the group — lightweight scalar fields only. rawJson
+  // holds full trackpoints (can exceed 10MB per activity), so loading every
+  // member's blob just to check presence would spike app memory. Presence is
+  // queried as a tiny boolean instead, and only the single source blob is read
+  // (once) if a copy is actually needed below.
   const members = await prisma.trainingLog.findMany({
     where: { duplicateGroupId: groupId, userId },
+    select: {
+      id: true,
+      remarks: true,
+      description: true,
+      averageHr: true,
+      maxHr: true,
+      averagePower: true,
+      normalizedPower: true,
+      calories: true,
+    },
   });
 
   if (members.length === 0) {
@@ -487,6 +501,14 @@ export async function resolveDuplicateGroup(
   }
 
   const others = members.filter((m) => m.id !== keepActivityId);
+
+  // Which members carry rawJson — tiny booleans, no blobs.
+  const rawJsonRows = await prisma.$queryRaw<Array<{ id: string; has_raw_json: boolean }>>`
+    SELECT id, (raw_json IS NOT NULL) AS has_raw_json
+    FROM training_logs
+    WHERE id IN (${Prisma.join([keepActivity.id, ...others.map((o) => o.id)])})
+  `;
+  const hasRawJson = new Map(rawJsonRows.map((r) => [r.id, r.has_raw_json]));
 
   // Merge metadata from others into the kept activity
   // (remarks, description enrichment)
@@ -514,12 +536,20 @@ export async function resolveDuplicateGroup(
         },
       });
     }
-    // Merge rawJson (GPS data) if kept activity lacks trackpoints
-    if (!keepActivity.rawJson && other.rawJson) {
-      await prisma.trainingLog.update({
-        where: { id: keepActivity.id },
-        data: { rawJson: other.rawJson as Prisma.InputJsonValue },
+    // Merge rawJson (GPS data) if kept activity lacks it — read the single
+    // source blob only when a copy is actually needed.
+    if (!hasRawJson.get(keepActivity.id) && hasRawJson.get(other.id)) {
+      const src = await prisma.trainingLog.findUnique({
+        where: { id: other.id },
+        select: { rawJson: true },
       });
+      if (src?.rawJson) {
+        await prisma.trainingLog.update({
+          where: { id: keepActivity.id },
+          data: { rawJson: src.rawJson as Prisma.InputJsonValue },
+        });
+        hasRawJson.set(keepActivity.id, true);
+      }
     }
 
     // Mark the other as merged into the kept one
