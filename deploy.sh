@@ -75,9 +75,12 @@ else
     package.json package-lock.json .dockerignore \
     "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/"
 
-  info "Tagging images..."
-  docker tag coach-cj-app:latest coach-app:latest 2>/dev/null || true
-  docker tag coach-cj-worker:latest coach-worker:latest 2>/dev/null || true
+  # `docker compose build` tags images as <project>-<service> (coach-app /
+  # coach-worker). The old coach-cj-* names are legacy from when this project
+  # was named "coach-cj" — re-tagging them here would OVERWRITE the freshly
+  # built images with whatever stale image still carries that tag, shipping
+  # pre-fix code to production. Do not retag.
+  info "Confirming images carry the expected tags..."
 
   info "Transferring images to $REMOTE_HOST (this may take a minute)..."
   docker save coach-app:latest coach-worker:latest | gzip -1 | $SSH_CMD "$REMOTE_USER@$REMOTE_HOST" \
