@@ -503,3 +503,84 @@ export function extractMetrics(
     bestTss,
   };
 }
+
+// ─── Precomputed trackpoint metrics (persisted at ingestion) ────────
+
+/**
+ * The subset of trackpoint metrics stored as scalar columns on TrainingLog so
+ * dashboard chart routes can aggregate them without loading the rawJson
+ * trackpoint blobs (which can exceed 10MB per activity) into the server heap.
+ *
+ * Every field is nullable: a null means that activity's data couldn't produce
+ * the metric (too few points, missing HR/power, etc.) — mirroring the skip
+ * conditions the old rawJson-based dashboard routes applied live.
+ */
+export interface PrecomputedTrackpointMetrics {
+  /** % time in HR zones 1-5 (Coggan 5-zone), null when not computable. */
+  zone1Pct: number | null;
+  zone2Pct: number | null;
+  zone3Pct: number | null;
+  zone4Pct: number | null;
+  zone5Pct: number | null;
+  /** Seconds of HR trackpoint data the zone distribution was computed over. */
+  intensityAnalyzedSeconds: number | null;
+  /** Aerobic decoupling % (HR drift vs output), null when not computable. */
+  decouplingPct: number | null;
+  /** Efficiency Factor (NP/HR or speed/HR), null when not computable. */
+  efficiencyFactor: number | null;
+  /** Normalized Power derived from trackpoints (for FTP estimation). */
+  trackpointNormalizedPower: number | null;
+}
+
+const EMPTY_PRECOMPUTED_METRICS: PrecomputedTrackpointMetrics = {
+  zone1Pct: null,
+  zone2Pct: null,
+  zone3Pct: null,
+  zone4Pct: null,
+  zone5Pct: null,
+  intensityAnalyzedSeconds: null,
+  decouplingPct: null,
+  efficiencyFactor: null,
+  trackpointNormalizedPower: null,
+};
+
+/**
+ * Compute the precomputed trackpoint metrics from a parsed activity's
+ * trackpoints. Call this at ingestion time (when the trackpoints are already
+ * in memory) and store the result on the TrainingLog row.
+ */
+export function computePrecomputedTrackpointMetrics(
+  trackPoints: TrackpointInput | null | undefined,
+  maxHr: number | null,
+): PrecomputedTrackpointMetrics {
+  if (!trackPoints || trackPoints.length < 30) {
+    return { ...EMPTY_PRECOMPUTED_METRICS };
+  }
+
+  const intensity = maxHr
+    ? computeIntensityDistribution(trackPoints, maxHr)
+    : null;
+  // Mirror the dashboard's live logic: an "insufficient_data" distribution was
+  // skipped in the aggregate, so persist null for it to reproduce that filter.
+  const usableIntensity =
+    intensity && intensity.distributionType !== "insufficient_data"
+      ? intensity
+      : null;
+
+  const hasPower = trackPoints.some((tp) => tp.power != null && tp.power > 0);
+  const decoupling = computeDecoupling(trackPoints, hasPower);
+  const ef = computeEfficiencyFactor(trackPoints);
+  const powerMetrics = computePowerMetrics(trackPoints);
+
+  return {
+    zone1Pct: usableIntensity?.zone1Pct ?? null,
+    zone2Pct: usableIntensity?.zone2Pct ?? null,
+    zone3Pct: usableIntensity?.zone3Pct ?? null,
+    zone4Pct: usableIntensity?.zone4Pct ?? null,
+    zone5Pct: usableIntensity?.zone5Pct ?? null,
+    intensityAnalyzedSeconds: usableIntensity?.analyzedDuration ?? null,
+    decouplingPct: decoupling?.decouplingPct ?? null,
+    efficiencyFactor: ef?.ef ?? null,
+    trackpointNormalizedPower: powerMetrics?.normalizedPower ?? null,
+  };
+}

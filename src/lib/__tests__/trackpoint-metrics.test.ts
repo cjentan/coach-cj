@@ -7,6 +7,7 @@ import {
   computeEfficiencyFactor,
   computeBestTss,
   extractMetrics,
+  computePrecomputedTrackpointMetrics,
 } from '../trackpoint-metrics';
 import { buildTrackPoints } from '@/test/factories';
 
@@ -301,5 +302,94 @@ describe('extractMetrics', () => {
     expect(result.hrTss!.hrTss).toBeGreaterThan(0);
     expect(result.intensityDistribution!.zone1Pct).toBeGreaterThanOrEqual(0);
     expect(result.efficiencyFactor).not.toBeNull();
+  });
+});
+
+describe('computePrecomputedTrackpointMetrics', () => {
+  it('returns all nulls for null/undefined/empty trackpoints', () => {
+    const empty = computePrecomputedTrackpointMetrics(null, 180);
+    expect(empty).toEqual({
+      zone1Pct: null, zone2Pct: null, zone3Pct: null, zone4Pct: null, zone5Pct: null,
+      intensityAnalyzedSeconds: null, decouplingPct: null, efficiencyFactor: null,
+      trackpointNormalizedPower: null,
+    });
+    expect(computePrecomputedTrackpointMetrics(undefined, 180)).toEqual(empty);
+    expect(computePrecomputedTrackpointMetrics([], 180)).toEqual(empty);
+  });
+
+  it('returns all nulls for fewer than 30 trackpoints', () => {
+    const points = Array.from({ length: 20 }, (_, i) => ({
+      hr: 140 + i, power: 200, speed: 3.5, distance: i,
+    }));
+    const result = computePrecomputedTrackpointMetrics(points, 180);
+    expect(result.zone1Pct).toBeNull();
+    expect(result.decouplingPct).toBeNull();
+    expect(result.efficiencyFactor).toBeNull();
+    expect(result.trackpointNormalizedPower).toBeNull();
+  });
+
+  it('nulls the zone distribution when maxHr is missing', () => {
+    const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
+    const result = computePrecomputedTrackpointMetrics(points, null);
+    // Intensity needs maxHr → zones null…
+    expect(result.zone1Pct).toBeNull();
+    expect(result.intensityAnalyzedSeconds).toBeNull();
+    // …but power/decoupling/EF are maxHr-independent and still computed.
+    expect(result.trackpointNormalizedPower).not.toBeNull();
+    expect(result.decouplingPct).not.toBeNull();
+    expect(result.efficiencyFactor).not.toBeNull();
+  });
+
+  it('nulls zones when the distribution is insufficient_data (< 60 HR points)', () => {
+    // 40 total points: enough for the 30-point gate, but computeIntensityDistribution
+    // classifies total < 60 as insufficient_data, which must not be persisted.
+    const points = Array.from({ length: 40 }, (_, i) => ({
+      hr: 140 + (i % 10), power: 200,
+    }));
+    const result = computePrecomputedTrackpointMetrics(points, 180);
+    expect(result.zone1Pct).toBeNull();
+    expect(result.zone2Pct).toBeNull();
+    expect(result.zone3Pct).toBeNull();
+    expect(result.zone4Pct).toBeNull();
+    expect(result.zone5Pct).toBeNull();
+    expect(result.intensityAnalyzedSeconds).toBeNull();
+  });
+
+  it('computes all metrics from rich trackpoint data', () => {
+    const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
+    const result = computePrecomputedTrackpointMetrics(points, 180);
+
+    expect(result.zone1Pct).not.toBeNull();
+    expect(result.zone2Pct).not.toBeNull();
+    expect(result.zone3Pct).not.toBeNull();
+    expect(result.zone4Pct).not.toBeNull();
+    expect(result.zone5Pct).not.toBeNull();
+    expect(result.intensityAnalyzedSeconds).toBeGreaterThan(0);
+    expect(result.decouplingPct).not.toBeNull();
+    expect(result.efficiencyFactor).not.toBeNull();
+    expect(result.trackpointNormalizedPower).not.toBeNull();
+  });
+
+  it('matches the live compute functions the old dashboard routes used', () => {
+    const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
+    const result = computePrecomputedTrackpointMetrics(points, 180);
+
+    const dist = computeIntensityDistribution(points, 180)!;
+    expect(result.zone1Pct).toBe(dist.zone1Pct);
+    expect(result.zone2Pct).toBe(dist.zone2Pct);
+    expect(result.zone3Pct).toBe(dist.zone3Pct);
+    expect(result.zone4Pct).toBe(dist.zone4Pct);
+    expect(result.zone5Pct).toBe(dist.zone5Pct);
+    expect(result.intensityAnalyzedSeconds).toBe(dist.analyzedDuration);
+
+    const hasPower = points.some((tp) => tp.power != null && tp.power > 0);
+    const dec = computeDecoupling(points, hasPower)!;
+    expect(result.decouplingPct).toBe(dec.decouplingPct);
+
+    const ef = computeEfficiencyFactor(points)!;
+    expect(result.efficiencyFactor).toBe(ef.ef);
+
+    const pm = computePowerMetrics(points)!;
+    expect(result.trackpointNormalizedPower).toBe(pm.normalizedPower);
   });
 });

@@ -75,6 +75,15 @@ export function buildTrainingLog(
     normalizedPower: number | null;
     calories: number | null;
     tss: number | null;
+    zone1Pct: number | null;
+    zone2Pct: number | null;
+    zone3Pct: number | null;
+    zone4Pct: number | null;
+    zone5Pct: number | null;
+    intensityAnalyzedSeconds: number | null;
+    decouplingPct: number | null;
+    efficiencyFactor: number | null;
+    trackpointNormalizedPower: number | null;
     workoutType: string | null;
     rawJson: Prisma.JsonValue | null;
     simplifiedTrackPoints: Prisma.JsonValue | null;
@@ -111,6 +120,15 @@ export function buildTrainingLog(
     normalizedPower: null,
     calories: 500,
     tss: 100,
+    zone1Pct: null,
+    zone2Pct: null,
+    zone3Pct: null,
+    zone4Pct: null,
+    zone5Pct: null,
+    intensityAnalyzedSeconds: null,
+    decouplingPct: null,
+    efficiencyFactor: null,
+    trackpointNormalizedPower: null,
     workoutType: null,
     rawJson: null,
     simplifiedTrackPoints: null,

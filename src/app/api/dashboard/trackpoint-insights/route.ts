@@ -2,15 +2,26 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import {
-  computeIntensityDistribution,
-  computeDecoupling,
-  computeEfficiencyFactor,
-  computeHrTss,
-  computePowerMetrics,
-} from "@/lib/trackpoint-metrics";
-import { TrackPoint } from "@/lib/gpx-parser";
 import { getWeightAtDate } from "@/lib/body-metrics";
+
+/**
+ * Reconstruct the 3-zone classification for an activity from its stored zone
+ * percentages, matching computeIntensityDistribution()'s rules. The
+ * "insufficient_data" branch can't occur here: zone columns are only written
+ * when the distribution was usable (>= 60 HR points at ingestion).
+ */
+function classifyDistribution(
+  z1: number, z2: number, z3: number, z4: number, z5: number,
+): "polarized" | "pyramidal" | "threshold-heavy" {
+  const easy = z1 + z2;
+  const moderate = z3;
+  const hard = z4 + z5;
+
+  if (easy >= 75 && hard >= 5) return "polarized";
+  if (easy >= moderate && moderate >= hard) return "pyramidal";
+  if (moderate >= 30) return "threshold-heavy";
+  return "pyramidal";
+}
 
 export async function GET() {
   const session = await auth();
@@ -19,7 +30,8 @@ export async function GET() {
   const now = new Date();
   const fourWeeksAgo = new Date(now.getTime() - 28 * 86400000);
 
-  // Fetch recent logs that have rawJson (trackpoint data)
+  // All trackpoint-derived metrics are precomputed scalar columns, so this route
+  // only touches tiny numeric columns — never the rawJson blobs.
   const logs = await prisma.trainingLog.findMany({
     where: {
       userId: session.user.id,
@@ -34,10 +46,15 @@ export async function GET() {
       name: true,
       type: true,
       startDate: true,
-      durationSeconds: true,
-      distanceMeters: true,
-      maxHr: true,
-      rawJson: true,
+      zone1Pct: true,
+      zone2Pct: true,
+      zone3Pct: true,
+      zone4Pct: true,
+      zone5Pct: true,
+      intensityAnalyzedSeconds: true,
+      decouplingPct: true,
+      efficiencyFactor: true,
+      trackpointNormalizedPower: true,
     },
   });
 
@@ -57,31 +74,31 @@ export async function GET() {
   }[] = [];
 
   for (const log of logs) {
-    const rawJson = log.rawJson as Record<string, unknown> | null;
-    const trackPoints = rawJson?.trackPoints as TrackPoint[] | undefined;
-    if (!trackPoints || trackPoints.length < 30 || !log.maxHr) continue;
+    if (
+      log.zone1Pct == null || log.zone2Pct == null || log.zone3Pct == null ||
+      log.zone4Pct == null || log.zone5Pct == null
+    ) continue;
 
-    const dist = computeIntensityDistribution(trackPoints, log.maxHr);
-    if (!dist || dist.distributionType === "insufficient_data") continue;
-
-    totalZ1 += dist.zone1Pct;
-    totalZ2 += dist.zone2Pct;
-    totalZ3 += dist.zone3Pct;
-    totalZ4 += dist.zone4Pct;
-    totalZ5 += dist.zone5Pct;
-    totalAnalyzedSec += dist.analyzedDuration;
+    totalZ1 += log.zone1Pct;
+    totalZ2 += log.zone2Pct;
+    totalZ3 += log.zone3Pct;
+    totalZ4 += log.zone4Pct;
+    totalZ5 += log.zone5Pct;
+    totalAnalyzedSec += log.intensityAnalyzedSeconds ?? 0;
 
     activityDistributions.push({
       id: log.id,
       name: log.name,
       date: log.startDate.toISOString().split("T")[0],
       type: log.type,
-      zone1Pct: dist.zone1Pct,
-      zone2Pct: dist.zone2Pct,
-      zone3Pct: dist.zone3Pct,
-      zone4Pct: dist.zone4Pct,
-      zone5Pct: dist.zone5Pct,
-      distributionType: dist.distributionType,
+      zone1Pct: log.zone1Pct,
+      zone2Pct: log.zone2Pct,
+      zone3Pct: log.zone3Pct,
+      zone4Pct: log.zone4Pct,
+      zone5Pct: log.zone5Pct,
+      distributionType: classifyDistribution(
+        log.zone1Pct, log.zone2Pct, log.zone3Pct, log.zone4Pct, log.zone5Pct,
+      ),
     });
   }
 
@@ -103,32 +120,19 @@ export async function GET() {
   } : null;
 
   // ── Aerobic Decoupling (average across recent long efforts) ──
+  // The old route also required >= 120 total trackpoints and returned a per-
+  // activity list with first/second-half HR; those half-HR values are not stored
+  // and no frontend consumer renders the list, so it is dropped. decouplingPct
+  // itself is persisted only when computeDecoupling() produced a valid result
+  // (>= 60 valid HR+output points), so null-skipping reproduces the filter.
   let decouplingSum = 0;
   let decouplingCount = 0;
-  const decouplingActivities: {
-    id: string; name: string; date: string; decouplingPct: number;
-    firstHalfHr: number; secondHalfHr: number;
-  }[] = [];
 
   for (const log of logs) {
-    const rawJson = log.rawJson as Record<string, unknown> | null;
-    const trackPoints = rawJson?.trackPoints as TrackPoint[] | undefined;
-    if (!trackPoints || trackPoints.length < 120) continue; // only >2min activities
+    if (log.decouplingPct == null) continue;
 
-    const hasPower = trackPoints.some((tp) => tp.power != null && tp.power > 0);
-    const dec = computeDecoupling(trackPoints, hasPower);
-    if (!dec || dec.decouplingPct == null) continue;
-
-    decouplingSum += dec.decouplingPct;
+    decouplingSum += log.decouplingPct;
     decouplingCount++;
-    decouplingActivities.push({
-      id: log.id,
-      name: log.name,
-      date: log.startDate.toISOString().split("T")[0],
-      decouplingPct: dec.decouplingPct,
-      firstHalfHr: dec.firstHalfHr || 0,
-      secondHalfHr: dec.secondHalfHr || 0,
-    });
   }
 
   const avgDecoupling = decouplingCount > 0 ? {
@@ -140,22 +144,19 @@ export async function GET() {
   } : null;
 
   // ── Efficiency Factor Trend ──
-  // Group by week for trend analysis
+  // Group by week for trend analysis. efficiencyFactor is stored only when
+  // computeEfficiencyFactor() succeeded (>= 60 HR+power points), which implies
+  // the old route's >= 60-trackpoint gate too.
   const efByWeek: Map<string, number[]> = new Map();
   for (const log of logs) {
-    const rawJson = log.rawJson as Record<string, unknown> | null;
-    const trackPoints = rawJson?.trackPoints as TrackPoint[] | undefined;
-    if (!trackPoints || trackPoints.length < 60) continue;
-
-    const efResult = computeEfficiencyFactor(trackPoints);
-    if (efResult == null) continue;
+    if (log.efficiencyFactor == null) continue;
 
     const weekStart = new Date(log.startDate);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekKey = weekStart.toISOString().split("T")[0];
 
     if (!efByWeek.has(weekKey)) efByWeek.set(weekKey, []);
-    efByWeek.get(weekKey)!.push(efResult.ef);
+    efByWeek.get(weekKey)!.push(log.efficiencyFactor);
   }
 
   const efTrend = Array.from(efByWeek.entries())
@@ -167,30 +168,33 @@ export async function GET() {
     }));
 
   // ── Power Metrics Summary ──
+  // trackpointNormalizedPower is stored only when computePowerMetrics() found
+  // >= 30 power points, matching the old live computation.
   let powerActivities = 0;
   let bestFtp: number | null = null;
   let bestFtpWkg: number | null = null;
 
   // Look up current weight for w/kg computation
   const weightResult = await getWeightAtDate(session.user.id, now);
+  const weightKg = weightResult?.weightKg && weightResult.weightKg > 0
+    ? weightResult.weightKg
+    : null;
 
   for (const log of logs) {
-    const rawJson = log.rawJson as Record<string, unknown> | null;
-    const trackPoints = rawJson?.trackPoints as TrackPoint[] | undefined;
-    if (!trackPoints) continue;
+    if (log.trackpointNormalizedPower == null) continue;
 
-    const pm = computePowerMetrics(trackPoints, undefined, weightResult?.weightKg);
-    if (!pm) continue;
     powerActivities++;
-    if (pm.normalizedPower && (!bestFtp || pm.normalizedPower > bestFtp)) {
-      bestFtp = pm.normalizedPower;
-      bestFtpWkg = pm.normalizedPowerWkg;
+    if (bestFtp == null || log.trackpointNormalizedPower > bestFtp) {
+      bestFtp = log.trackpointNormalizedPower;
+      bestFtpWkg = weightKg
+        ? Math.round((log.trackpointNormalizedPower / weightKg) * 10) / 10
+        : null;
     }
   }
 
   const estimatedFtp = bestFtp ? Math.round(bestFtp * 0.95) : null; // 95% of max NP ≈ FTP
-  const estimatedFtpWkg = estimatedFtp && weightResult?.weightKg
-    ? Math.round((estimatedFtp / weightResult.weightKg) * 10) / 10
+  const estimatedFtpWkg = estimatedFtp && weightKg
+    ? Math.round((estimatedFtp / weightKg) * 10) / 10
     : bestFtpWkg
       ? Math.round(bestFtpWkg * 0.95 * 10) / 10
       : null;
@@ -200,7 +204,6 @@ export async function GET() {
     activityCount: logs.length,
     intensityDistribution: avgDistribution,
     decoupling: avgDecoupling,
-    decouplingActivities: decouplingActivities.slice(0, 5),
     efTrend,
     powerActivities,
     estimatedFtp,

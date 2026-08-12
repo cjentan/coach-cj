@@ -15,11 +15,12 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "./prisma";
 import { parseFitFile } from "./fit-parser";
-import { buildRawJson, ParsedFileActivity } from "./gpx-parser";
+import { buildRawJson, ParsedFileActivity, TrackPoint } from "./gpx-parser";
 import { simplifyTrackPoints } from "./simplify-trackpoints";
 import { generateActivityName } from "./activity-naming";
 import { snapshotWeek } from "./metrics-snapshot";
 import { classifyWorkoutType } from "./workout-classifier";
+import { computePrecomputedTrackpointMetrics } from "./trackpoint-metrics";
 import { parseClientDate } from "./utils";
 
 // ─── Exported Types ──────────────────────────────────────
@@ -296,6 +297,13 @@ export async function syncCorosActivities(
         const rawJson = buildRawJson(parsed, `coros-${externalId}.fit`);
         const simplifiedTrackPoints = simplifyTrackPoints(parsed.trackPoints, 500);
 
+        // Precompute trackpoint metrics while the trackpoints are in memory,
+        // so dashboard chart routes never have to load the rawJson blobs.
+        const tpMetrics = computePrecomputedTrackpointMetrics(
+          rawJson.trackPoints as TrackPoint[] | undefined,
+          parsed.maxHr,
+        );
+
         // Classify workout type
         const workoutType = classifyWorkoutType({
           type: parsed.type,
@@ -341,6 +349,7 @@ export async function syncCorosActivities(
             simplifiedTrackPoints: simplifiedTrackPoints as any,
             workoutType: workoutType || undefined,
             analysisStatus: "pending",
+            ...tpMetrics,
           },
           update: {
             name,
@@ -356,6 +365,7 @@ export async function syncCorosActivities(
             rawJson: rawJson as any,
             simplifiedTrackPoints: simplifiedTrackPoints as any,
             workoutType: workoutType || undefined,
+            ...tpMetrics,
           },
         });
 

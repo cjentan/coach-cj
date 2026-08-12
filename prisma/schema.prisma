@@ -67,6 +67,18 @@ model TrainingLog {
   normalizedPower       Float?           @map("normalized_power")
   calories              Float?
   tss                   Float?
+  // Precomputed trackpoint metrics — computed once at ingestion and stored as
+  // scalars so dashboard chart routes never have to load the rawJson trackpoint
+  // blobs (which can exceed 10MB per activity) into the server heap.
+  zone1Pct              Float?           @map("zone1_pct")
+  zone2Pct              Float?           @map("zone2_pct")
+  zone3Pct              Float?           @map("zone3_pct")
+  zone4Pct              Float?           @map("zone4_pct")
+  zone5Pct              Float?           @map("zone5_pct")
+  intensityAnalyzedSeconds Int?          @map("intensity_analyzed_seconds")
+  decouplingPct         Float?           @map("decoupling_pct")
+  efficiencyFactor      Float?           @map("efficiency_factor")
+  trackpointNormalizedPower Float?       @map("trackpoint_normalized_power")
   rawJson               Json?            @map("raw_json")
   createdAt             DateTime         @default(now()) @map("created_at")
   remarks               String?

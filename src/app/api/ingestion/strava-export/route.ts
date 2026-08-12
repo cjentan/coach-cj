@@ -24,6 +24,7 @@ import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart, parseClientDate } from "@/lib/utils";
 import { classifyWorkoutType } from "@/lib/workout-classifier";
 import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
+import { computePrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
 
 const HEARTBEAT_MS = 3000; // ping every 3 seconds to keep proxies alive
 
@@ -226,6 +227,16 @@ export async function POST(req: Request) {
                     )
                   : { coords: [], bbox: null };
 
+                // Precompute trackpoint metrics while the trackpoints are in
+                // memory, so dashboard chart routes never have to load the
+                // rawJson blobs.
+                const tpMetrics = computePrecomputedTrackpointMetrics(
+                  activity.rawJson
+                    ? (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined
+                    : undefined,
+                  activity.maxHr,
+                );
+
                 if (existing) {
                   if (existing.rawJson != null) {
                     // Still update the name if enrichment produced something different,
@@ -265,6 +276,7 @@ export async function POST(req: Request) {
                       trackMinLng: simplified.bbox?.minLng ?? null,
                       trackMaxLng: simplified.bbox?.maxLng ?? null,
                       workoutType: workoutType || undefined,
+                      ...tpMetrics,
                     },
                   });
 
@@ -299,6 +311,7 @@ export async function POST(req: Request) {
                       trackMaxLng: simplified.bbox?.maxLng ?? null,
                       workoutType: workoutType || undefined,
                       analysisStatus: "pending",
+                      ...tpMetrics,
                     },
                   });
                   newActivityIds.push(created.id);

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parseActivityFile, buildRawJson, ParsedFileActivity } from "@/lib/gpx-parser";
+import { parseActivityFile, buildRawJson, ParsedFileActivity, TrackPoint } from "@/lib/gpx-parser";
 import { parseFitFile } from "@/lib/fit-parser";
 import { generateActivityName } from "@/lib/activity-naming";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 import { classifyWorkoutType } from "@/lib/workout-classifier";
 import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
+import { computePrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -74,6 +75,13 @@ export async function POST(req: Request) {
           const rawJson = buildRawJson(activity, file.name);
           const simplified = simplifyTrackPoints(activity.trackPoints, 500);
 
+          // Precompute trackpoint metrics while the trackpoints are in memory,
+          // so dashboard chart routes never have to load the rawJson blobs.
+          const tpMetrics = computePrecomputedTrackpointMetrics(
+            rawJson.trackPoints as TrackPoint[] | undefined,
+            activity.maxHr,
+          );
+
           const created = await prisma.trainingLog.upsert({
             where: {
               userId_externalId_source: {
@@ -107,6 +115,7 @@ export async function POST(req: Request) {
               trackMinLng: simplified.bbox?.minLng ?? null,
               trackMaxLng: simplified.bbox?.maxLng ?? null,
               analysisStatus: "pending",
+              ...tpMetrics,
             },
             update: {
               name: activity.name,
@@ -129,6 +138,7 @@ export async function POST(req: Request) {
               trackMaxLat: simplified.bbox?.maxLat ?? null,
               trackMinLng: simplified.bbox?.minLng ?? null,
               trackMaxLng: simplified.bbox?.maxLng ?? null,
+              ...tpMetrics,
             },
           });
 
