@@ -582,6 +582,13 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
           <CardContent className="py-4">
             <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2 mb-4"><TrendingUp className="h-4 w-4" /> Training Analysis</h2>
 
+            {/* Shared timeframe buttons */}
+            <div className="flex gap-1 mb-4 flex-wrap">
+              {TIME_RANGES.map((r) => (
+                <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label}</Button>
+              ))}
+            </div>
+
             {/* PMC / Fitness Trends */}
             {pmcHistory.length > 0 && (
               <div className="mb-6">
@@ -687,13 +694,6 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 </div>
               </div>
             )}
-
-            {/* Shared timeframe buttons */}
-            <div className="flex gap-1 mt-4 flex-wrap">
-              {TIME_RANGES.map((r) => (
-                <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label}</Button>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}
