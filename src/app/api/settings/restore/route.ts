@@ -232,6 +232,15 @@ export async function POST(request: NextRequest) {
             duplicateGroupId: l.duplicateGroupId ? (duplicateGroupIdMap.get(l.duplicateGroupId) ?? null) : null,
             duplicateStatus: l.duplicateStatus ?? null,
             mergedIntoId: l.mergedIntoId ? (trainingLogIdMap.get(l.mergedIntoId) ?? null) : null,
+            zone1Pct: l.zone1Pct ?? null,
+            zone2Pct: l.zone2Pct ?? null,
+            zone3Pct: l.zone3Pct ?? null,
+            zone4Pct: l.zone4Pct ?? null,
+            zone5Pct: l.zone5Pct ?? null,
+            intensityAnalyzedSeconds: l.intensityAnalyzedSeconds ?? null,
+            decouplingPct: l.decouplingPct ?? null,
+            efficiencyFactor: l.efficiencyFactor ?? null,
+            trackpointNormalizedPower: l.trackpointNormalizedPower ?? null,
           })),
         });
         counts.trainingLogs = activities.length;

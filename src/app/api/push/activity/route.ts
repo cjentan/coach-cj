@@ -33,6 +33,7 @@ import { generateActivityName } from "@/lib/activity-naming";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 import { ActivityType } from "@prisma/client";
+import { computePrecomputedTrackpointMetrics, PrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
 
 const VALID_TYPES: ActivityType[] = ["run", "ride", "swim", "hike", "walk", "workout", "other"];
 
@@ -130,10 +131,17 @@ export async function POST(req: Request) {
 
       const rawJson = buildRawJson(activity, fileName);
 
+      // Precompute trackpoint metrics while the trackpoints are in memory, so
+      // dashboard chart routes never have to load the rawJson blobs.
+      const tpMetrics = computePrecomputedTrackpointMetrics(
+        activity.trackPoints,
+        activity.maxHr,
+      );
+
       // Check for exact duplicate from same source before inserting.
       // A watch may retransmit the same activity with richer GPS data,
       // so we update the existing record in-place rather than rejecting.
-      const existing = await findExistingDuplicateForPush(userId, activity, rawJson);
+      const existing = await findExistingDuplicateForPush(userId, activity, rawJson, tpMetrics);
 
       let record: { id: string };
 
@@ -181,6 +189,7 @@ export async function POST(req: Request) {
             tss: activity.tss,
             rawJson: rawJson as any,
             analysisStatus: "pending",
+            ...tpMetrics,
           },
           update: {
             type: activity.type,
@@ -197,6 +206,7 @@ export async function POST(req: Request) {
             calories: activity.calories,
             tss: activity.tss,
             rawJson: rawJson as any,
+            ...tpMetrics,
           },
         });
 
@@ -267,6 +277,7 @@ async function findExistingDuplicateForPush(
   userId: string,
   activity: ParsedFileActivity,
   rawJson: Record<string, unknown>,
+  tpMetrics: PrecomputedTrackpointMetrics,
 ): Promise<{ id: string } | null> {
   const startWindow = new Date(activity.startDate.getTime() - 120_000);
   const endWindow = new Date(activity.startDate.getTime() + 120_000);
@@ -320,6 +331,7 @@ async function findExistingDuplicateForPush(
         calories: activity.calories,
         tss: activity.tss,
         rawJson: rawJson as any,
+        ...tpMetrics,
       },
     });
 

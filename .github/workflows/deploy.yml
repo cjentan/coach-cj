@@ -58,13 +58,3 @@ jobs:
           echo "app did not respond within 120s"
           docker compose -f /docker-data/coach/docker-compose.yml ps
           exit 1
-
-      # Idempotent: only rows with null metric columns are processed, so this
-      # is near-instant after the initial backfill. New ingests write metrics
-      # at insertion time, so a failure here never breaks the deploy.
-      - name: Backfill trackpoint metrics (resumable)
-        working-directory: /docker-data/coach
-        run: |
-          docker compose exec -T worker node --expose-gc --max-old-space-size=1024 \
-            dist-workers/workers/backfill-trackpoint-metrics.js || \
-            echo "WARNING: backfill step failed (non-blocking)"
