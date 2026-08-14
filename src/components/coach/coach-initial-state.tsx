@@ -52,7 +52,7 @@ export default function CoachInitialState({
   // Derive greeting and actions from page context + plan state
   const page = pageContext?.page ?? "unknown";
   const greetingKey = getGreetingKey(page);
-  const actions = getActions(page, hasExistingPlan);
+  const actions = getActions(page, hasExistingPlan, t);
 
   return (
     <div className="mb-4">
@@ -139,7 +139,7 @@ interface ActionDefinition {
   }) => void;
 }
 
-function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
+function getActions(page: string, hasPlan: boolean, t: (key: string) => string): ActionDefinition[] {
   if (hasPlan) {
     // Actions shown when a training plan exists
     switch (page) {
@@ -157,7 +157,7 @@ function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
             labelKey: "quickActions.reviewPlan",
             icon: Calendar,
             primary: false,
-            onClick: ({ onSendMessage }) => onSendMessage("Review my current training plan"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageReviewPlan")),
           },
         ];
       case "training-plan":
@@ -167,14 +167,14 @@ function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
             labelKey: "quickActions.adjustWeek",
             icon: Activity,
             primary: true,
-            onClick: ({ onSendMessage }) => onSendMessage("I'd like to adjust this week's training"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageAdjustWeek")),
           },
           {
             key: "reviewPhase",
             labelKey: "quickActions.reviewPlan",
             icon: Calendar,
             primary: false,
-            onClick: ({ onSendMessage }) => onSendMessage("Review my current training phase"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageReviewPhase")),
           },
         ];
       case "activity-detail":
@@ -184,14 +184,14 @@ function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
             labelKey: "quickActions.analyzeWorkout",
             icon: Activity,
             primary: true,
-            onClick: ({ onSendMessage }) => onSendMessage("Analyze this activity"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageAnalyzeActivity")),
           },
           {
             key: "adjustPlan",
             labelKey: "quickActions.adjustWeek",
             icon: Calendar,
             primary: false,
-            onClick: ({ onSendMessage }) => onSendMessage("I need to adjust my training plan"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageAdjustPlan")),
           },
         ];
       case "activity-list":
@@ -208,7 +208,7 @@ function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
             labelKey: "quickActions.adjustWeek",
             icon: Calendar,
             primary: false,
-            onClick: ({ onSendMessage }) => onSendMessage("I need to adjust my training plan"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageAdjustPlan")),
           },
         ];
       case "goal-detail":
@@ -218,14 +218,14 @@ function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
             labelKey: "quickActions.assessReadiness",
             icon: Heart,
             primary: true,
-            onClick: ({ onSendMessage }) => onSendMessage("How ready am I for this goal race?"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageReady")),
           },
           {
             key: "reviewPlan",
             labelKey: "quickActions.reviewPlan",
             icon: Calendar,
             primary: false,
-            onClick: ({ onSendMessage }) => onSendMessage("Review my training plan for this goal"),
+            onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageReviewGoal")),
           },
         ];
       case "goal-list":
@@ -292,7 +292,7 @@ function getActions(page: string, hasPlan: boolean): ActionDefinition[] {
           labelKey: "quickActions.analyzeWorkout",
           icon: Activity,
           primary: true,
-          onClick: ({ onSendMessage }) => onSendMessage("Analyze this activity"),
+          onClick: ({ onSendMessage }) => onSendMessage(t("quickMessageAnalyzeActivity")),
         },
         {
           key: "createPlan",

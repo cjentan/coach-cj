@@ -270,7 +270,7 @@ export default function PlanProposalCard({
                 <span className="text-[10px]">📅</span>
                 {editable ? (
                   <div className="flex items-center gap-1 text-xs">
-                    <span>Start:</span>
+                    <span>{t("proposalStart")}</span>
                     <input
                       type="date"
                       value={edits.startDate}
@@ -319,7 +319,7 @@ export default function PlanProposalCard({
                       type="button"
                       onClick={() => handlePhaseDown(i)}
                       className="inline-flex items-center justify-center w-3.5 h-3.5 rounded hover:bg-muted transition-colors"
-                      aria-label={`Reduce ${phase.name} by 1 week`}
+                      aria-label={t("proposalReduceWeek", { name: phase.name })}
                     >
                       <Minus className="h-2.5 w-2.5" />
                     </button>
@@ -327,7 +327,7 @@ export default function PlanProposalCard({
                       type="button"
                       onClick={() => handlePhaseUp(i)}
                       className="inline-flex items-center justify-center w-3.5 h-3.5 rounded hover:bg-muted transition-colors"
-                      aria-label={`Increase ${phase.name} by 1 week`}
+                      aria-label={t("proposalIncreaseWeek", { name: phase.name })}
                     >
                       <Plus className="h-2.5 w-2.5" />
                     </button>
@@ -413,7 +413,7 @@ export default function PlanProposalCard({
       <div className="flex gap-2">
         <Button size="sm" className="flex-1 h-8 text-xs gap-1.5" onClick={onApprove}>
           <span>✓</span>
-          {editable ? "Build this plan" : t("proposalApprove")}
+          {editable ? t("proposalBuildThisPlan") : t("proposalApprove")}
         </Button>
         <Button size="sm" variant="outline" className="flex-1 h-8 text-xs gap-1.5" onClick={onAdjust}>
           <span>✎</span> {t("proposalAdjust")}

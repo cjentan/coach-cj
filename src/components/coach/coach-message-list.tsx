@@ -275,7 +275,7 @@ const CoachMessageList = memo(function CoachMessageList({
           {phaseProgress.length > 0 && (
             <div className="space-y-2 mb-3">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {isFloating ? t("trainingPlanProgress") : "Training Plan Progress"}
+                {t("trainingPlanProgress")}
               </p>
               {phaseProgress.map((p, i) => {
                 const countStr =

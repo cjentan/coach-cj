@@ -56,25 +56,25 @@ const EFFORT_STYLES: Record<
     border: "border-l-muted",
     badge: "bg-muted/30 text-muted-foreground",
     text: "text-muted-foreground",
-    label: "Rest",
+    label: "rest",
   },
   easy: {
     border: "border-l-green-500",
     badge: "bg-green-500/15 text-green-700 dark:text-green-400",
     text: "text-green-700 dark:text-green-400",
-    label: "Easy",
+    label: "effortEasy",
   },
   moderate: {
     border: "border-l-amber-500",
     badge: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
     text: "text-amber-700 dark:text-amber-400",
-    label: "Moderate",
+    label: "effortModerate",
   },
   hard: {
     border: "border-l-red-500",
     badge: "bg-red-500/15 text-red-700 dark:text-red-400",
     text: "text-red-700 dark:text-red-400",
-    label: "Hard",
+    label: "effortHard",
   },
 };
 
@@ -114,6 +114,7 @@ export function CalendarView({
   onMonthChange,
 }: CalendarViewProps) {
   const t = useTranslations("training-plan");
+  const labelsT = useTranslations("labels");
   const router = useRouter();
 
   // Build a lookup map: dateString → PlanDay
@@ -229,7 +230,7 @@ export function CalendarView({
               key={d}
               className="px-1 sm:px-2 py-1 sm:py-1.5 text-[0.5625rem] sm:text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground text-center"
             >
-              {d}
+              {labelsT("days.short." + d)}
             </div>
           ))}
         </div>
@@ -272,7 +273,7 @@ export function CalendarView({
           />
         ) : (
           <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-            No plan data
+            {t("noPlanData")}
           </div>
         )}
       </div>
@@ -302,6 +303,7 @@ const DayCell = memo(function DayCell({
   isToday: boolean;
   onClick: (planDay: PlanDay | null) => void;
 }) {
+  const t = useTranslations("training-plan");
   const dayNumber = day.getDate();
   const planned = planDay?.planned;
 
@@ -365,7 +367,7 @@ const DayCell = memo(function DayCell({
               effortStyle.badge,
             )}
           >
-            {planned.type === "rest" ? "Rest" : planned.type}
+            {planned.type === "rest" ? t("rest") : planned.type}
           </span>
         )}
       </div>
@@ -431,6 +433,7 @@ function WeekListView({
   onNextWeek: () => void;
   onDayClick: (planDay: PlanDay | null) => void;
 }) {
+  const t = useTranslations("training-plan");
   const weekLabel = formatWeekRange(week.weekStart, week.weekEnd);
 
   return (
@@ -441,13 +444,13 @@ function WeekListView({
           onClick={onPrevWeek}
           disabled={weekIndex <= 0}
           className="p-1 rounded hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Previous week"
+          aria-label={t("previousWeek")}
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Week of
+            {t("weekOf")}
           </p>
           <p className="text-sm font-medium">{weekLabel}</p>
         </div>
@@ -455,7 +458,7 @@ function WeekListView({
           onClick={onNextWeek}
           disabled={weekIndex >= totalWeeks - 1}
           className="p-1 rounded hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Next week"
+          aria-label={t("nextWeek")}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -481,6 +484,7 @@ function DayCard({
   onClick: (planDay: PlanDay | null) => void;
 }) {
   const { planned, actual, date, dayLabel, isPast, isToday } = planDay;
+  const t = useTranslations("training-plan");
   const now = new Date();
   const dayDate = new Date(date + "T00:00:00");
   const isPastDay =
@@ -544,12 +548,12 @@ function DayCard({
                   effortStyle.badge,
                 )}
               >
-                {planned.type === "rest" ? "Rest" : planned.type}
+                {planned.type === "rest" ? t("rest") : planned.type}
               </span>
             </>
           ) : (
             <span className="text-[0.625rem] text-muted-foreground italic">
-              {isPastDay ? "No plan" : "—"}
+              {isPastDay ? t("noPlanShort") : "—"}
             </span>
           )}
         </div>
@@ -595,7 +599,7 @@ function DayCard({
               </span>
             )}
             <span className="text-[0.5625rem] text-muted-foreground uppercase shrink-0">
-              via {actual.source}
+              {t("via")} {actual.source}
             </span>
           </div>
         )}
@@ -626,6 +630,7 @@ function DayDetailContent({
   onClose: () => void;
 }) {
   const { planned, actual, date, isPast } = planDay;
+  const t = useTranslations("training-plan");
 
   // Format the date nicely — derives day-of-week from the date string
   // directly, so the title and subtitle always agree regardless of server
@@ -692,7 +697,7 @@ function DayDetailContent({
                   effortStyle?.badge ?? "bg-muted/30 text-muted-foreground",
                 )}
               >
-                {planned.type === "rest" ? "Rest" : planned.type}
+                {planned.type === "rest" ? t("rest") : planned.type}
               </span>
               {effort && effort !== "rest" && (
                 <span
@@ -701,7 +706,7 @@ function DayDetailContent({
                     effortStyle?.text ?? "text-muted-foreground",
                   )}
                 >
-                  {effortStyle?.label ?? ""} effort
+                  {effortStyle?.label ? `${t(effortStyle.label)} ${t("effort")}` : ""}
                 </span>
               )}
             </div>
@@ -715,7 +720,7 @@ function DayDetailContent({
                     {formatDistance(planned.targetDistance)}
                   </span>
                   <span className="text-[0.625rem] text-muted-foreground">
-                    Distance
+                    {t("distance")}
                   </span>
                 </div>
               )}
@@ -726,7 +731,7 @@ function DayDetailContent({
                     {formatElevation(planned.targetElevation)}
                   </span>
                   <span className="text-[0.625rem] text-muted-foreground">
-                    Elevation
+                    {t("elevation")}
                   </span>
                 </div>
               )}
@@ -737,7 +742,7 @@ function DayDetailContent({
                     {formatDuration(planned.targetDuration)}
                   </span>
                   <span className="text-[0.625rem] text-muted-foreground">
-                    Duration
+                    {t("duration")}
                   </span>
                 </div>
               )}
@@ -766,7 +771,7 @@ function DayDetailContent({
         ) : (
           <div className="flex flex-col items-center gap-2 py-4 text-muted-foreground">
             <Moon className="h-6 w-6" />
-            <p className="text-sm">Rest day — no workout planned</p>
+            <p className="text-sm">{t("restDay")}</p>
           </div>
         )}
 
@@ -775,7 +780,7 @@ function DayDetailContent({
           <div className="space-y-3 pt-2 border-t">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              Completed Activity
+              {t("completedActivity")}
             </h4>
 
             {/* Actual metrics */}
@@ -787,7 +792,7 @@ function DayDetailContent({
                     {formatDistance(actual.distanceMeters)}
                   </span>
                   <span className="text-[0.625rem] text-muted-foreground">
-                    Distance
+                    {t("distance")}
                   </span>
                 </div>
               )}
@@ -810,7 +815,7 @@ function DayDetailContent({
                     {formatDuration(actual.durationSeconds)}
                   </span>
                   <span className="text-[0.625rem] text-muted-foreground">
-                    Duration
+                    {t("duration")}
                   </span>
                 </div>
               )}
@@ -820,7 +825,7 @@ function DayDetailContent({
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium">{actual.name}</span>
               <span className="text-[0.625rem] text-muted-foreground uppercase">
-                via {actual.source}
+                {t("via")} {actual.source}
               </span>
             </div>
 
@@ -832,7 +837,7 @@ function DayDetailContent({
                 onClick={handleViewActivity}
               >
                 <ExternalLink className="h-4 w-4" />
-                View Activity Details
+                {t("viewActivityDetails")}
               </Button>
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,10 +100,12 @@ function deltaStr(current: number, previous: number | null | undefined, unit: st
 }
 
 function SourceBadge({ source }: { source: string }) {
+  const labelsT = useTranslations("labels");
   const variant = (SOURCE_COLORS as Record<string, BadgeVariant>)[source] || "outline";
+  const sourceKey = (SOURCE_LABELS as Record<string, string>)[source];
   return (
     <Badge variant={variant}>
-      {(SOURCE_LABELS as Record<string, string>)[source] || source}
+      {sourceKey ? labelsT("sources." + sourceKey) : source}
     </Badge>
   );
 }
@@ -127,6 +130,8 @@ export function ActivityCard({
   onAnalyze, onClearAnalysis, isRace, isRaceDirty, onIsRaceChange,
 }: ActivityCardProps) {
   const router = useRouter();
+  const t = useTranslations("activities");
+  const labelsT = useTranslations("labels");
   const pace = log.distanceMeters && log.distanceMeters > 0
     ? log.distanceMeters / log.durationSeconds
     : 0;
@@ -135,7 +140,9 @@ export function ActivityCard({
 
   async function handlePromote() {
     if (promoteResult?.success) return;
-    if (!log || !window.confirm(`Set "${log.name}" as a race goal?\n\nDistance: ${log.distanceMeters ? `${Math.round(log.distanceMeters / 1000)}km` : "—"}\nElevation: ${log.elevationGainMeters ? `${Math.round(log.elevationGainMeters)}m` : "—"}\n\nYou can refine the goal details in Settings → Goals.`)) return;
+    const distanceText = log.distanceMeters ? `${Math.round(log.distanceMeters / 1000)}km` : "—";
+    const elevText = log.elevationGainMeters ? `${Math.round(log.elevationGainMeters)}m` : "—";
+    if (!log || !window.confirm(t("card.setRaceGoal", { name: log.name, distance: distanceText, elevation: elevText }))) return;
 
     setPromoting(true);
     try {
@@ -144,10 +151,10 @@ export function ActivityCard({
       if (data.success) {
         setPromoteResult({ success: true, goalId: data.goal.id, goalName: data.goal.name });
       } else {
-        alert("Failed to create goal.");
+        alert(t("card.goalCreateFailed"));
       }
     } catch {
-      alert("Network error. Please try again.");
+      alert(t("card.networkError"));
     }
     setPromoting(false);
   }
@@ -172,15 +179,15 @@ export function ActivityCard({
       <CardHeader>
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <Badge>{log.type}</Badge>
-          {log.subType && <Badge variant="secondary">{log.subType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</Badge>}
+          {log.subType && <Badge variant="secondary">{labelsT.has("subTypes." + log.subType) ? labelsT("subTypes." + log.subType) : log.subType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</Badge>}
           <SourceBadge source={log.source} />
-          {log.tss && <Badge variant="outline">TSS {Math.round(log.tss)}</Badge>}
-          {log.remarks && <Badge variant="secondary" className="gap-1"><MessageSquare className="h-3 w-3" /> Remarks</Badge>}
+          {log.tss && <Badge variant="outline">{t("card.tss")} {Math.round(log.tss)}</Badge>}
+          {log.remarks && <Badge variant="secondary" className="gap-1"><MessageSquare className="h-3 w-3" /> {t("card.remarks")}</Badge>}
           <button
             onClick={(e) => { e.preventDefault(); handlePromote(); }}
             disabled={promoting || !!promoteResult}
             className="p-1 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-            title={promoteResult?.success ? "Race goal created!" : "Set as race goal"}
+            title={promoteResult?.success ? t("card.raceGoalCreated") : t("card.setAsRaceGoal")}
           >
             {promoteResult?.success ? <Check className="h-4 w-4 text-green-500" /> : <Target className="h-4 w-4" />}
           </button>
@@ -192,7 +199,7 @@ export function ActivityCard({
                 ? "hover:bg-primary/10 text-muted-foreground hover:text-primary"
                 : "text-muted-foreground/30 pointer-events-none"
             }`}
-            title={hasTrackpoints ? "Download GPX" : "No track data to export"}
+            title={hasTrackpoints ? t("card.downloadGpx") : t("card.noTrackData")}
           >
             <Download className="h-4 w-4" />
           </a>
@@ -200,7 +207,7 @@ export function ActivityCard({
             onClick={(e) => { e.preventDefault(); onDelete(); }}
             disabled={deleting}
             className="p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-            title="Delete activity"
+            title={t("card.deleteActivity")}
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -211,8 +218,8 @@ export function ActivityCard({
           <div className="flex items-center gap-2 p-2 mb-2 rounded-md bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-xs text-green-800 dark:text-green-200">
             <Check className="h-3.5 w-3.5 shrink-0" />
             <span>
-              Race goal created — <strong>{promoteResult.goalName}</strong>.{" "}
-              <a href="/settings/goals" className="underline font-medium">View in Settings →</a>
+              {t("card.goalCreated", { name: promoteResult.goalName })}{" "}
+              <a href="/settings/goals" className="underline font-medium">{t("card.viewInSettings")}</a>
             </span>
           </div>
         )}
@@ -222,13 +229,13 @@ export function ActivityCard({
           <div className="flex items-center gap-2 p-2 mb-2 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>
-              This activity may be a duplicate of{" "}
-              {duplicateGroup.trainingLogs
-                .filter((a) => a.id !== log.id && !a.mergedIntoId)
-                .map((a) => a.name)
-                .join(", ") || "another activity"}
-              .{" "}
-              <a href="/duplicates" className="underline font-medium">Review duplicates</a>
+              {t("card.duplicateWarning", {
+                names: duplicateGroup.trainingLogs
+                  .filter((a) => a.id !== log.id && !a.mergedIntoId)
+                  .map((a) => a.name)
+                  .join(", ") || t("card.anotherActivity"),
+              })}{" "}
+              <a href="/duplicates" className="underline font-medium">{t("card.reviewDuplicates")}</a>
             </span>
           </div>
         )}
@@ -241,19 +248,19 @@ export function ActivityCard({
       <CardContent>
         {/* Compact summary stats */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mb-6">
-          <Stat icon={Clock} label="Duration" value={formatDuration(log.durationSeconds)} />
-          {log.distanceMeters && <Stat icon={Route} label="Distance" value={formatDistance(log.distanceMeters)} />}
-          {log.elevationGainMeters && <Stat icon={Mountain} label="Elevation" value={formatDistance(log.elevationGainMeters)} />}
-          <Stat icon={Activity} label="Avg Pace" value={formatPace(pace)} />
+          <Stat icon={Clock} label={t("card.duration")} value={formatDuration(log.durationSeconds)} />
+          {log.distanceMeters && <Stat icon={Route} label={t("card.distance")} value={formatDistance(log.distanceMeters)} />}
+          {log.elevationGainMeters && <Stat icon={Mountain} label={t("card.elevation")} value={formatDistance(log.elevationGainMeters)} />}
+          <Stat icon={Activity} label={t("card.avgPace")} value={formatPace(pace)} />
           {log.averageHr && (
-            <Stat icon={Heart} label="Heart Rate" value={`${Math.round(log.averageHr)}${log.maxHr ? `/${Math.round(log.maxHr)}` : ""} bpm`} />
+            <Stat icon={Heart} label={t("card.heartRate")} value={`${Math.round(log.averageHr)}${log.maxHr ? `/${Math.round(log.maxHr)}` : ""} bpm`} />
           )}
           {log.averagePower && (
-            <Stat icon={Zap} label="Power" value={`${Math.round(log.averagePower)}${log.normalizedPower ? ` NP ${Math.round(log.normalizedPower)}` : ""}W`} />
+            <Stat icon={Zap} label={t("card.power")} value={`${Math.round(log.averagePower)}${log.normalizedPower ? ` NP ${Math.round(log.normalizedPower)}` : ""}W`} />
           )}
-          {log.calories && <Stat icon={Flame} label="Calories" value={`${Math.round(log.calories)} kcal`} />}
-          {vam && <Stat icon={TrendingUp} label="VAM" value={`${vam.vamTotal.toLocaleString()} m/h`} />}
-          {log.tss && <Stat icon={BarChart3} label="TSS" value={String(Math.round(log.tss))} />}
+          {log.calories && <Stat icon={Flame} label={t("card.calories")} value={`${Math.round(log.calories)} kcal`} />}
+          {vam && <Stat icon={TrendingUp} label={t("card.vam")} value={`${vam.vamTotal.toLocaleString()} m/h`} />}
+          {log.tss && <Stat icon={BarChart3} label={t("card.tss")} value={String(Math.round(log.tss))} />}
         </div>
 
         {/* Combined Metrics Chart — replaces Elevation, HR, Pace, GAP, Power */}
@@ -282,7 +289,7 @@ export function ActivityCard({
         {splits.length > 0 && (
           <div className="mb-4">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-              <BarChart3 className="h-3.5 w-3.5" /> Splits
+              <BarChart3 className="h-3.5 w-3.5" /> {t("detail.splits")}
             </h3>
             <SplitsTable splits={splits} type={log.type} />
           </div>
@@ -292,7 +299,7 @@ export function ActivityCard({
         {laps && (
           <div className="mb-4">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-              <BarChart3 className="h-3.5 w-3.5" /> Laps (from file)
+              <BarChart3 className="h-3.5 w-3.5" /> {t("card.lapsFromFile")}
             </h3>
             <LapTable laps={laps} type={log.type} />
           </div>
@@ -302,18 +309,18 @@ export function ActivityCard({
         {similarRoutes.length > 0 && (
           <div className="mb-4">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
-              <Route className="h-3.5 w-3.5" /> Same Route ({similarRoutes.length} previous attempt{similarRoutes.length !== 1 ? "s" : ""})
+              <Route className="h-3.5 w-3.5" /> {t("card.sameRoute", { count: similarRoutes.length })}
             </h3>
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 text-left">
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Date</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Time</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Pace</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">HR</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">TSS</th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Match</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("card.colDate")}</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("card.colTime")}</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("card.colPace")}</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("card.colHr")}</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("card.colTss")}</th>
+                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("card.colMatch")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -321,7 +328,7 @@ export function ActivityCard({
                   <tr className="bg-primary/5 font-medium tabular-nums">
                     <td className="px-3 py-1.5 text-xs">
                       {format(new Date(log.startDate), "MMM d, yyyy")}
-                      <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0">now</Badge>
+                      <Badge variant="outline" className="ml-1.5 text-[10px] px-1 py-0">{t("card.now")}</Badge>
                     </td>
                     <td className="px-3 py-1.5">{formatTime(log.durationSeconds)}</td>
                     <td className="px-3 py-1.5">{formatPace(pace)}</td>
@@ -406,7 +413,7 @@ export function ActivityCard({
         <Card className="border-primary/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-primary" /> Training Remarks
+              <MessageSquare className="h-4 w-4 text-primary" /> {t("card.trainingRemarks")}
               <span className="ml-auto flex items-center gap-2">
                 <button
                   onClick={() => onIsRaceChange(!isRace)}
@@ -418,18 +425,18 @@ export function ActivityCard({
                   disabled={isRaceDirty}
                 >
                   <Target className="h-3 w-3" />
-                  {isRace ? "Race" : "Not a race"}
+                  {isRace ? t("card.race") : t("card.notRace")}
                 </button>
                 {isRaceDirty && <span className="text-xs text-muted-foreground">...</span>}
-                {saved && <span className="text-xs text-green-600 font-normal">Saved</span>}
-                {remarksDirty && <span className="text-xs text-muted-foreground font-normal">Saving...</span>}
+                {saved && <span className="text-xs text-green-600 font-normal">{t("card.saved")}</span>}
+                {remarksDirty && <span className="text-xs text-muted-foreground font-normal">{t("card.saving")}</span>}
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <textarea
               className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-y"
-              placeholder="How did this session feel? E.g. Tired today, didn't sleep well. Felt strong on the first 10k, then the last climb was tough..."
+              placeholder={t("card.remarksPlaceholder")}
               value={remarksText}
               onChange={(e) => onRemarksChange(e.target.value)}
             />
@@ -440,12 +447,12 @@ export function ActivityCard({
         <Card className="mt-6 border-primary/20">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Brain className="h-4 w-4 text-primary" /> Coach Analysis
+              <Brain className="h-4 w-4 text-primary" /> {t("card.coachAnalysis")}
               {coachAnalysisText && onClearAnalysis && (
                 <button
                   onClick={(e) => { e.preventDefault(); onClearAnalysis(); }}
                   className="ml-auto p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                  title="Clear analysis"
+                  title={t("card.clearAnalysis")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -456,12 +463,12 @@ export function ActivityCard({
             {analyzing || analysisStatus === "processing" ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing activity...
+                {t("card.analyzing")}
               </div>
             ) : analysisStatus === "pending" ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Analysis queued — results will appear here shortly.
+                {t("card.analysisQueued")}
               </div>
             ) : analyzeError ? (
               <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded">
@@ -471,9 +478,9 @@ export function ActivityCard({
             ) : analysisStatus === "failed" ? (
               <div className="text-center py-6">
                 <AlertCircle className="h-6 w-6 mx-auto mb-2 text-destructive opacity-60" />
-                <p className="text-sm text-destructive mb-3">Analysis failed. You can try again.</p>
+                <p className="text-sm text-destructive mb-3">{t("card.analysisFailed")}</p>
                 <Button size="sm" onClick={onAnalyze}>
-                  <Brain className="h-4 w-4 mr-1" /> Retry Analysis
+                  <Brain className="h-4 w-4 mr-1" /> {t("card.retryAnalysis")}
                 </Button>
               </div>
             ) : coachAnalysisText ? (
@@ -494,9 +501,9 @@ export function ActivityCard({
             ) : (
               <div className="text-center py-6">
                 <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                <p className="text-sm text-muted-foreground mb-3">No coach analysis yet. Analyze this activity against your training plan to get insights on training type, performance, and goal alignment.</p>
+                <p className="text-sm text-muted-foreground mb-3">{t("card.noAnalysis")}</p>
                 <Button size="sm" onClick={onAnalyze}>
-                  <Brain className="h-4 w-4 mr-1" /> Analyze with Coach
+                  <Brain className="h-4 w-4 mr-1" /> {t("card.analyzeWithCoach")}
                 </Button>
               </div>
             )}
@@ -505,7 +512,7 @@ export function ActivityCard({
 
         {log.description && log.description !== log.remarks && (
           <div className="mt-6">
-            <h3 className="font-semibold mb-2">Original Description</h3>
+            <h3 className="font-semibold mb-2">{t("card.originalDescription")}</h3>
             <p className="text-sm text-muted-foreground">{log.description}</p>
           </div>
         )}

@@ -45,11 +45,11 @@ export default function TrainingPlanPage() {
       const res = await fetch(
         `/api/training-plan?tzOffset=${new Date().getTimezoneOffset()}`,
       );
-      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      if (!res.ok) throw new Error(`${common("error")}: ${res.status}`);
       const data: TrainingPlanResponse = await res.json();
       setPlanData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      setError(err instanceof Error ? err.message : tp("loadFailed"));
     } finally {
       setLoading(false);
     }

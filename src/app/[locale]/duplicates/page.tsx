@@ -30,6 +30,7 @@ interface DuplicateGroup {
 export default function DuplicatesPage() {
   const t = useTranslations("duplicates");
   const common = useTranslations("common");
+  const labelsT = useTranslations("labels");
   const router = useRouter();
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,7 @@ export default function DuplicatesPage() {
       const data = await res.json();
       setGroups(data.groups || []);
     } catch (err) {
-      setError(`Failed to load: ${(err as Error).message}`);
+      setError(t("loadFailed", { msg: (err as Error).message }));
     } finally {
       setLoading(false);
     }
@@ -68,7 +69,7 @@ export default function DuplicatesPage() {
       await loadGroups();
       alert(data.message);
     } catch (err) {
-      setError(`Scan failed: ${(err as Error).message}`);
+      setError(t("scanFailed", { msg: (err as Error).message }));
     } finally {
       setScanning(false);
     }
@@ -85,7 +86,7 @@ export default function DuplicatesPage() {
       if (!res.ok) throw new Error(await res.text());
       await loadGroups();
     } catch (err) {
-      alert(`Merge failed: ${(err as Error).message}`);
+      alert(t("mergeFailed", { msg: (err as Error).message }));
     } finally {
       setResolving(null);
     }
@@ -102,7 +103,7 @@ export default function DuplicatesPage() {
       if (!res.ok) throw new Error(await res.text());
       await loadGroups();
     } catch (err) {
-      alert(`Dismiss failed: ${(err as Error).message}`);
+      alert(t("dismissFailed", { msg: (err as Error).message }));
     } finally {
       setResolving(null);
     }
@@ -117,12 +118,12 @@ export default function DuplicatesPage() {
       const data = await res.json();
       setSnapshotMessage({
         type: "success",
-        text: data.message || `Re-snapshotted ${data.weeksSnapshotted} week(s).`,
+        text: data.message || t("resnapshotDone", { count: data.weeksSnapshotted }),
       });
     } catch (err) {
       setSnapshotMessage({
         type: "error",
-        text: `Re-snapshot failed: ${(err as Error).message}`,
+        text: t("resnapshotFailed", { msg: (err as Error).message }),
       });
     } finally {
       setSnapshotting(false);
@@ -176,16 +177,16 @@ export default function DuplicatesPage() {
             className="w-full sm:w-auto"
           >
             {snapshotting ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Resnapshotting...</>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("resnapshotting")}</>
             ) : (
-              <><Activity className="h-4 w-4 mr-2" /> Re-snapshot Trends</>
+              <><Activity className="h-4 w-4 mr-2" /> {t("resnapshotTrends")}</>
             )}
           </Button>
           <Button onClick={handleScan} disabled={scanning} className="w-full sm:w-auto">
             {scanning ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning...</>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("scanning")}</>
             ) : (
-              <><RefreshCw className="h-4 w-4 mr-2" /> Scan for Duplicates</>
+              <><RefreshCw className="h-4 w-4 mr-2" /> {t("scanForDuplicates")}</>
             )}
           </Button>
         </div>
@@ -224,11 +225,11 @@ export default function DuplicatesPage() {
             <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-500" />
             <h2 className="text-lg font-semibold mb-1">{t("noDuplicates")}</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              No pending duplicate groups. Click &quot;Scan for Duplicates&quot; to check for new matches.
+              {t("emptyDesc")}
             </p>
             <div className="flex items-center justify-center gap-3">
               <Button variant="outline" onClick={handleScan} disabled={scanning}>
-                <RefreshCw className="h-4 w-4 mr-2" /> Scan Now
+                <RefreshCw className="h-4 w-4 mr-2" /> {t("scanNow")}
               </Button>
               <Button
                 variant="outline"
@@ -237,9 +238,9 @@ export default function DuplicatesPage() {
                 disabled={snapshotting}
               >
                 {snapshotting ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Resnapshotting...</>
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("resnapshotting")}</>
                 ) : (
-                  <><Activity className="h-4 w-4 mr-2" /> Re-snapshot Trends</>
+                  <><Activity className="h-4 w-4 mr-2" /> {t("resnapshotTrends")}</>
                 )}
               </Button>
             </div>
@@ -260,10 +261,10 @@ export default function DuplicatesPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      Potential Duplicate Group
+                      {t("groupTitle")}
                     </CardTitle>
                     <Badge variant="warning" className="text-[10px]">
-                      {active.length} activities
+                      {t("activities", { count: active.length })}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -284,15 +285,17 @@ export default function DuplicatesPage() {
                         >
                           <div className="flex items-center gap-2 mb-1">
                             {isSelected && (
-                              <Badge variant="success" className="text-[10px] shrink-0">Keep</Badge>
+                              <Badge variant="success" className="text-[10px] shrink-0">{t("keep")}</Badge>
                             )}
                             <span className={`text-xs font-medium ${isSelected ? "text-green-700 dark:text-green-300" : "text-muted-foreground"}`}>
-                              {isSelected ? "Selected — click another to change" : "Click to keep this one"}
+                              {isSelected ? t("selectedHint") : t("selectHint")}
                             </span>
                           </div>
                           <ActivityRow
                             activity={activity}
                             isSelected={isSelected}
+                            t={t}
+                            labelsT={labelsT}
                           />
                         </button>
                       );
@@ -312,7 +315,7 @@ export default function DuplicatesPage() {
                         ) : (
                           <CheckCircle className="h-4 w-4 mr-1" />
                         )}
-                        Merge {active.length - 1} others into &quot;{keepActivity.name}&quot;
+                        {t("mergeInto", { count: active.length - 1, name: keepActivity.name })}
                       </Button>
                     )}
                     <Button
@@ -322,7 +325,7 @@ export default function DuplicatesPage() {
                       disabled={resolving === group.id}
                     >
                       <XCircle className="h-4 w-4 mr-1" />
-                      Not a duplicate
+                      {t("notDuplicate")}
                     </Button>
                   </div>
                 </CardContent>
@@ -335,7 +338,14 @@ export default function DuplicatesPage() {
   );
 }
 
-function ActivityRow({ activity, isSelected }: { activity: DuplicateActivity; isSelected?: boolean }) {
+function ActivityRow({
+  activity, isSelected, t, labelsT,
+}: {
+  activity: DuplicateActivity;
+  isSelected?: boolean;
+  t: (key: string, values?: Record<string, string | number>) => string;
+  labelsT: (key: string) => string;
+}) {
   const pace = activity.distanceMeters && activity.distanceMeters > 0
     ? activity.distanceMeters / activity.durationSeconds
     : 0;
@@ -347,7 +357,7 @@ function ActivityRow({ activity, isSelected }: { activity: DuplicateActivity; is
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <Badge variant={SOURCE_COLORS[activity.source] || "outline"} className="shrink-0">
-        {SOURCE_LABELS[activity.source] || activity.source}
+        {labelsT("sources." + SOURCE_LABELS[activity.source])}
       </Badge>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -362,12 +372,12 @@ function ActivityRow({ activity, isSelected }: { activity: DuplicateActivity; is
           {activity.distanceMeters && (
             <span className="flex items-center gap-1"><Route className="h-3 w-3" />{formatDistance(activity.distanceMeters)}</span>
           )}
-          {activity.tss && <span>TSS {Math.round(activity.tss)}</span>}
+          {activity.tss && <span>{t("tss")} {Math.round(activity.tss)}</span>}
           {pace > 0 && <span>{paceStr}</span>}
         </div>
       </div>
       {activity.remarks && (
-        <Badge variant="secondary" className="text-[10px] shrink-0">Has notes</Badge>
+        <Badge variant="secondary" className="text-[10px] shrink-0">{t("hasNotes")}</Badge>
       )}
     </div>
   );

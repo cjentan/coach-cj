@@ -142,6 +142,7 @@ function TrainingContextSection({ t, common }: { t: ReturnType<typeof useTransla
 // ─── Section: Goals ────────────────────────────────────────────────────────
 function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
   const { units } = useUnits();
+  const settingsT = useTranslations("settings");
   const [goalList, setGoalList] = useState<RaceGoal[]>([]);
   const [gShowForm, setGShowForm] = useState(false);
   const [gEditingId, setGEditingId] = useState<string | null>(null);
@@ -228,7 +229,7 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
             <h4 className="font-medium mb-4">{gEditingId ? t("editGoal") : t("newGoal")}</h4>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>{t("name")}</Label><Input value={gForm.name} onChange={(e) => setGForm({ ...gForm, name: e.target.value })} placeholder="Ultra Trail 100km" required /></div>
+                <div className="space-y-2"><Label>{t("name")}</Label><Input value={gForm.name} onChange={(e) => setGForm({ ...gForm, name: e.target.value })} placeholder={settingsT("training.goalNamePlaceholder")} required /></div>
                 <div className="space-y-2"><Label>{t("raceType")}</Label>
                   <Select value={gForm.raceType} onValueChange={(v) => setGForm({ ...gForm, raceType: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -333,6 +334,7 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
 // ─── Section: Body Metrics ─────────────────────────────────────────────────
 function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
   const { units } = useUnits();
+  const settingsT = useTranslations("settings");
   const [bmMetrics, setBmMetrics] = useState<BodyMetric[]>([]);
   const [bmLoading, setBmLoading] = useState(true);
   const [bmError, setBmError] = useState<string | null>(null);
@@ -346,10 +348,10 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
     try {
       setBmLoading(true); setBmError(null);
       const res = await fetch("/api/body-metrics");
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error(settingsT("credentials.failed"));
       setBmMetrics(await res.json());
     } catch (err) {
-      setBmError(err instanceof Error ? err.message : "Something went wrong");
+      setBmError(err instanceof Error ? err.message : settingsT("training.somethingWentWrong"));
     } finally { setBmLoading(false); }
   }, []);
 
@@ -387,10 +389,10 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
       if (bmForm.restingHr) body.restingHr = Number(bmForm.restingHr);
       if (bmForm.notes) body.notes = bmForm.notes;
       const res = await fetch("/api/body-metrics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(err?.error ?? "Failed"); }
+      if (!res.ok) { const err = await res.json().catch(() => null); throw new Error(err?.error ?? settingsT("credentials.failed")); }
       await fetchBm();
       setBmForm(DEFAULT_BM_FORM); setBmShowForm(false);
-    } catch (err) { setBmError(err instanceof Error ? err.message : "Something went wrong"); }
+    } catch (err) { setBmError(err instanceof Error ? err.message : settingsT("training.somethingWentWrong")); }
     finally { setBmSaving(false); }
   }
 
@@ -529,14 +531,15 @@ export default function SettingsTrainingPage() {
   const gt = useTranslations("settings.general");
   const goalsT = useTranslations("settings.goals");
   const bmT = useTranslations("settings.bodyMetrics");
+  const settingsT = useTranslations("settings");
   const common = useTranslations("common");
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight">Training Setup</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{settingsT("trainingTab")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Define your training environment, race goals, and track your body metrics — all in one place.
+          {settingsT("training.description")}
         </p>
       </div>
 

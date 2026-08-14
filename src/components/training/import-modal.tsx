@@ -37,7 +37,10 @@ interface ImportModalProps {
 }
 
 export default function ImportModal({ open, onOpenChange, onImport }: ImportModalProps) {
-  const t = useTranslations("training");
+  const t = useTranslations("ingestion");
+  const trainingT = useTranslations("training");
+  const common = useTranslations("common");
+  const labelsT = useTranslations("labels");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Manual entry state ─────────────────────────────────────────────
@@ -78,7 +81,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
 
     const durationSec = (parseInt(manualForm.durationMinutes || "0") * 60) + parseInt(manualForm.durationSeconds || "0");
     if (durationSec <= 0) {
-      setManualResult("Enter a valid duration");
+      setManualResult(t("manual.invalidDuration"));
       return;
     }
 
@@ -110,10 +113,10 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
         onOpenChange(false);
       } else {
         const data = await res.json();
-        setManualResult(data.error || "Failed to create activity");
+        setManualResult(data.error || t("manual.createFailed"));
       }
     } catch {
-      setManualResult("Network error — please try again");
+      setManualResult(t("manual.networkError"));
     }
     setManualSubmitting(false);
   }
@@ -153,7 +156,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
         }, 1500);
       }
     } catch {
-      setUploadMessage("Upload failed — network error");
+      setUploadMessage(t("networkError"));
     }
     setUploading(false);
   }
@@ -165,14 +168,14 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
     }}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Import Activity</DialogTitle>
-          <DialogDescription>Log a manual entry or upload GPX/TCX/FIT files from your device</DialogDescription>
+          <DialogTitle>{t("modalTitle")}</DialogTitle>
+          <DialogDescription>{t("modalDesc")}</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="manual" className="mt-2">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="manual"><Pencil className="h-4 w-4 mr-2" /> Manual Entry</TabsTrigger>
-            <TabsTrigger value="upload"><Upload className="h-4 w-4 mr-2" /> File Upload</TabsTrigger>
+            <TabsTrigger value="manual"><Pencil className="h-4 w-4 mr-2" /> {t("tabs.manual")}</TabsTrigger>
+            <TabsTrigger value="upload"><Upload className="h-4 w-4 mr-2" /> {t("tabs.file")}</TabsTrigger>
           </TabsList>
 
           {/* ── Manual Entry Tab ─────────────────────────── */}
@@ -180,18 +183,18 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>{t("activityName")}</Label>
+                  <Label>{trainingT("activityName")}</Label>
                   <Input value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
-                    placeholder="Morning Run" required />
+                    placeholder={t("manual.namePlaceholder")} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("activityType")}</Label>
+                  <Label>{trainingT("activityType")}</Label>
                   <Select value={manualForm.type} onValueChange={(v) => { setManualForm({ ...manualForm, type: v, subType: "" }); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {ACTIVITY_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          <span className="flex items-center gap-2"><t.icon className="h-4 w-4" /> {t.label}</span>
+                      {ACTIVITY_TYPES.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <span className="flex items-center gap-2"><opt.icon className="h-4 w-4" /> {labelsT("activityTypes." + opt.labelKey)}</span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -199,62 +202,62 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                 </div>
                 {SUB_TYPE_OPTIONS[manualForm.type] && SUB_TYPE_OPTIONS[manualForm.type].length > 0 && (
                   <div className="space-y-2">
-                    <Label>{t("subType")}</Label>
+                    <Label>{trainingT("subType")}</Label>
                     <Select value={manualForm.subType} onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}>
-                      <SelectTrigger><SelectValue placeholder="None (generic)" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder={t("manual.subTypeNone")} /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None (generic)</SelectItem>
+                        <SelectItem value="">{t("manual.subTypeNone")}</SelectItem>
                         {SUB_TYPE_OPTIONS[manualForm.type].map((st) => (
-                          <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                          <SelectItem key={st.value} value={st.value}>{labelsT("subTypes." + st.labelKey)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label>{t("date")}</Label>
+                  <Label>{trainingT("date")}</Label>
                   <Input type="datetime-local" value={manualForm.date}
                     onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })} required />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("duration")}</Label>
+                  <Label>{trainingT("duration")}</Label>
                   <div className="flex gap-2">
-                    <Input type="number" placeholder="Min" value={manualForm.durationMinutes}
+                    <Input type="number" placeholder={t("manual.min")} value={manualForm.durationMinutes}
                       onChange={(e) => setManualForm({ ...manualForm, durationMinutes: e.target.value })} />
-                    <Input type="number" placeholder="Sec" value={manualForm.durationSeconds}
+                    <Input type="number" placeholder={t("manual.sec")} value={manualForm.durationSeconds}
                       onChange={(e) => setManualForm({ ...manualForm, durationSeconds: e.target.value })} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("distance")}</Label>
+                  <Label>{trainingT("distance")}</Label>
                   <Input type="number" value={manualForm.distance}
                     onChange={(e) => setManualForm({ ...manualForm, distance: e.target.value })} placeholder="12000" />
                 </div>
                 <div className="space-y-2">
-                  <Label>{t("elevation")}</Label>
+                  <Label>{trainingT("elevation")}</Label>
                   <Input type="number" value={manualForm.elevation}
                     onChange={(e) => setManualForm({ ...manualForm, elevation: e.target.value })} placeholder="450" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Avg Heart Rate (bpm)</Label>
+                  <Label>{t("manual.avgHrLabel")}</Label>
                   <Input type="number" value={manualForm.avgHr}
                     onChange={(e) => setManualForm({ ...manualForm, avgHr: e.target.value })} placeholder="142" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Heart Rate (bpm)</Label>
+                  <Label>{t("manual.maxHrLabel")}</Label>
                   <Input type="number" value={manualForm.maxHr}
                     onChange={(e) => setManualForm({ ...manualForm, maxHr: e.target.value })} placeholder="172" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Calories</Label>
+                  <Label>{t("manual.caloriesLabel")}</Label>
                   <Input type="number" value={manualForm.calories}
                     onChange={(e) => setManualForm({ ...manualForm, calories: e.target.value })} placeholder="450" />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>{t("description")}</Label>
+                  <Label>{trainingT("description")}</Label>
                   <Input value={manualForm.description}
                     onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
-                    placeholder="Felt strong, negative split..." />
+                    placeholder={t("manual.notesPlaceholder")} />
                 </div>
               </div>
 
@@ -269,9 +272,9 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
 
               <Button type="submit" disabled={manualSubmitting}>
                 {manualSubmitting ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {common("saving")}</>
                 ) : (
-                  <><Pencil className="h-4 w-4 mr-2" /> {t("save")}</>
+                  <><Pencil className="h-4 w-4 mr-2" /> {trainingT("save")}</>
                 )}
               </Button>
             </form>
@@ -285,8 +288,8 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                 onClick={() => fileInputRef.current?.click()}
               >
                 <FileType className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="font-medium mb-1">Click to select GPX, TCX, or FIT files</p>
-                <p className="text-sm text-muted-foreground">You can select multiple files at once</p>
+                <p className="font-medium mb-1">{t("fileUpload.clickToUpload")}</p>
+                <p className="text-sm text-muted-foreground">{t("fileUpload.multiFiles")}</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -301,7 +304,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
             {/* Selected files list (before upload) */}
             {files.length > 0 && !uploading && fileResults.length === 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">{files.length} file{files.length !== 1 ? "s" : ""} selected</p>
+                <p className="text-sm font-medium">{t("fileUpload.filesSelected", { count: files.length })}</p>
                 <div className="max-h-32 overflow-y-auto space-y-1">
                   {files.map((f, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm p-1.5 rounded bg-muted/50">
@@ -313,10 +316,10 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button onClick={handleFileUpload}>
-                    <Upload className="h-4 w-4 mr-2" /> Upload {files.length} file{files.length !== 1 ? "s" : ""}
+                    <Upload className="h-4 w-4 mr-2" /> {t("fileUpload.uploadFiles", { count: files.length })}
                   </Button>
                   <Button variant="outline" onClick={() => { setFiles([]); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
-                    Cancel
+                    {common("cancel")}
                   </Button>
                 </div>
               </div>
@@ -325,7 +328,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
             {/* Uploading */}
             {uploading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg p-4">
-                <Loader2 className="h-4 w-4 animate-spin" /> Parsing and importing files…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("fileUpload.parsing")}
               </div>
             )}
 
@@ -353,7 +356,7 @@ export default function ImportModal({ open, onOpenChange, onImport }: ImportModa
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Closing automatically…</p>
+                <p className="text-xs text-muted-foreground">{t("fileUpload.closing")}</p>
               </div>
             )}
           </TabsContent>

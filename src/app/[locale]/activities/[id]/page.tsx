@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { ActivityCard, TrainingLog, RouteMatch, DuplicateGroupInfo } from "@/components/activity/activity-card";
@@ -10,6 +11,8 @@ import { COACH_CHAT_EVENTS } from "@/lib/coach-chat-events";
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const t = useTranslations("activities");
+  const common = useTranslations("common");
   const [log, setLog] = useState<TrainingLog | null>(null);
   const [neighbors, setNeighbors] = useState<{ prev: TrainingLog | null; next: TrainingLog | null }>({ prev: null, next: null });
   const [loading, setLoading] = useState(true);
@@ -47,13 +50,13 @@ export default function ActivityDetailPage() {
 
   async function handleDelete() {
     if (!log) return;
-    if (!confirm(`Delete "${log.name}"?\n\nThis cannot be undone.`)) return;
+    if (!confirm(t("detail.deleteConfirm", { name: log.name }))) return;
     setDeleting(true);
     try {
       await fetch(`/api/activities/${id}`, { method: "DELETE" });
       backToActivities();
     } catch {
-      alert("Failed to delete. Please try again.");
+      alert(t("detail.deleteFailed"));
       setDeleting(false);
     }
   }
@@ -203,17 +206,17 @@ export default function ActivityDetailPage() {
         body: JSON.stringify({ action: "analyze-activity", activityId: id }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      if (!res.ok) throw new Error(data.error || t("detail.analysisFailed"));
       setCoachAnalysisText(data.analysis);
     } catch (err) {
-      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
+      setAnalyzeError(err instanceof Error ? err.message : t("detail.analysisFailed"));
     }
     setAnalyzing(false);
   }, [id]);
 
   // Clear coach analysis
   const handleClearAnalysis = useCallback(async () => {
-    if (!confirm("Clear the coach analysis for this activity?")) return;
+    if (!confirm(t("detail.clearAnalysisConfirm"))) return;
     try {
       await fetch(`/api/activities/${id}`, {
         method: "PUT",
@@ -224,7 +227,7 @@ export default function ActivityDetailPage() {
       setAnalysisStatus(null);
       setAnalyzeError(null);
     } catch {
-      alert("Failed to clear analysis.");
+      alert(t("detail.clearAnalysisFailed"));
     }
   }, [id]);
 
@@ -315,8 +318,8 @@ export default function ActivityDetailPage() {
     };
   }, [neighbors, navigateTo]);
 
-  if (loading) return <div className="container mx-auto px-4 py-8">Loading...</div>;
-  if (!log) return <div className="container mx-auto px-4 py-8 text-center">Activity not found.</div>;
+  if (loading) return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
+  if (!log) return <div className="container mx-auto px-4 py-8 text-center">{t("detail.notFound")}</div>;
 
   const prevId = neighbors.prev?.id;
   const nextId = neighbors.next?.id;
@@ -326,25 +329,25 @@ export default function ActivityDetailPage() {
       {/* Navigation bar */}
       <div className="flex items-center justify-between mb-4">
         <Button variant="ghost" onClick={backToActivities}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Back
+          <ArrowLeft className="h-4 w-4 mr-2" /> {t("detail.back")}
         </Button>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost" size="sm"
             disabled={!prevId}
             onClick={() => prevId && navigateTo(prevId, neighbors.prev)}
-            title="Previous (←)"
+            title={t("detail.prevTooltip")}
           >
-            <ChevronLeft className="h-5 w-5" /> Prev
+            <ChevronLeft className="h-5 w-5" /> {t("detail.prev")}
           </Button>
-          <span className="text-xs text-muted-foreground px-1 hidden sm:inline">swipe or ← →</span>
+          <span className="text-xs text-muted-foreground px-1 hidden sm:inline">{t("detail.swipeHint")}</span>
           <Button
             variant="ghost" size="sm"
             disabled={!nextId}
             onClick={() => nextId && navigateTo(nextId, neighbors.next)}
-            title="Next (→)"
+            title={t("detail.nextTooltip")}
           >
-            Next <ChevronRight className="h-5 w-5" />
+            {t("detail.next")} <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
       </div>
@@ -381,17 +384,17 @@ export default function ActivityDetailPage() {
             disabled={!prevId}
             onClick={() => prevId && navigateTo(prevId, neighbors.prev)}
           >
-            <ChevronLeft className="h-5 w-5" /> Prev
+            <ChevronLeft className="h-5 w-5" /> {t("detail.prev")}
           </Button>
           <span className="text-xs text-muted-foreground">
-            Swipe to navigate
+            {t("detail.swipeToNavigate")}
           </span>
           <Button
             variant="ghost" size="sm"
             disabled={!nextId}
             onClick={() => nextId && navigateTo(nextId, neighbors.next)}
           >
-            Next <ChevronRight className="h-5 w-5" />
+            {t("detail.next")} <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
       </div>
@@ -403,15 +406,15 @@ export default function ActivityDetailPage() {
           disabled={!prevId}
           onClick={() => prevId && navigateTo(prevId, neighbors.prev)}
         >
-          <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+          <ChevronLeft className="h-4 w-4 mr-1" /> {t("detail.previous")}
         </Button>
-        <span className="text-xs text-muted-foreground">Use ← → arrow keys or swipe to navigate</span>
+        <span className="text-xs text-muted-foreground">{t("detail.keyboardHint")}</span>
         <Button
           variant="outline" size="sm"
           disabled={!nextId}
           onClick={() => nextId && navigateTo(nextId, neighbors.next)}
         >
-          Next <ChevronRight className="h-4 w-4 ml-1" />
+          {t("detail.next")} <ChevronRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { Split, formatSplitPace, formatTime, LapSummary } from "@/lib/trackpoint
 
 export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }) {
   const t = useTranslations("activities.detail");
+  const trainingT = useTranslations("training");
   if (splits.length === 0) return null;
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -16,8 +17,8 @@ export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">#</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("split")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("cumTime")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? "Speed" : t("pace")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">HR</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? trainingT("speed") : t("pace")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("hr")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("gain")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("loss")}</th>
           </tr>
@@ -44,6 +45,7 @@ export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }
 
 export function LapTable({ laps, type }: { laps: LapSummary[]; type?: string }) {
   const t = useTranslations("activities.detail");
+  const trainingT = useTranslations("training");
   if (!laps || laps.length === 0) return null;
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -51,13 +53,13 @@ export function LapTable({ laps, type }: { laps: LapSummary[]; type?: string }) 
         <thead>
           <tr className="bg-muted/50 text-left">
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">{t("laps")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Time</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Distance</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? "Speed" : t("pace")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Avg HR</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Max HR</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("time")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("distance")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? trainingT("speed") : t("pace")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("avgHr")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("maxHr")}</th>
             {laps.some((l) => l.avgPower) && (
-              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Power</th>
+              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("power")}</th>
             )}
           </tr>
         </thead>

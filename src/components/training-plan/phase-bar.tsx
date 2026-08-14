@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useMemo, useRef, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import type { TrainingPlanPhase } from "@/lib/training-plan-types";
 import { startOfMonth, isWithinInterval, parseISO } from "date-fns";
 
@@ -73,6 +74,7 @@ const PhaseButton = memo(function PhaseButton({
   isActive: boolean;
   onClick: (p: TrainingPlanPhase) => void;
 }) {
+  const t = useTranslations("training-plan");
   const startLabel = useMemo(() => formatShortDate(phase.weekStart), [phase.weekStart]);
   const endLabel = useMemo(() => formatShortDate(phase.weekEnd), [phase.weekEnd]);
 
@@ -80,8 +82,8 @@ const PhaseButton = memo(function PhaseButton({
     <button
       data-active={isActive}
       onClick={() => onClick(phase)}
-      title={`Go to ${phase.name} phase — ${phase.weekStart} to ${phase.weekEnd}`}
-      aria-label={`${phase.name} phase: ${phase.weekStart} to ${phase.weekEnd}, click to jump calendar to this phase`}
+      title={t("phaseTooltip", { name: phase.name, start: phase.weekStart, end: phase.weekEnd })}
+      aria-label={t("phaseAria", { name: phase.name, start: phase.weekStart, end: phase.weekEnd })}
       className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-pointer"
       style={{
         backgroundColor: isActive ? `${phase.color}20` : "transparent",

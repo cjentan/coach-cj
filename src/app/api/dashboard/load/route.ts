@@ -249,18 +249,12 @@ export async function GET(request: Request) {
     tzOffset,
   });
 
-  let readinessLabel: string;
-  let readinessDetail: string;
-  if (readinessResult.readinessScore >= 70) { readinessLabel = "On Track"; readinessDetail = "Your training trajectory is aligned with your goals."; }
-  else if (readinessResult.readinessScore >= 50) { readinessLabel = "Needs Attention"; readinessDetail = "Adjust volume or consistency to get back on track."; }
-  else { readinessLabel = "Off Track"; readinessDetail = "Significant adjustments needed to reach your race goals."; }
-
+  // Return a status key (not a display string); the client translates it.
   const readiness = {
     score: readinessResult.readinessScore,
-    label: readinessLabel,
-    detail: readinessDetail,
+    status: readinessResult.readinessScore >= 70 ? "on_track" : readinessResult.readinessScore >= 50 ? "needs_attention" : "off_track",
     volumeAdherence: readinessResult.volumeAdherence,
-  };
+  } as const;
 
   // ── Response ──────────────────────────────────────────────────────
   return NextResponse.json({

@@ -4,20 +4,29 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ImportModal from '../import-modal';
 
+const en = require('../../../../messages/en.json');
 vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: (ns: string) => (key: string, values?: Record<string, unknown>) => {
+    let v: unknown = key.split('.').reduce((o, k) => (o == null ? o : (o as Record<string, unknown>)[k]), en[ns]);
+    if (typeof v === 'string' && values) {
+      let str = v;
+      Object.entries(values).forEach(([k, val]) => { str = str.replace(`{${k}}`, String(val)); });
+      v = str;
+    }
+    return v ?? key;
+  },
   useLocale: () => 'en',
 }));
 vi.mock('@/lib/constants', () => ({
   ACTIVITY_TYPES: [
-    { value: 'run', label: 'Run', icon: () => null },
-    { value: 'ride', label: 'Ride', icon: () => null },
-    { value: 'swim', label: 'Swim', icon: () => null },
+    { value: 'run', labelKey: 'run', icon: () => null },
+    { value: 'ride', labelKey: 'ride', icon: () => null },
+    { value: 'swim', labelKey: 'swim', icon: () => null },
   ],
   SUB_TYPE_OPTIONS: {
     run: [
-      { value: 'trail', label: 'Trail' },
-      { value: 'road', label: 'Road' },
+      { value: 'trail', labelKey: 'trail' },
+      { value: 'road', labelKey: 'road' },
     ],
   },
 }));

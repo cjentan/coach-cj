@@ -29,13 +29,15 @@ const PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 const QUICK_PROMPTS = [
-  { label: "Training week", prompt: "Summarize a training week: 62km running, 1800m elevation, 5h 23min across 6 sessions. The athlete has a 100km trail race in 12 weeks. What should they focus on?" },
-  { label: "Fatigue check", prompt: "An athlete reports feeling tired, with resting HR 5 bpm above baseline, and training monotony at 0.82. Their TSB is -15. What's your assessment and recommendation?" },
-  { label: "Simple test", prompt: "In one sentence, what is the most important principle of endurance training?" },
+  { labelKey: "quickTrainingWeek", promptKey: "credentials.quickPrompts.0" },
+  { labelKey: "quickFatigueCheck", promptKey: "credentials.quickPrompts.1" },
+  { labelKey: "quickSimpleTest", promptKey: "credentials.quickPrompts.2" },
 ];
 
 // ─── Section: Analysis Schedule ────────────────────────────────────────────
 function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
+  const settingsT = useTranslations("settings");
+  const labelsT = useTranslations("labels");
   const [trigger, setTrigger] = useState("weekly");
   const [triggerValue, setTriggerValue] = useState(3);
   const [reviewDay, setReviewDay] = useState("0");
@@ -130,7 +132,7 @@ function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTransl
               <Label className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {t("dayOfWeek")}</Label>
               <Select value={reviewDay} onValueChange={setReviewDay}>
                 <SelectTrigger className="w-full max-w-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{LONG_DAY_NAMES.map((d, i) => (<SelectItem key={i} value={String(i)}>{d}</SelectItem>))}</SelectContent>
+                <SelectContent>{LONG_DAY_NAMES.map((d, i) => (<SelectItem key={i} value={String(i)}>{labelsT("days.long." + d)}</SelectItem>))}</SelectContent>
               </Select>
             </div>
           )}
@@ -154,7 +156,7 @@ function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTransl
         </div>
 
         {error && <div className="text-sm text-destructive">{error}</div>}
-        {saved && <div className="text-sm text-green-600 flex items-center gap-1"><Check className="h-4 w-4" /> Saved</div>}
+        {saved && <div className="text-sm text-green-600 flex items-center gap-1"><Check className="h-4 w-4" /> {settingsT("credentials.saved")}</div>}
 
         <Button onClick={handleSave} disabled={saving} className="gap-2">
           {saving ? <Spinner className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -167,6 +169,7 @@ function AnalysisScheduleSection({ t, common }: { t: ReturnType<typeof useTransl
 
 // ─── Section: AI Provider ──────────────────────────────────────────────────
 function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
+  const settingsT = useTranslations("settings");
   const { status } = useSession();
   const [llmApiKey, setLlmApiKey] = useState("");
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
@@ -210,7 +213,7 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
     try {
       const res = await fetch("/api/llm-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: p }) });
       setResult(await res.json());
-    } catch { setTestError("Network error — is the server running?"); }
+    } catch { setTestError(settingsT("credentials.testNetworkError")); }
     finally { setTesting(false); }
   }
 
@@ -297,11 +300,14 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
-            {QUICK_PROMPTS.map((qp, i) => (
-              <Button key={i} variant="outline" size="sm" disabled={testing} onClick={() => { setPrompt(qp.prompt); runTest(qp.prompt); }}>
-                <Zap className="h-3 w-3 mr-1" /> {t(qp.label === "Training week" ? "quickTrainingWeek" : qp.label === "Fatigue check" ? "quickFatigueCheck" : "quickSimpleTest")}
-              </Button>
-            ))}
+            {QUICK_PROMPTS.map((qp, i) => {
+              const p = settingsT(qp.promptKey);
+              return (
+                <Button key={i} variant="outline" size="sm" disabled={testing} onClick={() => { setPrompt(p); runTest(p); }}>
+                  <Zap className="h-3 w-3 mr-1" /> {t(qp.labelKey)}
+                </Button>
+              );
+            })}
           </div>
 
           <div className="flex gap-2 mb-4">
@@ -322,7 +328,7 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
                 {result && !testing && (
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {result.durationMs}ms</span>
-                    {result.tokenEstimate && <span>~{result.tokenEstimate} tokens</span>}
+                    {result.tokenEstimate && <span>~{result.tokenEstimate} {settingsT("credentials.tokens")}</span>}
                   </div>
                 )}
               </div>
@@ -352,14 +358,15 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
 export default function SettingsAiCoachPage() {
   const t = useTranslations("settings.analysis");
   const credT = useTranslations("settings.credentials");
+  const settingsT = useTranslations("settings");
   const common = useTranslations("common");
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">AI Coach</h1>
+        <h1 className="text-2xl font-bold">{settingsT("aiCoachTab")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Configure how your AI coach analyzes your training and which AI model powers it.
+          {settingsT("aiCoachDesc")}
         </p>
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { Route, Mountain, Clock, CalendarCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -69,6 +70,7 @@ function computeStats(weeks: PlanWeekData[]): SummaryStats {
  * switchable via a Week/Month toggle.
  */
 export function PeriodSummary({ week, weeks, monthLabel }: PeriodSummaryProps) {
+  const t = useTranslations("training-plan");
   const [period, setPeriod] = useState<Period>("week");
 
   const weekStats = useMemo(() => computeStats(week ? [week] : []), [week]);
@@ -106,10 +108,10 @@ export function PeriodSummary({ week, weeks, monthLabel }: PeriodSummaryProps) {
           <Tabs value={period} onValueChange={(v) => setPeriod(v as Period)}>
             <TabsList className="h-8">
               <TabsTrigger value="week" className="text-xs px-3">
-                Week
+                {t("week")}
               </TabsTrigger>
               <TabsTrigger value="month" className="text-xs px-3">
-                Month
+                {t("month")}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -117,28 +119,28 @@ export function PeriodSummary({ week, weeks, monthLabel }: PeriodSummaryProps) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatRow
             icon={<Route className="h-3 w-3" />}
-            label="Volume"
+            label={t("volume")}
             planned={stats.plannedVolume > 0 ? formatDistance(stats.plannedVolume) : "—"}
             actual={stats.actualVolume > 0 ? formatDistance(stats.actualVolume) : "—"}
             fraction={stats.plannedVolume > 0 ? stats.actualVolume / stats.plannedVolume : 0}
           />
           <StatRow
             icon={<Mountain className="h-3 w-3" />}
-            label="Elevation"
+            label={t("elevation")}
             planned={stats.plannedElevation > 0 ? formatElevation(stats.plannedElevation) : "—"}
             actual={stats.actualElevation > 0 ? formatElevation(stats.actualElevation) : "—"}
             fraction={stats.plannedElevation > 0 ? stats.actualElevation / stats.plannedElevation : 0}
           />
           <StatRow
             icon={<Clock className="h-3 w-3" />}
-            label="Duration"
+            label={t("duration")}
             planned={stats.plannedDuration > 0 ? formatDuration(stats.plannedDuration) : "—"}
             actual={stats.actualDuration > 0 ? formatDuration(stats.actualDuration) : "—"}
             fraction={stats.plannedDuration > 0 ? stats.actualDuration / stats.plannedDuration : 0}
           />
           <StatRow
             icon={<CalendarCheck className="h-3 w-3" />}
-            label="Sessions"
+            label={t("sessions")}
             planned={String(stats.plannedSessions)}
             actual={String(stats.completedSessions)}
             fraction={stats.plannedSessions > 0 ? stats.completedSessions / stats.plannedSessions : 0}

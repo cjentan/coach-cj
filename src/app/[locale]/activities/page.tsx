@@ -58,10 +58,12 @@ const SUB_TYPE_LABELS: Record<string, string> = {
 type BadgeVariant = "default" | "secondary" | "destructive" | "success" | "warning" | "outline";
 
 function SourceBadge({ source }: { source: string }) {
+  const labelsT = useTranslations("labels");
   const variant = (SOURCE_COLORS as Record<string, BadgeVariant>)[source] || "outline";
+  const sourceKey = (SOURCE_LABELS as Record<string, string>)[source];
   return (
     <Badge variant={variant} className="text-[10px] shrink-0">
-      {(SOURCE_LABELS as Record<string, string>)[source] || source}
+      {sourceKey ? labelsT("sources." + sourceKey) : source}
     </Badge>
   );
 }
@@ -179,6 +181,8 @@ const defaultRange = getMonthRange(defaultMonthKey);
 
 export default function ActivitiesPage() {
   const t = useTranslations("activities");
+  const labelsT = useTranslations("labels");
+  const nav = useTranslations("nav");
   const [allLogs, setAllLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [avgTypeFilter, setAvgTypeFilter] = useState("all");
@@ -295,11 +299,11 @@ export default function ActivitiesPage() {
     setSyncing(false);
 
     if (hasError && totalImported === 0) {
-      setSyncResult({ type: "error", text: "Sync failed. Check your integrations in Settings." });
+      setSyncResult({ type: "error", text: t("syncFailed") });
     } else {
       setSyncResult({
         type: "success",
-        text: `Synced ${totalImported} activit${totalImported !== 1 ? "ies" : "y"}.`,
+        text: t("synced", { count: totalImported }),
       });
       // Refresh activity data
       loadAll();
@@ -585,7 +589,7 @@ export default function ActivitiesPage() {
             }`}
             style={{ transform: `rotate(${pullDistance * 3.6}deg)` }}
           />
-          <span>{pullDistance > 55 ? "Release to sync" : "Pull to sync"}</span>
+          <span>{pullDistance > 55 ? t("releaseToSync") : t("pullToSync")}</span>
         </div>
       </div>
 
@@ -611,7 +615,7 @@ export default function ActivitiesPage() {
           </h1>
           {activeBar && (
             <p className="text-muted-foreground mt-1">
-              {activeBar.activityCount} activit{activeBar.activityCount !== 1 ? "ies" : ""}
+              {t("activityCount", { count: activeBar.activityCount })}
               {activeBar.activityCount > 0 && (
                 <> — {formatDistance(activeBar.totalDistance)} · {formatElevationShort(activeBar.totalElevation)} ↑</>
               )}
@@ -626,11 +630,11 @@ export default function ActivitiesPage() {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              {syncing ? "Syncing…" : "Sync"}
+              {syncing ? t("syncing") : t("sync")}
             </Button>
           )}
           <Button onClick={() => setShowImportModal(true)} className="shrink-0">
-            <Plus className="h-4 w-4 mr-2" /> Import
+            <Plus className="h-4 w-4 mr-2" /> {nav("import")}
           </Button>
         </div>
       </div>
@@ -644,7 +648,7 @@ export default function ActivitiesPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 {viewMode === "yearly"
                   ? now.getFullYear() - monthOffset
-                  : `${viewMode === "monthly" ? "Monthly" : "Weekly"} Volume`}
+                  : viewMode === "monthly" ? t("monthlyVolume") : t("weeklyVolume")}
               </h2>
               {/* View mode toggle */}
               <div className="flex rounded-lg border border-border p-0.5 bg-muted/30">
@@ -656,7 +660,7 @@ export default function ActivitiesPage() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Monthly
+                  {t("monthly")}
                 </button>
                 <button
                   onClick={() => handleViewModeChange("weekly")}
@@ -666,7 +670,7 @@ export default function ActivitiesPage() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Weekly
+                  {t("weekly")}
                 </button>
                 <button
                   onClick={() => handleViewModeChange("yearly")}
@@ -676,7 +680,7 @@ export default function ActivitiesPage() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Yearly
+                  {t("yearly")}
                 </button>
               </div>
             </div>
@@ -684,7 +688,7 @@ export default function ActivitiesPage() {
               const totalOfDisplayed = barStats.reduce((s, m) => s + m.totalDistance, 0);
               return totalOfDisplayed > 0 ? (
                 <span className="text-xs text-muted-foreground">
-                  {formatDistance(totalOfDisplayed)} total
+                  {formatDistance(totalOfDisplayed)} {t("total")}
                 </span>
               ) : null;
             })()}
@@ -740,8 +744,7 @@ export default function ActivitiesPage() {
               {" — "}
               {formatDistance(activeBar.totalDistance)}
               {" · "}
-              {activeBar.activityCount} activit
-              {activeBar.activityCount !== 1 ? "ies" : "y"}
+              {t("activityCount", { count: activeBar.activityCount })}
               {activeBar.totalDurationSeconds > 0 && (
                 <> · {formatDuration(activeBar.totalDurationSeconds)}</>
               )}
@@ -758,7 +761,7 @@ export default function ActivitiesPage() {
               disabled={!canGoBack}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
-              {viewMode === "yearly" ? "← Previous year" : `← 12 ${viewMode === "monthly" ? "months" : "weeks"} earlier`}
+              {viewMode === "yearly" ? t("prevYear") : t("prevPeriod")}
             </button>
             {monthOffset > 0 && (
               <button
@@ -780,7 +783,7 @@ export default function ActivitiesPage() {
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                {viewMode === "yearly" ? "This year" : `Latest ${viewMode === "monthly" ? "months" : "weeks"}`}
+                {viewMode === "yearly" ? t("thisYear") : t("latestPeriod")}
               </button>
             )}
             <button
@@ -788,7 +791,7 @@ export default function ActivitiesPage() {
               disabled={monthOffset === 0}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
-              {viewMode === "yearly" ? "Next year →" : `12 ${viewMode === "monthly" ? "months" : "weeks"} later →`}
+              {viewMode === "yearly" ? t("nextYear") : t("nextPeriod")}
             </button>
           </div>
         </div>
@@ -797,17 +800,17 @@ export default function ActivitiesPage() {
       {/* ═══ FILTER CHIPS ═══ */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1">{t("type")}</span>
-        {TYPE_OPTIONS.filter(t => t === "all" || filterOptions.types.includes(t) || filterOptions.types.length === 0).map((t) => (
+        {TYPE_OPTIONS.filter(typeOpt => typeOpt === "all" || filterOptions.types.includes(typeOpt) || filterOptions.types.length === 0).map((typeOpt) => (
           <button
-            key={t}
-            onClick={() => setAvgTypeFilter(t)}
+            key={typeOpt}
+            onClick={() => setAvgTypeFilter(typeOpt)}
             className={`text-xs rounded-full px-3 py-1 border transition-all ${
-              avgTypeFilter === t
+              avgTypeFilter === typeOpt
                 ? "bg-foreground text-background border-foreground font-medium"
                 : "bg-card text-muted-foreground border-border hover:text-foreground hover:border-foreground/30"
             }`}
           >
-            {TYPE_LABELS_SHORT[t]}
+            {typeOpt === "all" ? t("all") : labelsT("activityTypes." + TYPE_LABELS_SHORT[typeOpt])}
           </button>
         ))}
         <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1 ml-2">{t("source")}</span>
@@ -821,7 +824,7 @@ export default function ActivitiesPage() {
                 : "bg-card text-muted-foreground border-border hover:text-foreground hover:border-foreground/30"
             }`}
           >
-            {SOURCE_LABELS_SHORT[s]}
+            {s === "all" ? t("all") : labelsT("sources." + SOURCE_LABELS_SHORT[s])}
           </button>
         ))}
         {(avgTypeFilter !== "all" || avgSourceFilter !== "all") && (
@@ -829,7 +832,7 @@ export default function ActivitiesPage() {
             onClick={() => { setAvgTypeFilter("all"); setAvgSourceFilter("all"); }}
             className="text-xs text-muted-foreground underline hover:text-foreground ml-1"
           >
-            Clear
+            {t("clearFilters")}
           </button>
         )}
       </div>
@@ -859,13 +862,13 @@ export default function ActivitiesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm tracking-tight">{week.label}</span>
-                      <Badge variant="secondary" className="text-[10px] font-semibold">{week.logs.length} activit{week.logs.length !== 1 ? "ies" : "y"}</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-semibold">{t("activityCount", { count: week.logs.length })}</Badge>
                     </div>
                     <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                       {weekDist > 0 && <span className="font-medium">{formatDistance(weekDist)}</span>}
                       {weekElev > 0 && <span className="font-medium">{formatElevationShort(weekElev)} ↑</span>}
                       <span className="font-medium">{formatDuration(weekDur)}</span>
-                      {weekTss > 0 && <span className="font-medium">TSS {Math.round(weekTss)}</span>}
+                      {weekTss > 0 && <span className="font-medium">{t("tss")} {Math.round(weekTss)}</span>}
                     </div>
                   </div>
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />}
@@ -898,7 +901,7 @@ export default function ActivitiesPage() {
                               <div className="text-right shrink-0" style={{ width: "25%" }}>
                                 {dist > 0 && <div className="text-sm font-medium tabular-nums">{formatDistance(dist)}</div>}
                                 {elev > 0 && <div className="text-xs text-muted-foreground tabular-nums">{Math.round(elev)}m</div>}
-                                {log.tss != null && <div className="text-xs tabular-nums">TSS {Math.round(log.tss)}</div>}
+                                {log.tss != null && <div className="text-xs tabular-nums">{t("tss")} {Math.round(log.tss)}</div>}
                               </div>
                             </div>
                           </Link>
@@ -911,11 +914,11 @@ export default function ActivitiesPage() {
                                 <span className="text-sm font-medium truncate">{log.name}</span>
                                 <Badge variant={TYPE_BADGE_VARIANTS[log.type] || "outline"} className="text-[10px] shrink-0 capitalize">{log.type}</Badge>
                                 {log.subType && SUB_TYPE_LABELS[log.subType] && (
-                                  <Badge variant="secondary" className="shrink-0 text-[10px] hidden sm:inline">{SUB_TYPE_LABELS[log.subType]}</Badge>
+                                  <Badge variant="secondary" className="shrink-0 text-[10px] hidden sm:inline">{labelsT("subTypes." + log.subType)}</Badge>
                                 )}
                                 <SourceBadge source={log.source} />
                                 {log.tss != null && (
-                                  <Badge variant="secondary" className="text-[10px]">TSS {Math.round(log.tss)}</Badge>
+                                  <Badge variant="secondary" className="text-[10px]">{t("tss")} {Math.round(log.tss)}</Badge>
                                 )}
                               </div>
                               <p className="text-xs text-muted-foreground">

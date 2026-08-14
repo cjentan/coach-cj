@@ -124,10 +124,10 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/admin/users");
       if (res.status === 403) { router.push("/dashboard"); return; }
-      if (!res.ok) throw new Error("Failed to fetch");
+      if (!res.ok) throw new Error(t("fetchFailed"));
       setData(await res.json());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load users");
+      setError(e instanceof Error ? e.message : t("loadUsersFailed"));
     } finally {
       setLoading(false);
     }
@@ -223,7 +223,7 @@ export default function AdminPage() {
       const data = await res.json();
       setResetLinks((prev) => ({ ...prev, [userId]: { resetUrl: data.resetUrl, email: data.email } }));
     } catch {
-      setResetLinks((prev) => ({ ...prev, [userId]: { resetUrl: "Error generating link", email: { sent: false } } }));
+      setResetLinks((prev) => ({ ...prev, [userId]: { resetUrl: t("linkError"), email: { sent: false } } }));
     }
     setGenerating(null);
   }
@@ -260,13 +260,13 @@ export default function AdminPage() {
       });
       if (!res.ok) {
         const d = await res.json();
-        setEmailError(d.error || "Failed to save");
+        setEmailError(d.error || t("saveFailed"));
         return;
       }
       setEmailSaved(true);
       timeoutIds.current.add(setTimeout(() => setEmailSaved(false), 3000));
     } catch {
-      setEmailError("Network error");
+      setEmailError(t("networkError"));
     } finally {
       setEmailSaving(false);
     }
@@ -288,13 +288,13 @@ export default function AdminPage() {
         message: res.ok ? t("email.sendSuccess") : d.error || t("email.sendFailed"),
       });
     } catch {
-      setTestResult({ ok: false, message: "Network error" });
+      setTestResult({ ok: false, message: t("networkError") });
     } finally {
       setTestSending(false);
     }
   }
 
-  if (status === "loading") return <div className="container mx-auto px-4 py-8">Loading...</div>;
+  if (status === "loading") return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
 
   const summary = data?.summary;
   const users = data?.users ?? [];

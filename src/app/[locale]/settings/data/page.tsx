@@ -190,23 +190,24 @@ function BackupRestoreSection({ t, common }: { t: ReturnType<typeof useTranslati
 
 // ─── Section: Danger Zone ──────────────────────────────────────────────────
 function DangerZoneSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
+  const settingsT = useTranslations("settings");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [wipeConfirm, setWipeConfirm] = useState(false);
   const [wiping, setWiping] = useState(false);
 
   const DATA_TYPES = [
-    { key: "trainingLogs", label: "Activities", description: "Activities, laps, splits, and all training data" },
-    { key: "duplicateGroups", label: "Duplicate Groups", description: "Duplicate activity groupings and merge history" },
-    { key: "raceGoals", label: "Race Goals", description: "Target races, events, and goal times" },
-    { key: "bodyMetrics", label: "Body Metrics", description: "Weight, resting heart rate, and body measurements" },
-    { key: "dailyHealth", label: "Daily Health", description: "Daily health data — sleep, HRV, stress, body battery, and steps" },
-    { key: "weeklyAssessments", label: "Weekly Assessments", description: "CTL, ATL, TSB and readiness scores" },
-    { key: "weeklyPlans", label: "Weekly Plans", description: "AI-generated weekly training plans" },
-    { key: "fatigueAlerts", label: "Fatigue Alerts", description: "Overtraining and fatigue notifications" },
-    { key: "analysisReports", label: "Analysis Reports", description: "AI analysis reports and their reasoning" },
-    { key: "coachData", label: "Coach Chats", description: "AI coach conversations, messages, and suggestions" },
-    { key: "apiKeys", label: "API Keys", description: "Programmatic access keys for external tools" },
+    { key: "trainingLogs" },
+    { key: "duplicateGroups" },
+    { key: "raceGoals" },
+    { key: "bodyMetrics" },
+    { key: "dailyHealth" },
+    { key: "weeklyAssessments" },
+    { key: "weeklyPlans" },
+    { key: "fatigueAlerts" },
+    { key: "analysisReports" },
+    { key: "coachData" },
+    { key: "apiKeys" },
   ] as const;
 
   const toggleType = (key: string) => {
@@ -219,7 +220,7 @@ function DangerZoneSection({ t, common }: { t: ReturnType<typeof useTranslations
     const res = await fetch("/api/settings/wipe-data", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ types }) });
     if (res.ok) {
       const data = await res.json();
-      const summary = types.map((t) => { const label = DATA_TYPES.find((dt) => dt.key === t)?.label ?? t; return `${label}: ${data.counts?.[t] ?? 0} deleted`; }).join(", ");
+      const summary = types.map((tk) => { const label = settingsT("dangerZone.dataTypes." + tk + ".label"); return `${label}: ${data.counts?.[tk] ?? 0} ${settingsT("dangerZone.deleted")}`; }).join(", ");
       setMessage({ type: "success", text: t("deletedSuccess", { summary }) });
     } else setMessage({ type: "error", text: t("wipeError") });
     setWiping(false); setWipeConfirm(false);
@@ -242,7 +243,7 @@ function DangerZoneSection({ t, common }: { t: ReturnType<typeof useTranslations
                   <label key={dt.key} className="flex items-center gap-3 py-2 px-3 rounded-md hover:bg-muted/50 cursor-pointer transition-colors">
                     <input type="checkbox" className="h-4 w-4 rounded border-destructive/40 text-destructive focus:ring-destructive/30 accent-destructive"
                       checked={selectedTypes.has(dt.key)} onChange={() => toggleType(dt.key)} />
-                    <div><p className="text-sm font-medium">{dt.label}</p><p className="text-xs text-muted-foreground">{dt.description}</p></div>
+                    <div><p className="text-sm font-medium">{settingsT("dangerZone.dataTypes." + dt.key + ".label")}</p><p className="text-xs text-muted-foreground">{settingsT("dangerZone.dataTypes." + dt.key + ".desc")}</p></div>
                   </label>
                 ))}
               </div>
@@ -259,7 +260,7 @@ function DangerZoneSection({ t, common }: { t: ReturnType<typeof useTranslations
                 <div><p className="text-sm font-medium text-destructive">{t("confirmTitle")}</p><p className="text-xs text-muted-foreground mt-1">{t("confirmDescription")}</p></div>
               </div>
               <ul className="text-sm space-y-1 ml-8 list-disc text-muted-foreground">
-                {Array.from(selectedTypes).map((key) => { const dt = DATA_TYPES.find((t) => t.key === key); return <li key={key}>{dt?.label ?? key}</li>; })}
+                {Array.from(selectedTypes).map((key) => { const dt = DATA_TYPES.find((dt) => dt.key === key); return <li key={key}>{dt ? settingsT("dangerZone.dataTypes." + key + ".label") : key}</li>; })}
               </ul>
               <div className="flex items-center gap-3 pt-2">
                 <Button variant="destructive" size="sm" disabled={wiping} onClick={handleWipe}>{wiping ? t("deleting") : t("confirmDelete", { count: selectedTypes.size })}</Button>
@@ -277,14 +278,15 @@ function DangerZoneSection({ t, common }: { t: ReturnType<typeof useTranslations
 export default function SettingsDataPage() {
   const brT = useTranslations("settings.backupRestore");
   const dzT = useTranslations("settings.dangerZone");
+  const settingsT = useTranslations("settings");
   const common = useTranslations("common");
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">Data</h1>
+        <h1 className="text-2xl font-bold">{settingsT("dataTab")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Export, import, and manage your training data.
+          {settingsT("dataDesc")}
         </p>
       </div>
 

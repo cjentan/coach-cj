@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Calendar, TrendingUp, Moon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { PHASE_COLORS } from "@/lib/constants";
 
@@ -48,6 +49,7 @@ export default function TrainingPlanSummaryCard({
   phases,
   showHeader = true,
 }: TrainingPlanSummaryCardProps) {
+  const t = useTranslations("coach");
   // Group consecutive phases with the same color for visual clarity
   const visible = phases.filter((p) => p.weekCount > 0);
 
@@ -70,13 +72,13 @@ export default function TrainingPlanSummaryCard({
           </div>
           <div>
             <p className="text-sm font-semibold leading-tight text-green-800 dark:text-green-300">
-              Your training plan is built!
+              {t("planBuilt")}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {totalWeeks} week{totalWeeks !== 1 ? "s" : ""} ·{" "}
+              {t("weeksCount", { count: totalWeeks })} ·{" "}
               {hasSplit
-                ? `${totalWorkouts} workout${totalWorkouts !== 1 ? "s" : ""} · ${totalRest} rest`
-                : `${totalSessions} session${totalSessions !== 1 ? "s" : ""}`}
+                ? `${t("workoutsCount", { count: totalWorkouts })} · ${t("restCount", { count: totalRest })}`
+                : t("sessionsCount", { count: totalSessions })}
             </p>
           </div>
         </div>
@@ -96,7 +98,7 @@ export default function TrainingPlanSummaryCard({
                 backgroundColor: color,
                 opacity: 0.7,
               }}
-              title={`${phase.name}: ${phase.weekCount} weeks`}
+              title={t("phaseWeeksTooltip", { name: phase.name, count: phase.weekCount })}
             />
           );
         })}
@@ -143,23 +145,23 @@ export default function TrainingPlanSummaryCard({
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {phase.weekCount} week{phase.weekCount !== 1 ? "s" : ""}
+                      {t("weeksCount", { count: phase.weekCount })}
                     </span>
                     {phase.workoutCount !== undefined && phase.restCount !== undefined ? (
                       <>
                         <span className="flex items-center gap-1">
                           <TrendingUp className="h-3 w-3" />
-                          {phase.workoutCount} workout{phase.workoutCount !== 1 ? "s" : ""}
+                          {t("workoutsCount", { count: phase.workoutCount })}
                         </span>
                         <span className="flex items-center gap-1">
                           <Moon className="h-3 w-3" />
-                          {phase.restCount} rest
+                          {t("restCount", { count: phase.restCount })}
                         </span>
                       </>
                     ) : (
                       <span className="flex items-center gap-1">
                         <TrendingUp className="h-3 w-3" />
-                        {phase.sessionCount} session{phase.sessionCount !== 1 ? "s" : ""}
+                        {t("sessionsCount", { count: phase.sessionCount })}
                       </span>
                     )}
                   </div>
@@ -173,7 +175,7 @@ export default function TrainingPlanSummaryCard({
       {/* Legend hint */}
       {visible.length > 1 && (
         <p className="text-[10px] text-muted-foreground/60 text-center mt-3">
-          The plan progresses from left to right through each phase
+          {t("planLegend")}
         </p>
       )}
     </div>

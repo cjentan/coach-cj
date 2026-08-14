@@ -150,7 +150,65 @@
     "hrDecouplingDialogP2": "<strong>Excellent (<5%):</strong> Highly efficient aerobic system — your heart rate barely drifts.",
     "hrDecouplingDialogP3": "<strong>Good (5–10%):</strong> Normal range for most athletes. Some drift is expected.",
     "hrDecouplingDialogP4": "<strong>Elevated (>10%):</strong> Significant drift — possible heat stress, dehydration, insufficient aerobic fitness, or overtraining.",
-    "hrDecouplingDialogP5": "Calculated from HR vs. pace/power regression over the last 20 minutes of steady-state efforts."
+    "hrDecouplingDialogP5": "Calculated from HR vs. pace/power regression over the last 20 minutes of steady-state efforts.",
+    "timeMax": "Max",
+    "metricTssLoad": "Daily TSS Load",
+    "efEfficiency": "EF · Efficiency",
+    "decoupling": "Decoupling · HR Drift",
+    "decouplingInfo": "What is HR Decoupling?",
+    "decouplingActivityCount": "{count} activit{count, plural, one {y} other {ies}}",
+    "ftpThreshold": "FTP · Threshold",
+    "restingHr": "Resting",
+    "noRestingHr": "No resting HR",
+    "estMaxHr": "Est. max",
+    "avgExerciseHr": "Avg ex.",
+    "hrZonesHint": "Log activities with HR data to calculate zones.",
+    "hrZones": [
+      "Z1 Recov",
+      "Z2 Endur",
+      "Z3 Tempo",
+      "Z4 Thresh",
+      "Z5 Anaer"
+    ],
+    "score": "Score:",
+    "recVolumeLow": "Weekly volume well below target. Consider adding sessions.",
+    "recBuildVolume": "Build toward {target}km/week.",
+    "recTsbNegative": "TSB deeply negative. Consider deload.",
+    "recOnTrack": "On track — maintain consistency.",
+    "recConsistency": "Focus on consistent volume and recovery.",
+    "statusOnTrack": "ON TRACK",
+    "statusNeedsWork": "NEEDS WORK",
+    "statusBehind": "BEHIND",
+    "goalA": "A-Goal",
+    "goalB": "B-Goal",
+    "goalC": "C-Goal",
+    "due": "Due!",
+    "volume": "Volume",
+    "viewAllGoals": "View all {count} goals →",
+    "vsLastWeek": "vs same days last week",
+    "vsLastMonth": "vs same day last month",
+    "trainingAnalysis": "Training Analysis",
+    "intensityDistribution": "Intensity Distribution",
+    "intensityZones": [
+      "Z1 · Recovery",
+      "Z2 · Endurance",
+      "Z3 · Tempo",
+      "Z4 · Threshold",
+      "Z5 · VO₂Max"
+    ],
+    "distPolarized": "POLARIZED",
+    "distPyramidal": "PYRAMIDAL",
+    "distThresholdHeavy": "THRESHOLD HEAVY",
+    "activitiesAnalyzed": "{count} activities · {hours}h analyzed",
+    "weight": "Weight",
+    "activeGoals": "{count} active goal{count, plural, one {} other {s}}",
+    "activitiesThisWeek": "{count} activit{count, plural, one {y} other {ies}} this week",
+    "trackpointNotice": "Upload a Strava export ZIP or individual GPX/TCX/FIT files to unlock intensity distribution, HR decoupling, efficiency factor, and FTP tracking.",
+    "goToImport": "Go to Data Import →",
+    "aiCoachModifyHint": "Use AI Coach above to modify",
+    "readinessOnTrack": "On Track",
+    "readinessNeedsAttention": "Needs Attention",
+    "readinessOffTrack": "Off Track"
   },
   "activities": {
     "title": "Activities",
@@ -193,7 +251,94 @@
       "dashedSolidLabel": "Dashed = actual pace · Solid = grade-adjusted (flattened)",
       "paceGapLegend": "Pace (solid blue) · GAP (solid green) · Raw power (thin amber) · Smoothed power (bold amber)",
       "xAxisDistance": "Distance",
-      "xAxisTime": "Time"
+      "xAxisTime": "Time",
+      "notFound": "Activity not found.",
+      "back": "Back",
+      "prevTooltip": "Previous (←)",
+      "nextTooltip": "Next (→)",
+      "prev": "Prev",
+      "next": "Next",
+      "swipeHint": "swipe or ← →",
+      "swipeToNavigate": "Swipe to navigate",
+      "previous": "Previous",
+      "keyboardHint": "Use ← → arrow keys or swipe to navigate",
+      "deleteConfirm": "Delete \"{name}\"?\n\nThis cannot be undone.",
+      "deleteFailed": "Failed to delete. Please try again.",
+      "analysisFailed": "Analysis failed",
+      "clearAnalysisConfirm": "Clear the coach analysis for this activity?",
+      "clearAnalysisFailed": "Failed to clear analysis."
+    },
+    "all": "All",
+    "syncFailed": "Sync failed. Check your integrations in Settings.",
+    "synced": "Synced {count} activit{count, plural, one {y} other {ies}}.",
+    "releaseToSync": "Release to sync",
+    "pullToSync": "Pull to sync",
+    "activityCount": "{count} activit{count, plural, one {y} other {ies}}",
+    "syncing": "Syncing…",
+    "sync": "Sync",
+    "monthlyVolume": "Monthly Volume",
+    "weeklyVolume": "Weekly Volume",
+    "monthly": "Monthly",
+    "weekly": "Weekly",
+    "yearly": "Yearly",
+    "total": "total",
+    "prevYear": "← Previous year",
+    "prevPeriod": "← 12 months/weeks earlier",
+    "thisYear": "This year",
+    "latestPeriod": "Latest months/weeks",
+    "nextYear": "Next year →",
+    "nextPeriod": "12 months/weeks later →",
+    "clearFilters": "Clear",
+    "tss": "TSS",
+    "card": {
+      "setRaceGoal": "Set \"{name}\" as a race goal?\n\nDistance: {distance}\nElevation: {elevation}\n\nYou can refine the goal details in Settings → Goals.",
+      "goalCreateFailed": "Failed to create goal.",
+      "networkError": "Network error. Please try again.",
+      "remarks": "Remarks",
+      "raceGoalCreated": "Race goal created!",
+      "setAsRaceGoal": "Set as race goal",
+      "downloadGpx": "Download GPX",
+      "noTrackData": "No track data to export",
+      "deleteActivity": "Delete activity",
+      "goalCreated": "Race goal created — {name}.",
+      "viewInSettings": "View in Settings →",
+      "duplicateWarning": "This activity may be a duplicate of {names}.",
+      "anotherActivity": "another activity",
+      "reviewDuplicates": "Review duplicates",
+      "duration": "Duration",
+      "distance": "Distance",
+      "elevation": "Elevation",
+      "avgPace": "Avg Pace",
+      "heartRate": "Heart Rate",
+      "power": "Power",
+      "np": "NP",
+      "calories": "Calories",
+      "vam": "VAM",
+      "tss": "TSS",
+      "lapsFromFile": "Laps (from file)",
+      "sameRoute": "Same Route ({count} previous attempt{count, plural, one {} other {s}})",
+      "colDate": "Date",
+      "colTime": "Time",
+      "colPace": "Pace",
+      "colHr": "HR",
+      "colTss": "TSS",
+      "colMatch": "Match",
+      "now": "now",
+      "trainingRemarks": "Training Remarks",
+      "race": "Race",
+      "notRace": "Not a race",
+      "saved": "Saved",
+      "saving": "Saving...",
+      "remarksPlaceholder": "How did this session feel? E.g. Tired today, didn't sleep well. Felt strong on the first 10k, then the last climb was tough...",
+      "coachAnalysis": "Coach Analysis",
+      "clearAnalysis": "Clear analysis",
+      "analyzing": "Analyzing activity...",
+      "analysisQueued": "Analysis queued — results will appear here shortly.",
+      "analysisFailed": "Analysis failed. You can try again.",
+      "retryAnalysis": "Retry Analysis",
+      "noAnalysis": "No coach analysis yet. Analyze this activity against your training plan to get insights on training type, performance, and goal alignment.",
+      "analyzeWithCoach": "Analyze with Coach",
+      "originalDescription": "Original Description"
     }
   },
   "goals": {
@@ -243,7 +388,16 @@
       "connecting": "Connecting...",
       "connectCoros": "Connect COROS",
       "connectGarmin": "Connect Garmin",
-      "explanation": "Syncing your watch auto-imports activities so you don't have to upload files manually. Garmin also syncs daily health metrics like heart rate, sleep, and HRV."
+      "explanation": "Syncing your watch auto-imports activities so you don't have to upload files manually. Garmin also syncs daily health metrics like heart rate, sleep, and HRV.",
+      "mfaRequired": "Multi-factor authentication is enabled. Enter the code from your authenticator app or email.",
+      "connectionFailed": "Connection failed",
+      "networkError": "Network error — check your connection",
+      "corosTitle": "COROS Training Hub",
+      "corosDesc": "Sync activities from your COROS watch",
+      "corosPassword": "COROS password",
+      "garminDesc": "Sync activities + health data from Garmin",
+      "garminPassword": "Garmin password",
+      "mfaPlaceholder": "6-digit code"
     },
     "review": {
       "title": "Schedule Your Training Review",
@@ -255,7 +409,16 @@
       "activityCountSuffix": "activit{count, plural, one {y} other {ies}}",
       "daySuffix": "day{count, plural, one {} other {s}}",
       "dayOfMonth": "Day of Month",
-      "explanation": "The AI Coach reviews your training logs, fatigue, readiness, and goal progress on this schedule. It generates personalized coach notes and adjusts your weekly plan. Weekly is recommended for most athletes."
+      "explanation": "The AI Coach reviews your training logs, fatigue, readiness, and goal progress on this schedule. It generates personalized coach notes and adjusts your weekly plan. Weekly is recommended for most athletes.",
+      "ordinalSt": "st",
+      "ordinalNd": "nd",
+      "ordinalRd": "rd",
+      "ordinalTh": "th",
+      "at": "at",
+      "monthlySummary": "Day {day} at {time}",
+      "dailySummary": "Daily at {time}",
+      "everyNDaysSummary": "Every {count} days at {time}",
+      "afterNActivities": "After every {count} activities"
     },
     "goal": {
       "title": "Set Your First Goal",
@@ -268,7 +431,13 @@
       "unitKilometers": "km",
       "unitMiles": "mi",
       "unitFeet": "ft",
-      "explanation": "Setting goals powers the AI coach's race readiness analysis — it tracks your training trajectory against the target and tells you if you're on pace, need more work, or are falling behind. You can always add more goals later."
+      "explanation": "Setting goals powers the AI coach's race readiness analysis — it tracks your training trajectory against the target and tells you if you're on pace, need more work, or are falling behind. You can always add more goals later.",
+      "namePlaceholder": "e.g. Chicago Marathon",
+      "distancePlaceholderM": "e.g. 42195",
+      "distancePlaceholderKm": "e.g. 42.2",
+      "distancePlaceholderMi": "e.g. 26.2",
+      "elevationPlaceholderM": "e.g. 1200",
+      "elevationPlaceholderFt": "e.g. 3937"
     },
     "bodyMetrics": {
       "title": "Track Your Body Metrics",
@@ -280,7 +449,10 @@
       "heightLabel": "Height (cm, optional)",
       "restingHrLabel": "Resting HR (bpm, optional)",
       "saveEntry": "Save Entry",
-      "explanation": "Body weight is used to calculate relative intensity metrics (e.g., watts/kg, VO₂ estimates). Tracking your resting heart rate helps detect fatigue trends. Even a one-time entry improves your analysis."
+      "explanation": "Body weight is used to calculate relative intensity metrics (e.g., watts/kg, VO₂ estimates). Tracking your resting heart rate helps detect fatigue trends. Even a one-time entry improves your analysis.",
+      "weightPlaceholder": "e.g. 75.5",
+      "heightPlaceholder": "e.g. 175",
+      "restingHrPlaceholder": "e.g. 62"
     },
     "summary": {
       "wearable": "Wearable Integration",
@@ -291,7 +463,9 @@
       "bodyMetrics": "Body Metrics",
       "loggedToday": "Logged today",
       "skipped": "Skipped"
-    }
+    },
+    "skipConfirm": "Skip the setup wizard? You can configure everything later from Settings.",
+    "completionDescription": "Here's what you've configured so you can hit the ground running."
   },
   "ingestion": {
     "title": "Import Training Data",
@@ -306,7 +480,13 @@
     "fileUpload": {
       "title": "Upload Files",
       "description": "Drag and drop GPX, FIT, TCX, or CSV files",
-      "supportedFormats": "Supported formats: GPX, FIT, TCX, CSV"
+      "supportedFormats": "Supported formats: GPX, FIT, TCX, CSV",
+      "clickToUpload": "Click to select GPX, TCX, or FIT files",
+      "multiFiles": "You can select multiple files at once",
+      "filesSelected": "{count} file{count, plural, one {} other {s}} selected",
+      "uploadFiles": "Upload {count} file{count, plural, one {} other {s}}",
+      "parsing": "Parsing and importing files…",
+      "closing": "Closing automatically…"
     },
     "strava": {
       "title": "Strava Bulk Export (ZIP)",
@@ -345,7 +525,8 @@
       "clickToUpload": "Click to upload activities.csv",
       "fromZip": "From your data export ZIP (activities.csv)",
       "processing": "Processing CSV...",
-      "rowsScanned": "{value} rows scanned"
+      "rowsScanned": "{value} rows scanned",
+      "rowsLabel": "CSV rows"
     },
     "gpx": {
       "title": "GPX / TCX / FIT File Import",
@@ -371,8 +552,23 @@
       "maxHrLabel": "Max Heart Rate (bpm)",
       "caloriesLabel": "Calories",
       "notesLabel": "Notes",
-      "logActivity": "Log Activity"
-    }
+      "logActivity": "Log Activity",
+      "invalidDuration": "Enter a valid duration",
+      "createdSuccess": "Activity created successfully!",
+      "createFailed": "Failed to create activity",
+      "namePlaceholder": "Morning Run",
+      "min": "Min",
+      "sec": "Sec",
+      "notesPlaceholder": "Felt strong, negative split...",
+      "networkError": "Network error — please try again"
+    },
+    "uploadFailed": "Upload failed",
+    "networkError": "Upload failed — network error",
+    "importCancelled": "Import cancelled",
+    "unknown": "unknown",
+    "noResponseBody": "No response body",
+    "modalTitle": "Import Activity",
+    "modalDesc": "Log a manual entry or upload GPX/TCX/FIT files from your device"
   },
   "duplicates": {
     "title": "Duplicate Activities",
@@ -380,7 +576,28 @@
     "noDuplicates": "No duplicates found.",
     "merge": "Merge",
     "dismiss": "Dismiss",
-    "selectSource": "Keep data from"
+    "selectSource": "Keep data from",
+    "loadFailed": "Failed to load: {msg}",
+    "scanFailed": "Scan failed: {msg}",
+    "mergeFailed": "Merge failed: {msg}",
+    "dismissFailed": "Dismiss failed: {msg}",
+    "resnapshotDone": "Re-snapshotted {count} week{count, plural, one {} other {s}}.",
+    "resnapshotFailed": "Re-snapshot failed: {msg}",
+    "resnapshotting": "Resnapshotting...",
+    "resnapshotTrends": "Re-snapshot Trends",
+    "scanning": "Scanning...",
+    "scanForDuplicates": "Scan for Duplicates",
+    "emptyDesc": "No pending duplicate groups. Click \"Scan for Duplicates\" to check for new matches.",
+    "scanNow": "Scan Now",
+    "groupTitle": "Potential Duplicate Group",
+    "activities": "{count} activit{count, plural, one {y} other {ies}}",
+    "keep": "Keep",
+    "selectedHint": "Selected — click another to change",
+    "selectHint": "Click to keep this one",
+    "mergeInto": "Merge {count} others into \"{name}\"",
+    "notDuplicate": "Not a duplicate",
+    "tss": "TSS",
+    "hasNotes": "Has notes"
   },
   "admin": {
     "title": "Admin Panel",
@@ -459,7 +676,12 @@
       "saved": "Engine updated.",
       "saving": "Saving...",
       "save": "Save Engine"
-    }
+    },
+    "fetchFailed": "Failed to fetch",
+    "loadUsersFailed": "Failed to load users",
+    "linkError": "Error generating link",
+    "saveFailed": "Failed to save",
+    "networkError": "Network error"
   },
   "coach": {
     "title": "AI Coach",
@@ -545,7 +767,34 @@
     "toolManageGoals": "Managing race goals",
     "toolQueryActivities": "Looking up your activity history",
     "toolUpdateContext": "Updating training context",
-    "toolSetActivityAsGoal": "Setting activity as goal"
+    "toolSetActivityAsGoal": "Setting activity as goal",
+    "requestFailed": "Request failed ({status})",
+    "responseNotReadable": "Response body is not readable",
+    "unknownError": "Unknown error",
+    "analysisFailed": "Analysis failed",
+    "interviewFailed": "Interview failed",
+    "startFailed": "Failed to start conversation",
+    "chatFailed": "Chat failed",
+    "buildPlanFailed": "Failed to build plan",
+    "adjustHint": "Can we adjust the plan? I'd like to...",
+    "applySuggestionFailed": "Failed to apply suggestion",
+    "saveAnalysisFailed": "Failed to save analysis",
+    "summarizeFailed": "Summarization failed",
+    "clearContextFailed": "Failed to clear context",
+    "quickMessageReviewPlan": "Review my current training plan",
+    "quickMessageAdjustWeek": "I'd like to adjust this week's training",
+    "quickMessageReviewPhase": "Review my current training phase",
+    "quickMessageAnalyzeActivity": "Analyze this activity",
+    "quickMessageAdjustPlan": "I need to adjust my training plan",
+    "quickMessageReady": "How ready am I for this goal race?",
+    "quickMessageReviewGoal": "Review my training plan for this goal",
+    "planBuilt": "Your training plan is built!",
+    "planLegend": "The plan progresses from left to right through each phase",
+    "phaseWeeksTooltip": "{name}: {count} week{count, plural, one {} other {s}}",
+    "proposalStart": "Start:",
+    "proposalReduceWeek": "Reduce {name} by 1 week",
+    "proposalIncreaseWeek": "Increase {name} by 1 week",
+    "proposalBuildThisPlan": "Build this plan"
   },
   "training": {
     "pace": "Pace",
@@ -562,7 +811,13 @@
     "date": "Date",
     "time": "Time",
     "private": "Private",
-    "save": "Save Activity"
+    "save": "Save Activity",
+    "avgHr": "Avg HR",
+    "maxHr": "Max HR",
+    "power": "Power",
+    "route": "Route",
+    "routeMap": "Route Map",
+    "expandMap": "Expand map"
   },
   "training-plan": {
     "title": "Training Plan",
@@ -595,7 +850,30 @@
     "createPlanDesc": "Use the AI Coach to build your personalized training plan",
     "resetPlan": "Reset Plan",
     "resetPlanConfirm": "Reset Plan?",
-    "resetPlanDetail": "All future training weeks will be deleted and this conversation archived."
+    "resetPlanDetail": "All future training weeks will be deleted and this conversation archived.",
+    "loadFailed": "Failed to load",
+    "rest": "Rest",
+    "effortEasy": "Easy",
+    "effortModerate": "Moderate",
+    "effortHard": "Hard",
+    "noPlanData": "No plan data",
+    "noPlanShort": "No plan",
+    "weekOf": "Week of",
+    "previousWeek": "Previous week",
+    "nextWeek": "Next week",
+    "via": "via",
+    "effort": "effort",
+    "distance": "Distance",
+    "elevation": "Elevation",
+    "restDay": "Rest day — no workout planned",
+    "completedActivity": "Completed Activity",
+    "viewActivityDetails": "View Activity Details",
+    "week": "Week",
+    "month": "Month",
+    "plannedShort": "P",
+    "actualShort": "A",
+    "phaseTooltip": "Go to {name} phase — {start} to {end}",
+    "phaseAria": "{name} phase: {start} to {end}, click to jump calendar to this phase"
   },
   "settings": {
     "general": {
@@ -861,7 +1139,54 @@
       "confirmDelete": "Yes, Delete Selected ({count})",
       "deleting": "Deleting...",
       "deletedSuccess": "Deleted: {summary}. Your account is still active.",
-      "wipeError": "Failed to wipe data. Please try again."
+      "wipeError": "Failed to wipe data. Please try again.",
+      "deleted": "deleted",
+      "dataTypes": {
+        "trainingLogs": {
+          "label": "Activities",
+          "desc": "Activities, laps, splits, and all training data"
+        },
+        "duplicateGroups": {
+          "label": "Duplicate Groups",
+          "desc": "Duplicate activity groupings and merge history"
+        },
+        "raceGoals": {
+          "label": "Race Goals",
+          "desc": "Target races, events, and goal times"
+        },
+        "bodyMetrics": {
+          "label": "Body Metrics",
+          "desc": "Weight, resting heart rate, and body measurements"
+        },
+        "dailyHealth": {
+          "label": "Daily Health",
+          "desc": "Daily health data — sleep, HRV, stress, body battery, and steps"
+        },
+        "weeklyAssessments": {
+          "label": "Weekly Assessments",
+          "desc": "CTL, ATL, TSB and readiness scores"
+        },
+        "weeklyPlans": {
+          "label": "Weekly Plans",
+          "desc": "AI-generated weekly training plans"
+        },
+        "fatigueAlerts": {
+          "label": "Fatigue Alerts",
+          "desc": "Overtraining and fatigue notifications"
+        },
+        "analysisReports": {
+          "label": "Analysis Reports",
+          "desc": "AI analysis reports and their reasoning"
+        },
+        "coachData": {
+          "label": "Coach Chats",
+          "desc": "AI coach conversations, messages, and suggestions"
+        },
+        "apiKeys": {
+          "label": "API Keys",
+          "desc": "Programmatic access keys for external tools"
+        }
+      }
     },
     "credentials": {
       "title": "API & Credentials",
@@ -918,7 +1243,14 @@
       "pushOverride": "# Override name and type",
       "quickTrainingWeek": "Training week",
       "quickFatigueCheck": "Fatigue check",
-      "quickSimpleTest": "Simple test"
+      "quickSimpleTest": "Simple test",
+      "quickPrompts": [
+        "Summarize a training week: 62km running, 1800m elevation, 5h 23min across 6 sessions. The athlete has a 100km trail race in 12 weeks. What should they focus on?",
+        "An athlete reports feeling tired, with resting HR 5 bpm above baseline, and training monotony at 0.82. Their TSB is -15. What's your assessment and recommendation?",
+        "In one sentence, what is the most important principle of endurance training?"
+      ],
+      "testNetworkError": "Network error — is the server running?",
+      "tokens": "tokens"
     },
     "analysis": {
       "title": "Analysis",
@@ -957,7 +1289,18 @@
       "itemRaceReadiness": "Race readiness — how prepared you are for each goal race",
       "itemRecommendations": "Recommendations — actionable advice for the coming week",
       "llmNote": "Note: Analysis requires an active LLM provider configuration in API & Credentials."
-    }
+    },
+    "language": "Language",
+    "languageDesc": "Choose your preferred language",
+    "training": {
+      "title": "Training Setup",
+      "description": "Define your training environment, race goals, and track your body metrics — all in one place.",
+      "goalNamePlaceholder": "Ultra Trail 100km",
+      "somethingWentWrong": "Something went wrong"
+    },
+    "aiCoachDesc": "Configure how your AI coach analyzes your training and which AI model powers it.",
+    "connectionsDesc": "Connect your training devices and manage API keys for external tools.",
+    "dataDesc": "Export, import, and manage your training data."
   },
   "auth": {
     "signIn": {
@@ -1004,6 +1347,88 @@
       "resetting": "Resetting...",
       "errorMismatch": "Passwords don't match",
       "errorGeneric": "Reset failed"
+    }
+  },
+  "labels": {
+    "activityTypes": {
+      "run": "Run",
+      "ride": "Ride",
+      "swim": "Swim",
+      "hike": "Hike",
+      "walk": "Walk",
+      "workout": "Workout",
+      "other": "Other"
+    },
+    "subTypes": {
+      "trail_running": "Trail Running",
+      "treadmill": "Treadmill",
+      "virtual_run": "Virtual Run",
+      "mountain_biking": "Mountain Biking",
+      "gravel_cycling": "Gravel Cycling",
+      "road_cycling": "Road Cycling",
+      "indoor_cycling": "Indoor Cycling",
+      "virtual_ride": "Virtual Ride",
+      "handcycle": "Handcycle",
+      "open_water": "Open Water",
+      "lap_swimming": "Lap Swimming",
+      "strength_training": "Strength Training",
+      "crossfit": "CrossFit",
+      "yoga": "Yoga",
+      "elliptical": "Elliptical",
+      "stair_stepper": "Stair Stepper",
+      "pilates": "Pilates",
+      "rock_climbing": "Rock Climbing",
+      "surfing": "Surfing",
+      "stand_up_paddling": "Stand Up Paddling",
+      "kayaking": "Kayaking",
+      "canoeing": "Canoeing",
+      "rowing": "Rowing",
+      "ice_skating": "Ice Skating",
+      "inline_skating": "Inline Skating",
+      "nordic_skiing": "Nordic Skiing",
+      "alpine_skiing": "Alpine Skiing",
+      "backcountry_skiing": "Backcountry Skiing",
+      "snowboarding": "Snowboarding",
+      "snowshoeing": "Snowshoeing",
+      "soccer": "Soccer",
+      "tennis": "Tennis",
+      "golf": "Golf",
+      "wheelchair": "Wheelchair"
+    },
+    "raceTypes": {
+      "road_run": "Road Run",
+      "trail_run": "Trail Run",
+      "marathon": "Marathon",
+      "ultra": "Ultra",
+      "triathlon": "Triathlon",
+      "cycling": "Cycling",
+      "other": "Other"
+    },
+    "sources": {
+      "strava": "Strava",
+      "garmin": "Garmin",
+      "watchPush": "Watch Push",
+      "manual": "Manual"
+    },
+    "days": {
+      "short": {
+        "Sun": "Sun",
+        "Mon": "Mon",
+        "Tue": "Tue",
+        "Wed": "Wed",
+        "Thu": "Thu",
+        "Fri": "Fri",
+        "Sat": "Sat"
+      },
+      "long": {
+        "Sunday": "Sunday",
+        "Monday": "Monday",
+        "Tuesday": "Tuesday",
+        "Wednesday": "Wednesday",
+        "Thursday": "Thursday",
+        "Friday": "Friday",
+        "Saturday": "Saturday"
+      }
     }
   }
 }

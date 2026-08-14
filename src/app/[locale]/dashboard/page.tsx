@@ -8,7 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDistance, formatDuration, formatWeight } from "@/lib/utils";
+import { formatDistance, formatDuration } from "@/lib/utils";
 import type { PlanDay, PlanDayActual, PlanDayPlanned, PlanWeekData } from "@/lib/training-plan-types";
 import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database, Info, ChevronLeft, AlertCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +17,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useDashboardPrefs } from "@/hooks/use-dashboard-prefs";
 
 interface ReadinessData {
-  score: number; label: string; detail: string; volumeAdherence: number;
+  score: number; status: "on_track" | "needs_attention" | "off_track"; volumeAdherence: number;
 }
 
 interface GoalSummary {
@@ -93,6 +93,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const t = useTranslations("dashboard");
   const common = useTranslations("common");
+  const labelsT = useTranslations("labels");
   const locale = useLocale();
   const { prefs, setPrefs } = useDashboardPrefs();
   // Browser's UTC offset in minutes (negative for UTC+); all dashboard dates
@@ -137,7 +138,7 @@ export default function DashboardPage() {
   }
 
   const PMC_METRICS: readonly PmcMetric[] = [
-    { key: "tss", label: "Daily TSS Load", color: "#a855f7", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+    { key: "tss", label: t("metricTssLoad"), color: "#a855f7", format: (v: number) => String(Math.round(v)), yAxisId: "main",
       paragraphs: [
         { k: "metricTssP1" },
         { k: "metricTssP2", strong: true },
@@ -145,19 +146,19 @@ export default function DashboardPage() {
         { k: "metricTssP4", strong: true },
         { k: "metricTssNote", note: true },
       ] },
-    { key: "ctl", label: "CTL · Fitness", color: "#3b82f6", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+    { key: "ctl", label: t("ctlFitness"), color: "#3b82f6", format: (v: number) => String(Math.round(v)), yAxisId: "main",
       paragraphs: [
         { k: "ctlDialogP1", strong: true },
         { k: "ctlDialogP2" },
         { k: "ctlDialogP3", note: true },
       ] },
-    { key: "atl", label: "ATL · Fatigue", color: "#f59e0b", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+    { key: "atl", label: t("atlFatigue"), color: "#f59e0b", format: (v: number) => String(Math.round(v)), yAxisId: "main",
       paragraphs: [
         { k: "atlDialogP1", strong: true },
         { k: "atlDialogP2" },
         { k: "atlDialogP3", note: true },
       ] },
-    { key: "tsb", label: "TSB · Form", color: "#22c55e", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+    { key: "tsb", label: t("tsbForm"), color: "#22c55e", format: (v: number) => String(Math.round(v)), yAxisId: "main",
       paragraphs: [
         { k: "tsbDialogP1", strong: true },
         { k: "tsbDialogP2", strong: true },
@@ -170,7 +171,7 @@ export default function DashboardPage() {
     // sparse — only measured on some days — so measuredField marks the real
     // measurements for the dot rendering. FTP is a stroke-only level (lineOnly),
     // not an area load curve.
-    { key: "ef", label: "EF · Efficiency", color: "#06b6d4", format: (v: number) => v == null ? "—" : v.toFixed(2), yAxisId: "ef", measuredField: "measuredEf",
+    { key: "ef", label: t("efEfficiency"), color: "#06b6d4", format: (v: number) => v == null ? "—" : v.toFixed(2), yAxisId: "ef", measuredField: "measuredEf",
       paragraphs: [
         { k: "metricEfP1" },
         { k: "metricEfP2", strong: true },
@@ -178,7 +179,7 @@ export default function DashboardPage() {
         { k: "metricEfP4" },
         { k: "metricEfNote", note: true },
       ] },
-    { key: "decoupling", label: "Decoupling · HR Drift", color: "#ec4899", format: (v: number) => v == null ? "—" : `${v.toFixed(1)}%`, yAxisId: "decoupling", measuredField: "measuredDecoupling",
+    { key: "decoupling", label: t("decoupling"), color: "#ec4899", format: (v: number) => v == null ? "—" : `${v.toFixed(1)}%`, yAxisId: "decoupling", measuredField: "measuredDecoupling",
       paragraphs: [
         { k: "hrDecouplingDialogP1" },
         { k: "hrDecouplingDialogP2", strong: true },
@@ -186,7 +187,7 @@ export default function DashboardPage() {
         { k: "hrDecouplingDialogP4", strong: true },
         { k: "hrDecouplingDialogP5", note: true },
       ] },
-    { key: "ftp", label: "FTP · Threshold", color: "#ef4444", format: (v: number) => v == null ? "—" : `${v.toFixed(0)}W`, yAxisId: "ftp", lineOnly: true,
+    { key: "ftp", label: t("ftpThreshold"), color: "#ef4444", format: (v: number) => v == null ? "—" : `${v.toFixed(0)}W`, yAxisId: "ftp", lineOnly: true,
       paragraphs: [
         { k: "metricFtpP1" },
         { k: "metricFtpP2", strong: true },
@@ -200,7 +201,7 @@ export default function DashboardPage() {
   // opens it with its metric preselected. Chart metrics inherit label/color/
   // paragraphs from PMC_METRICS; readiness is the first, non-chart entry.
   const METRIC_EXPLAINERS: readonly { key: string; label: string; color: string; paragraphs: readonly ExplainerParagraph[] }[] = [
-    { key: "readiness", label: "Readiness", color: "#6366f1",
+    { key: "readiness", label: t("readiness"), color: "#6366f1",
       paragraphs: [
         { k: "readinessDialogP1", strong: true },
         { k: "readinessDialogP2", strong: true },
@@ -240,7 +241,7 @@ export default function DashboardPage() {
 fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)}&tzOffset=${tzOffset}`).then((r) => r.ok ? r.json() : null).then((d) => d?.distribution && setIntensityDist(d.distribution)).catch(() => {});
       fetch(`/api/daily-health?days=7&tzOffset=${tzOffset}`).then((r) => r.ok ? r.json() : null).then((d) => d?.healthData && setDailyHealth(d.healthData)).catch(() => {});
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Failed");
+      setFetchError(err instanceof Error ? err.message : common("error"));
     } finally {
       setLoading(false);
     }
@@ -287,11 +288,11 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
       )));
       const status = readinessPct >= 70 ? "on_track" : readinessPct >= 45 ? "needs_work" : "behind";
       const recommendations: string[] = [];
-      if (volumeGap < 50 && weeksUntilRace > 4) recommendations.push("Weekly volume well below target. Consider adding sessions.");
-      else if (volumeGap < 80 && weeksUntilRace > 4) recommendations.push(`Build toward ${Math.round(targetPeakWeekly / 1000)}km/week.`);
-      if (pmc.tsb < -15) recommendations.push("TSB deeply negative. Consider deload.");
-      if (readinessPct >= 70) recommendations.push("On track — maintain consistency.");
-      else recommendations.push("Focus on consistent volume and recovery.");
+      if (volumeGap < 50 && weeksUntilRace > 4) recommendations.push(t("recVolumeLow"));
+      else if (volumeGap < 80 && weeksUntilRace > 4) recommendations.push(t("recBuildVolume", { target: Math.round(targetPeakWeekly / 1000) }));
+      if (pmc.tsb < -15) recommendations.push(t("recTsbNegative"));
+      if (readinessPct >= 70) recommendations.push(t("recOnTrack"));
+      else recommendations.push(t("recConsistency"));
       newReadiness.set(goal.id, { readinessPct, status, volumeGap, elevationGap, tsbStatus, recommendations });
     }
     setRaceReadiness(newReadiness);
@@ -335,22 +336,25 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
     const restHr = stats.latestRestingHr;
     return (
       <Card><CardContent className="py-4">
-        <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-2"><Heart className="h-3.5 w-3.5 text-red-500" /> Heart Rate</span>
+        <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-2"><Heart className="h-3.5 w-3.5 text-red-500" /> {t("hr")}</span>
         <div className="flex items-baseline gap-3 mb-3 pb-3 border-b">
-          {restHr ? <><div><span className="text-2xl font-bold">{restHr}</span><span className="text-sm text-muted-foreground ml-1">bpm</span><div className="text-[10px] text-muted-foreground">Resting</div></div></>
-            : <div className="text-xs text-muted-foreground italic">No resting HR</div>}
-          {maxHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{maxHr}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">Est. max</div></div>}
-          {stats.avgHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{Math.round(stats.avgHr)}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">Avg ex.</div></div>}
+          {restHr ? <><div><span className="text-2xl font-bold">{restHr}</span><span className="text-sm text-muted-foreground ml-1">bpm</span><div className="text-[10px] text-muted-foreground">{t("restingHr")}</div></div></>
+            : <div className="text-xs text-muted-foreground italic">{t("noRestingHr")}</div>}
+          {maxHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{maxHr}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{t("estMaxHr")}</div></div>}
+          {stats.avgHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{Math.round(stats.avgHr)}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{t("avgExerciseHr")}</div></div>}
         </div>
         {(() => {
-          if (!maxHr) return <div className="text-xs text-muted-foreground italic">Log activities with HR data to calculate zones.</div>;
+          if (!maxHr) return <div className="text-xs text-muted-foreground italic">{t("hrZonesHint")}</div>;
           const thresholds = [0.68, 0.83, 0.94, 1.05];
-          const labels = ["Z1 Recov", "Z2 Endur", "Z3 Tempo", "Z4 Thresh", "Z5 Anaer"];
+          const labels = t.raw("hrZones") as unknown as string[];
           const colors = ["bg-blue-400", "bg-green-400", "bg-amber-400", "bg-orange-500", "bg-red-500"];
           const textColors = ["text-blue-500", "text-green-500", "text-amber-500", "text-orange-600", "text-red-500"];
           return <div className="space-y-1">{labels.map((label, i) => {
-            let lower = i === 0 ? 0 : restHr ? Math.round(restHr + (maxHr - restHr) * thresholds[i - 1]) : Math.round(maxHr * thresholds[i - 1]);
-            let upper = i < 5 ? restHr ? Math.round(restHr + (maxHr - restHr) * thresholds[Math.min(i, 4)]) : Math.round(maxHr * thresholds[Math.min(i, 4)]) : 999;
+            // Zone boundaries are % of max HR (Z2 = 68–83% of max HR) — the same
+            // thresholds the intensity-distribution classification uses. Applying
+            // them to heart-rate reserve (Karvonen) inflated every boundary.
+            const lower = i === 0 ? 0 : Math.round(maxHr * thresholds[i - 1]);
+            const upper = i < 5 ? Math.round(maxHr * thresholds[Math.min(i, 4)]) : 999;
             return <div key={label} className="flex items-center gap-2 text-[11px]">
               <span className="w-auto min-w-[3rem] text-muted-foreground shrink-0">{label}</span>
               <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden"><div className={`${colors[i]} h-full rounded-full`} style={{ width: "20%", marginLeft: `${(lower / (maxHr * 1.1)) * 100}%` }} /></div>
@@ -368,7 +372,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
     return (
       <Card><CardContent className="py-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Activity className="h-3.5 w-3.5" /> Recovery</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Activity className="h-3.5 w-3.5" /> {t("recovery")}</span>
           {latestDate && (
             <span className="text-[10px] text-muted-foreground">
               {(() => {
@@ -376,8 +380,8 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
-                if (diff === 0) return "Today";
-                if (diff === 1) return "Yesterday";
+                if (diff === 0) return common("today");
+                if (diff === 1) return common("yesterday");
                 return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
               })()}
             </span>
@@ -385,21 +389,21 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">Sleep</div>
+            <div className="text-[10px] text-muted-foreground uppercase">{t("sleep")}</div>
             <div className="font-semibold">{data[0]?.sleepSeconds ? formatDuration(data[0].sleepSeconds) : "—"}</div>
-            {data[0]?.sleepScore != null && <div className="text-xs text-muted-foreground">Score: {data[0].sleepScore}</div>}
+            {data[0]?.sleepScore != null && <div className="text-xs text-muted-foreground">{t("score")}: {data[0].sleepScore}</div>}
           </div>
           <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">Body Battery</div>
+            <div className="text-[10px] text-muted-foreground uppercase">{t("bodyBattery")}</div>
             <div className="font-semibold">{data[0]?.bodyBatteryMin != null && data[0]?.bodyBatteryMax != null ? `${data[0].bodyBatteryMin}–${data[0].bodyBatteryMax}` : "—"}</div>
           </div>
           <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">HRV</div>
+            <div className="text-[10px] text-muted-foreground uppercase">{t("hrv")}</div>
             <div className="font-semibold">{data[0]?.overnightHrv ? `${data[0].overnightHrv}ms` : "—"}</div>
             {data[0]?.hrvStatus && <div className="text-xs text-muted-foreground capitalize">{data[0].hrvStatus}</div>}
           </div>
           <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">Stress</div>
+            <div className="text-[10px] text-muted-foreground uppercase">{t("stress")}</div>
             <div className="font-semibold">{data[0]?.avgStress != null ? `${data[0].avgStress}` : "—"}</div>
           </div>
         </div>
@@ -428,6 +432,15 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
   const mainHigh = mainValues.length ? Math.max(...mainValues) : 0;
   const mainTick = Math.max(10, Math.ceil(mainHigh / 10) * 10);
   const mainDomain: [number, number] = [mainLow, mainTick];
+
+  // HR decoupling stat in the readiness row: the 28-day average from the
+  // trackpoint insights, colored by its status on the same green/amber/red
+  // scale as the old standalone card. "—" when no trackpoint data exists.
+  const decouplingData = trackpointInsights?.decoupling ?? null;
+  const decouplingColor = !decouplingData ? "text-muted-foreground"
+    : decouplingData.status === "excellent" ? "text-green-600"
+    : decouplingData.status === "good" ? "text-amber-600"
+    : "text-red-600";
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -484,14 +497,14 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                     </button>
                   </div>
                   <div className={`font-semibold text-sm ${readiness.score >= 70 ? "text-green-600" : readiness.score >= 50 ? "text-amber-600" : "text-red-600"}`}>
-                    {readiness.label}
+                    {readiness.status === "on_track" ? t("readinessOnTrack") : readiness.status === "needs_attention" ? t("readinessNeedsAttention") : t("readinessOffTrack")}
                   </div>
                   <div className="w-full bg-muted rounded-full h-1 mt-1"><div className="bg-blue-500 h-1 rounded-full" style={{ width: `${readiness.volumeAdherence}%` }} /></div>
                 </div>
               </div>
-              <div className="sm:col-span-3 grid grid-cols-3 gap-3">
+              <div className="sm:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-lg border bg-muted/20 p-2.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">CTL · Fitness
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("ctlFitness")}
                     <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("ctlInfo")} onClick={() => setExplainerMetric("ctl")}>
                       <Info className="h-3 w-3" />
                     </button>
@@ -500,10 +513,10 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                     <span className={`text-xl font-bold ${pmc.ctl >= 50 ? "text-blue-600" : "text-blue-400"}`}>{pmc.ctl}</span>
                     {pmc.ctlTrend === "up" ? <TrendingUp className="h-3 w-3 text-green-500" /> : pmc.ctlTrend === "down" ? <TrendingDown className="h-3 w-3 text-red-500" /> : <Minus className="h-3 w-3 text-muted-foreground" />}
                   </div>
-                  {pmc.rampRate !== null && <div className="text-[10px] text-muted-foreground">Ramp: {pmc.rampRate >= 0 ? "+" : ""}{pmc.rampRate}/wk</div>}
+                  {pmc.rampRate !== null && <div className="text-[10px] text-muted-foreground">{t("ramp", { value: `${pmc.rampRate >= 0 ? "+" : ""}${pmc.rampRate}` })}/wk</div>}
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-2.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">ATL · Fatigue
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("atlFatigue")}
                     <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("atlInfo")} onClick={() => setExplainerMetric("atl")}>
                       <Info className="h-3 w-3" />
                     </button>
@@ -514,7 +527,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   </div>
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-2.5">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">TSB · Form
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("tsbForm")}
                     <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("tsbInfo")} onClick={() => setExplainerMetric("tsb")}>
                       <Info className="h-3 w-3" />
                     </button>
@@ -523,6 +536,21 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                     <span className={`text-xl font-bold ${pmc.tsb >= 0 ? "text-green-600" : pmc.tsb >= -10 ? "text-amber-600" : "text-red-600"}`}>{pmc.tsb}</span>
                     {pmc.tsbTrend === "up" ? <TrendingUp className="h-3 w-3 text-green-500" /> : pmc.tsbTrend === "down" ? <TrendingDown className="h-3 w-3 text-red-500" /> : <Minus className="h-3 w-3 text-muted-foreground" />}
                   </div>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("decoupling")}
+                    <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("decouplingInfo")} onClick={() => setExplainerMetric("decoupling")}>
+                      <Info className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-xl font-bold ${decouplingColor}`}>
+                      {decouplingData ? `${decouplingData.avgDecouplingPct}%` : "—"}
+                    </span>
+                  </div>
+                  {decouplingData && (
+                    <div className="text-[10px] text-muted-foreground">{t("decouplingActivityCount", { count: decouplingData.activityCount })}</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -534,7 +562,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
       {goals.length > 0 && pmc && (
         <Card className="mb-6 border-primary/20">
           <CardContent className="py-4">
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-2"><Target className="h-4 w-4" /> Race Readiness</h2>
+            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-2"><Target className="h-4 w-4" /> {t("raceReadiness")}</h2>
             <div className="space-y-3">
               {goals.slice(0, 3).map((goal) => {
                 const rr = raceReadiness.get(goal.id);
@@ -544,16 +572,16 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">{goal.name}</span>
-                          <Badge variant={goal.priority === "A" ? "destructive" : goal.priority === "B" ? "default" : "secondary"} className="text-[10px] h-5">{goal.priority}-Goal</Badge>
+                          <Badge variant={goal.priority === "A" ? "destructive" : goal.priority === "B" ? "default" : "secondary"} className="text-[10px] h-5">{goal.priority === "A" ? t("goalA") : goal.priority === "B" ? t("goalB") : t("goalC")}</Badge>
                         </div>
                         {goal.goalStatement && <p className="text-xs text-muted-foreground italic mt-0.5">&ldquo;{goal.goalStatement}&rdquo;</p>}
                       </div>
-                      <div className="text-xs text-muted-foreground shrink-0">{goal.daysUntil > 0 ? `${goal.daysUntil}d` : "Due!"}</div>
+                      <div className="text-xs text-muted-foreground shrink-0">{goal.daysUntil > 0 ? `${goal.daysUntil}d` : t("due")}</div>
                     </div>
                     {rr ? <><div className="flex items-center gap-3 mb-2 flex-wrap">
                       <div className={`text-2xl font-bold ${rr.readinessPct >= 70 ? "text-green-600" : rr.readinessPct >= 45 ? "text-amber-600" : "text-red-600"}`}>{rr.readinessPct}%</div>
-                      <Badge variant={rr.status === "on_track" ? "success" : rr.status === "needs_work" ? "warning" : "destructive"}>{rr.status.replace("_", " ").toUpperCase()}</Badge>
-                      <span className="text-xs text-muted-foreground">Volume: {rr.volumeGap}%{rr.elevationGap != null ? ` · Elev: ${rr.elevationGap}%` : ""}</span>
+                      <Badge variant={rr.status === "on_track" ? "success" : rr.status === "needs_work" ? "warning" : "destructive"}>{rr.status === "on_track" ? t("statusOnTrack") : rr.status === "needs_work" ? t("statusNeedsWork") : t("statusBehind")}</Badge>
+                      <span className="text-xs text-muted-foreground">{t("volume")}: {rr.volumeGap}%{rr.elevationGap != null ? ` · ${t("elevation")}: ${rr.elevationGap}%` : ""}</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-1.5">
                       <div className={`h-1.5 rounded-full ${rr.readinessPct >= 70 ? "bg-green-500" : rr.readinessPct >= 45 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${rr.readinessPct}%` }} />
@@ -564,7 +592,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 );
               })}
             </div>
-            {goals.length > 3 && <Link href="/settings/goals" className="text-xs text-primary hover:underline mt-2 inline-block">View all {goals.length} goals →</Link>}
+            {goals.length > 3 && <Link href="/settings/goals" className="text-xs text-primary hover:underline mt-2 inline-block">{t("viewAllGoals", { count: goals.length })}</Link>}
           </CardContent>
         </Card>
       )}
@@ -576,18 +604,18 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4" /> {t("volumeAndLoad")}</h2>
-                <span className="text-[10px] text-muted-foreground normal-case font-normal">{volumePeriod === "week" ? "vs same days last week" : "vs same day last month"}</span>
+                <span className="text-[10px] text-muted-foreground normal-case font-normal">{volumePeriod === "week" ? t("vsLastWeek") : t("vsLastMonth")}</span>
               </div>
               <Tabs value={volumePeriod} onValueChange={(v) => setPrefs({ volumePeriod: v as "week" | "month" })}>
-                <TabsList className="h-8"><TabsTrigger value="week" className="text-xs px-3">Week</TabsTrigger><TabsTrigger value="month" className="text-xs px-3">Month</TabsTrigger></TabsList>
+                <TabsList className="h-8"><TabsTrigger value="week" className="text-xs px-3">{t("week")}</TabsTrigger><TabsTrigger value="month" className="text-xs px-3">{t("month")}</TabsTrigger></TabsList>
               </Tabs>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Distance", current: volumePeriod === "week" ? stats.weeklyDistance : (stats.currentMonth?.weeklyDistance ?? stats.weeklyDistance), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyDistance : stats.lastMonth?.weeklyDistance, formattedValue: formatDistance(volumePeriod === "week" ? stats.weeklyDistance : (stats.currentMonth?.weeklyDistance ?? stats.weeklyDistance)), icon: <Route className="h-4 w-4" /> },
-                { label: "Elevation", current: volumePeriod === "week" ? stats.weeklyElevation : (stats.currentMonth?.weeklyElevation ?? stats.weeklyElevation), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyElevation : stats.lastMonth?.weeklyElevation, formattedValue: `${Math.round(volumePeriod === "week" ? stats.weeklyElevation : (stats.currentMonth?.weeklyElevation ?? stats.weeklyElevation)).toLocaleString()} m`, icon: <Mountain className="h-4 w-4" /> },
-                { label: "Duration", current: volumePeriod === "week" ? stats.weeklyDuration : (stats.currentMonth?.weeklyDuration ?? stats.weeklyDuration), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyDuration : stats.lastMonth?.weeklyDuration, formattedValue: formatDuration(volumePeriod === "week" ? stats.weeklyDuration : (stats.currentMonth?.weeklyDuration ?? stats.weeklyDuration)), icon: <Clock className="h-4 w-4" /> },
-                { label: "TSS Load", current: volumePeriod === "week" ? stats.weeklyTss : (stats.currentMonth?.weeklyTss ?? stats.weeklyTss), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyTss : stats.lastMonth?.weeklyTss, formattedValue: String(volumePeriod === "week" ? stats.weeklyTss : (stats.currentMonth?.weeklyTss ?? stats.weeklyTss)), icon: <TrendingUp className="h-4 w-4" /> },
+                { label: t("distance"), current: volumePeriod === "week" ? stats.weeklyDistance : (stats.currentMonth?.weeklyDistance ?? stats.weeklyDistance), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyDistance : stats.lastMonth?.weeklyDistance, formattedValue: formatDistance(volumePeriod === "week" ? stats.weeklyDistance : (stats.currentMonth?.weeklyDistance ?? stats.weeklyDistance)), icon: <Route className="h-4 w-4" /> },
+                { label: t("elevation"), current: volumePeriod === "week" ? stats.weeklyElevation : (stats.currentMonth?.weeklyElevation ?? stats.weeklyElevation), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyElevation : stats.lastMonth?.weeklyElevation, formattedValue: `${Math.round(volumePeriod === "week" ? stats.weeklyElevation : (stats.currentMonth?.weeklyElevation ?? stats.weeklyElevation)).toLocaleString()} m`, icon: <Mountain className="h-4 w-4" /> },
+                { label: t("duration"), current: volumePeriod === "week" ? stats.weeklyDuration : (stats.currentMonth?.weeklyDuration ?? stats.weeklyDuration), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyDuration : stats.lastMonth?.weeklyDuration, formattedValue: formatDuration(volumePeriod === "week" ? stats.weeklyDuration : (stats.currentMonth?.weeklyDuration ?? stats.weeklyDuration)), icon: <Clock className="h-4 w-4" /> },
+                { label: t("tssLoad"), current: volumePeriod === "week" ? stats.weeklyTss : (stats.currentMonth?.weeklyTss ?? stats.weeklyTss), prior: volumePeriod === "week" ? stats.lastWeek?.weeklyTss : stats.lastMonth?.weeklyTss, formattedValue: String(volumePeriod === "week" ? stats.weeklyTss : (stats.currentMonth?.weeklyTss ?? stats.weeklyTss)), icon: <TrendingUp className="h-4 w-4" /> },
               ].map((metric) => {
                 const delta = computeDelta(metric.current, metric.prior);
                 return (
@@ -601,7 +629,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                       {delta.direction === "up" && <ArrowUp className="h-3 w-3 text-green-500" />}
                       {delta.direction === "down" && <ArrowDown className="h-3 w-3 text-red-500" />}
                       {delta.direction === "flat" && <Minus className="h-3 w-3 text-muted-foreground" />}
-                      {delta.direction === "new" ? <span className="text-blue-500">New</span> : <span className={delta.direction === "up" ? "text-green-600" : delta.direction === "down" ? "text-red-600" : "text-muted-foreground"}>
+                      {delta.direction === "new" ? <span className="text-blue-500">{t("newActivity")}</span> : <span className={delta.direction === "up" ? "text-green-600" : delta.direction === "down" ? "text-red-600" : "text-muted-foreground"}>
                         {delta.pct}% {delta.direction === "up" ? "↑" : delta.direction === "down" ? "↓" : "—"}
                       </span>}
                     </div>}
@@ -617,13 +645,13 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
       {(pmcHistory.length > 0 || intensityDist) && (
         <Card className="mb-6">
           <CardContent className="py-4">
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2 mb-4"><TrendingUp className="h-4 w-4" /> Training Analysis</h2>
+            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2 mb-4"><TrendingUp className="h-4 w-4" /> {t("trainingAnalysis")}</h2>
 
             {/* Shared timeframe buttons + metric explainer */}
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <div className="flex gap-1 flex-wrap">
                 {TIME_RANGES.map((r) => (
-                  <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label}</Button>
+                  <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label === "Max" ? t("timeMax") : r.label}</Button>
                 ))}
               </div>
               <button className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-xs" aria-label={t("metricHelp")} onClick={() => setExplainerMetric("tss")}>
@@ -722,18 +750,18 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
             {/* Intensity Distribution */}
             {intensityDist && (
               <div className="mb-6">
-                <h3 className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-3">Intensity Distribution</h3>
+                <h3 className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-3">{t("intensityDistribution")}</h3>
                 <div className="space-y-1.5">
-                  {([{ k: "zone1Pct" as const, l: "Z1 · Recovery", c: "bg-blue-400" }, { k: "zone2Pct" as const, l: "Z2 · Endurance", c: "bg-green-400" }, { k: "zone3Pct" as const, l: "Z3 · Tempo", c: "bg-amber-400" }, { k: "zone4Pct" as const, l: "Z4 · Threshold", c: "bg-orange-500" }, { k: "zone5Pct" as const, l: "Z5 · VO₂Max", c: "bg-red-500" }]).map((z) => {
+                  {([{ k: "zone1Pct" as const, c: "bg-blue-400" }, { k: "zone2Pct" as const, c: "bg-green-400" }, { k: "zone3Pct" as const, c: "bg-amber-400" }, { k: "zone4Pct" as const, c: "bg-orange-500" }, { k: "zone5Pct" as const, c: "bg-red-500" }]).map((z, zi) => {
                     const pct = intensityDist[z.k];
-                    return <div key={z.k}><div className="flex justify-between text-xs mb-0.5"><span className="text-muted-foreground">{z.l}</span><span className="font-medium">{pct}%</span></div><div className="w-full bg-muted rounded-full h-2"><div className={`${z.c} h-2 rounded-full`} style={{ width: `${pct}%` }} /></div></div>;
+                    return <div key={z.k}><div className="flex justify-between text-xs mb-0.5"><span className="text-muted-foreground">{(t.raw("intensityZones") as unknown as string[])[zi]}</span><span className="font-medium">{pct}%</span></div><div className="w-full bg-muted rounded-full h-2"><div className={`${z.c} h-2 rounded-full`} style={{ width: `${pct}%` }} /></div></div>;
                   })}
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <Badge variant={intensityDist.distributionType === "polarized" ? "success" : intensityDist.distributionType === "pyramidal" ? "warning" : "destructive"}>
-                    {intensityDist.distributionType.replace("-", " ").toUpperCase()}
+                    {intensityDist.distributionType === "polarized" ? t("distPolarized") : intensityDist.distributionType === "pyramidal" ? t("distPyramidal") : t("distThresholdHeavy")}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground">{intensityDist.activityCount} activities · {intensityDist.analyzedHours}h analyzed</span>
+                  <span className="text-[10px] text-muted-foreground">{t("activitiesAnalyzed", { count: intensityDist.activityCount, hours: intensityDist.analyzedHours })}</span>
                 </div>
               </div>
             )}
@@ -747,16 +775,6 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <HrZoneCard stats={stats} />
           <div className="space-y-3">
-            {stats.latestWeight && (
-              <Card><CardContent className="py-4">
-                <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1"><Activity className="h-3.5 w-3.5" /> Weight</span>
-                <div className="flex items-baseline gap-1"><span className="text-2xl font-bold">{formatWeight(stats.latestWeight)}</span></div>
-                <div className="mt-3 pt-3 border-t space-y-1">
-                  {stats.activeGoals > 0 && <div className="flex items-center gap-2 text-[11px]"><Target className="h-3 w-3 text-muted-foreground shrink-0" /><span className="text-muted-foreground">{stats.activeGoals} active goal{stats.activeGoals !== 1 ? "s" : ""}</span></div>}
-                  {stats.weeklyCount > 0 && <div className="flex items-center gap-2 text-[11px]"><Activity className="h-3 w-3 text-muted-foreground shrink-0" /><span className="text-muted-foreground">{stats.weeklyCount} activit{stats.weeklyCount !== 1 ? "ies" : "y"} this week</span></div>}
-                </div>
-              </CardContent></Card>
-            )}
             <HealthMetricsCard data={dailyHealth} />
           </div>
         </div>
@@ -770,37 +788,14 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               <Database className="h-5 w-5 text-primary mt-0.5 shrink-0" />
               <div>
                 <h3 className="font-medium text-sm">{t("enableDetailedMetrics")}</h3>
-                <p className="text-sm text-muted-foreground mt-1">Upload a Strava export ZIP or individual GPX/TCX/FIT files to unlock intensity distribution, HR decoupling, efficiency factor, and FTP tracking.{" "}<Link href="/ingestion" className="text-primary underline">Go to Data Import →</Link></p>
+                <p className="text-sm text-muted-foreground mt-1">{t("trackpointNotice")}{" "}<Link href="/ingestion" className="text-primary underline">{t("goToImport")}</Link></p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ═══ 6. GOAL PROGRESS ═══ */}
-      {goals.length > 0 && (
-        <Card className="mb-6">
-          <CardContent className="py-4">
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3">{t("raceGoals")}</h2>
-            {goals.map((goal) => {
-              const pct = Math.min(100, goal.progress);
-              const barColor = pct >= 70 ? "bg-green-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500";
-              return (
-                <div key={goal.id} className="mb-3 last:mb-0">
-                  <div className="flex justify-between text-sm mb-1"><span className="font-medium">{goal.name}</span><span className="text-muted-foreground">{goal.daysUntil > 0 ? common("daysLeft", { days: goal.daysUntil }) : common("pastDue")} — {pct}%</span></div>
-                  <div className="w-full bg-muted rounded-full h-2.5"><div className={`${barColor} h-2.5 rounded-full transition-all`} style={{ width: `${pct}%` }} /></div>
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>{goal.distanceMeters >= 1000 ? `${(goal.distanceMeters / 1000).toFixed(0)}km` : `${goal.distanceMeters}m`}</span>
-                    <span>{goal.priority === "A" ? "A-Goal" : goal.priority === "B" ? "B-Goal" : "C-Goal"}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ═══ 7. TRAINING PLAN ═══ */}
+      {/* ═══ 6. TRAINING PLAN ═══ */}
       {plan && plan.days && (
         <Card className="mb-6">
           <CardContent className="py-4">
@@ -833,7 +828,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   {plan.targetVolumeMeters ? `${Math.round(plan.targetVolumeMeters / 1000)}km` : ""}
                   {plan.targetElevationMeters ? ` · ${Math.round(plan.targetElevationMeters)}m` : ""}
                 </span>
-                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">Use AI Coach above to modify</span>
+                <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">{t("aiCoachModifyHint")}</span>
               </div>
             </div>
 
@@ -857,7 +852,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                     <span className={`w-14 shrink-0 text-xs font-medium
                       ${day.isPast ? "text-muted-foreground" : "text-muted-foreground"}
                     `}>
-                      {day.dayLabel} {parseLocalDate(day.date).getDate()}
+                      {labelsT("days.short." + day.dayLabel)} {parseLocalDate(day.date).getDate()}
                     </span>
 
                     {/* Main column: planned workout + actual activity stacked */}

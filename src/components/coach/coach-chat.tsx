@@ -17,14 +17,16 @@ import CoachInputBar from "@/components/coach/coach-input-bar";
 
 // ── API helper ─────────────────────────────────────────
 
-async function coachApi(action: string, body?: Record<string, unknown>) {
+type CoachT = (key: string, values?: Record<string, string | number | boolean | Date | null | undefined>) => string;
+
+async function coachApi(action: string, body: Record<string, unknown> | undefined, t: CoachT) {
   const res = await fetch("/api/dashboard/coach", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, ...body }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw new Error(data.error || t("requestFailed", { status: res.status }));
   return data;
 }
 
@@ -38,6 +40,7 @@ async function coachApiStream(
   action: string,
   body: Record<string, unknown>,
   onProgress: (data: unknown) => void,
+  t: CoachT,
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   const res = await fetch("/api/dashboard/coach", {
@@ -49,11 +52,11 @@ async function coachApiStream(
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || `Request failed (${res.status})`);
+    throw new Error((data as { error?: string }).error || t("requestFailed", { status: res.status }));
   }
 
   const reader = res.body?.getReader();
-  if (!reader) throw new Error("Response body is not readable");
+  if (!reader) throw new Error(t("responseNotReadable"));
 
   const decoder = new TextDecoder();
   let buffer = "";
@@ -85,7 +88,7 @@ async function coachApiStream(
                   resolve(parsed);
                   return;
                 } else if (currentEvent === "error") {
-                  reject(new Error((parsed as { error?: string }).error || "Unknown error"));
+                  reject(new Error((parsed as { error?: string }).error || t("unknownError")));
                   return;
                 } else {
                   onProgress(parsed);
@@ -250,12 +253,12 @@ export default function CoachChat({
 
   async function loadActiveConversation() {
     try {
-      const data = await coachApi("list-conversations");
+      const data = await coachApi("list-conversations", undefined, t);
       const active = data.conversations?.find((c: { status: string }) => c.status === "active");
 
       if (active) {
         setConversationId(active.id);
-        const convData = await coachApi("get-conversation", { conversationId: active.id });
+        const convData = await coachApi("get-conversation", { conversationId: active.id }, t);
         if (convData.conversation) {
           setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
           setSuggestions(convData.conversation.suggestions.filter((s: CoachSuggestion) => s.status === "pending"));
@@ -269,7 +272,7 @@ export default function CoachChat({
     setAnalyzing(true);
     setError(null);
     try {
-      const data = await coachApi("analyze", { conversationId, pageContext, locale });
+      const data = await coachApi("analyze", { conversationId, pageContext, locale }, t);
       setConversationId(data.conversationId);
       setMessages([{ id: "analysis", role: "assistant", content: data.analysis, createdAt: new Date().toISOString() }]);
       if (data.suggestions) setSuggestions(data.suggestions);
@@ -279,10 +282,10 @@ export default function CoachChat({
       // Refresh dashboard — coach notes and suggestions updated
       handlePlanApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      setError(err instanceof Error ? err.message : t("analysisFailed"));
     }
     setAnalyzing(false);
-  }, [conversationId, pageContext, handlePlanApplied]);
+  }, [conversationId, pageContext, handlePlanApplied, t]);
 
   async function startPlanInterview() {
     setInterviewStarting(true);
@@ -299,7 +302,7 @@ export default function CoachChat({
     contextOfferStartedRef.current = false;
     try {
       // Start a fresh conversation with interview mode
-      const newConv = await coachApi("new-conversation");
+      const newConv = await coachApi("new-conversation", undefined, t);
       const cid = newConv.conversationId;
       setConversationId(cid);
 
@@ -316,6 +319,7 @@ export default function CoachChat({
             }]);
           }
         },
+        t,
       );
 
       // Use the interview's conversation ID (startInterview creates its own conversation)
@@ -351,7 +355,7 @@ export default function CoachChat({
       // Offer to build the athlete's training context if they don't have one saved yet
       setShowContextOffer(!!data.needsContext);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Interview failed");
+      setError(err instanceof Error ? err.message : t("interviewFailed"));
     } finally {
       setInterviewStarting(false);
     }
@@ -367,11 +371,11 @@ export default function CoachChat({
     let cid = conversationId;
     if (!cid) {
       try {
-        const newConv = await coachApi("new-conversation");
+        const newConv = await coachApi("new-conversation", undefined, t);
         cid = newConv.conversationId;
         setConversationId(cid);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to start conversation");
+        setError(err instanceof Error ? err.message : t("startFailed"));
         return;
       }
     }
@@ -405,7 +409,7 @@ export default function CoachChat({
         try {
           const data = await coachApi("analyze-activity-in-chat", {
             conversationId: cid, message: userMessage, pageContext, locale,
-          });
+          }, t);
           const assistantMsg: CoachMessage = {
             id: `assistant-${Date.now()}`,
             role: "assistant",
@@ -463,6 +467,7 @@ export default function CoachChat({
                 break;
             }
           },
+          t,
           abortController.signal
         );
 
@@ -495,7 +500,7 @@ export default function CoachChat({
       // Fallback to JSON mode if SSE fails
       console.error("[COACH-CHAT] SSE failed, falling back to JSON chat");
       try {
-        const data = await coachApi("chat", { conversationId: cid, message: userMessage, pageContext, locale });
+        const data = await coachApi("chat", { conversationId: cid, message: userMessage, pageContext, locale }, t);
         const assistantMsg: CoachMessage = {
           id: data.messages?.[1]?.id || `assistant-${Date.now()}`,
           role: "assistant",
@@ -508,7 +513,7 @@ export default function CoachChat({
         }
         handlePlanApplied();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Chat failed");
+        setError(err instanceof Error ? err.message : t("chatFailed"));
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       }
     } finally {
@@ -518,7 +523,7 @@ export default function CoachChat({
       setStatusFeed([]);
       setSaveProgress(null);
     }
-  }, [input, loading, conversationId, handlePlanApplied, pageContext, locale]);
+  }, [input, loading, conversationId, handlePlanApplied, pageContext, locale, t]);
 
   // ── Track edits to the proposal card ─────────────────
 
@@ -582,6 +587,7 @@ export default function CoachChat({
               break;
           }
         },
+        t,
         abortController.signal
       );
 
@@ -611,7 +617,7 @@ export default function CoachChat({
 
       handlePlanApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to build plan");
+      setError(err instanceof Error ? err.message : t("buildPlanFailed"));
     } finally {
       abortRef.current = null;
       setLoading(false);
@@ -619,18 +625,18 @@ export default function CoachChat({
       setStatusFeed([]);
       setSaveProgress(null);
     }
-  }, [conversationId, handlePlanApplied, editedProposal]);
+  }, [conversationId, handlePlanApplied, editedProposal, t]);
 
   const handleAdjustProposal = useCallback(() => {
     setCompletedPhases([]);
     // Focus the input and set a starter prompt
-    setInput("Can we adjust the plan? I'd like to...");
+    setInput(t("adjustHint"));
     inputRef.current?.focus();
-  }, []);
+  }, [t]);
 
   const applySuggestion = useCallback(async (suggestionId: string) => {
     try {
-      const data = await coachApi("apply-suggestion", { suggestionId });
+      const data = await coachApi("apply-suggestion", { suggestionId }, t);
       if (data.success) {
         setFeedback(t("applied"));
         setTimeout(() => setFeedback(null), 4000);
@@ -639,7 +645,7 @@ export default function CoachChat({
         handlePlanApplied();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to apply suggestion");
+      setError(err instanceof Error ? err.message : t("applySuggestionFailed"));
     }
   }, [handlePlanApplied, t]);
 
@@ -660,13 +666,13 @@ export default function CoachChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ coachAnalysis: pendingSave.analysis }),
       });
-      if (!res.ok) throw new Error("Failed to save analysis");
+      if (!res.ok) throw new Error(t("saveAnalysisFailed"));
       setPendingSave(null);
       setFeedback(t("savedToActivity", { name: activityName }));
       setTimeout(() => setFeedback(null), 4000);
       notifyActivityAnalysisSaved(activityId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save analysis");
+      setError(err instanceof Error ? err.message : t("saveAnalysisFailed"));
     }
     setSavingAnalysis(false);
   }, [pendingSave, savingAnalysis, t]);
@@ -680,11 +686,11 @@ export default function CoachChat({
     setSummarizing(true);
     setError(null);
     try {
-      const data = await coachApi("summarize", { conversationId, locale });
+      const data = await coachApi("summarize", { conversationId, locale }, t);
       if (data.summary) {
         // Reload the conversation — the backend replaced all messages
         // with just the summarized version
-        const convData = await coachApi("get-conversation", { conversationId });
+        const convData = await coachApi("get-conversation", { conversationId }, t);
         if (convData.conversation) {
           setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
           setSuggestions([]);
@@ -693,14 +699,14 @@ export default function CoachChat({
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Summarization failed");
+      setError(err instanceof Error ? err.message : t("summarizeFailed"));
     }
     setSummarizing(false);
-  }, [conversationId, messages.length]);
+  }, [conversationId, messages.length, t]);
 
   const clearAll = useCallback(async () => {
     try {
-      const data = await coachApi("clear-context");
+      const data = await coachApi("clear-context", undefined, t);
       setConversationId(data.conversationId);
       setMessages([]);
       setSuggestions([]);
@@ -712,10 +718,10 @@ export default function CoachChat({
       handlePlanApplied();
       notifyPlanUpdated();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clear context");
+      setError(err instanceof Error ? err.message : t("clearContextFailed"));
       setConfirmClear(false);
     }
-  }, [handlePlanApplied]);
+  }, [handlePlanApplied, t]);
 
   /** Send a pre-filled quick-action message (bypasses the input textarea). */
   const handleQuickActionMessage = useCallback((text: string) => {

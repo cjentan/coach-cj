@@ -21,91 +21,101 @@ export const PHASE_COLORS: Record<string, string> = {
 };
 
 // ── Activity types (for selectors) ────────────────────────────────────
+//
+// `labelKey` values map to `labels.activityTypes.<labelKey>` in the
+// message files. Render with `t("labels.activityTypes." + option.labelKey)`.
 
 export interface ActivityTypeOption {
   value: string;
-  label: string;
+  labelKey: string;
   icon: ComponentType<{ className?: string }>;
 }
 
 export const ACTIVITY_TYPES: ActivityTypeOption[] = [
-  { value: "run", label: "Run", icon: Activity },
-  { value: "ride", label: "Ride", icon: Bike },
-  { value: "swim", label: "Swim", icon: Waves },
-  { value: "hike", label: "Hike", icon: Mountain },
-  { value: "walk", label: "Walk", icon: Footprints },
-  { value: "workout", label: "Workout", icon: Dumbbell },
-  { value: "other", label: "Other", icon: Activity },
+  { value: "run", labelKey: "run", icon: Activity },
+  { value: "ride", labelKey: "ride", icon: Bike },
+  { value: "swim", labelKey: "swim", icon: Waves },
+  { value: "hike", labelKey: "hike", icon: Mountain },
+  { value: "walk", labelKey: "walk", icon: Footprints },
+  { value: "workout", labelKey: "workout", icon: Dumbbell },
+  { value: "other", labelKey: "other", icon: Activity },
 ];
 
 // ── Sub-type options ──────────────────────────────────────────────────
+//
+// `labelKey` values map to `labels.subTypes.<labelKey>` in the message files.
 
-export const SUB_TYPE_OPTIONS: Record<string, { value: string; label: string }[]> = {
+export const SUB_TYPE_OPTIONS: Record<string, { value: string; labelKey: string }[]> = {
   run: [
-    { value: "trail_running", label: "Trail Running" },
-    { value: "treadmill", label: "Treadmill" },
-    { value: "virtual_run", label: "Virtual Run" },
+    { value: "trail_running", labelKey: "trail_running" },
+    { value: "treadmill", labelKey: "treadmill" },
+    { value: "virtual_run", labelKey: "virtual_run" },
   ],
   ride: [
-    { value: "mountain_biking", label: "Mountain Biking" },
-    { value: "gravel_cycling", label: "Gravel Cycling" },
-    { value: "road_cycling", label: "Road Cycling" },
-    { value: "indoor_cycling", label: "Indoor Cycling" },
-    { value: "virtual_ride", label: "Virtual Ride" },
-    { value: "handcycle", label: "Handcycle" },
+    { value: "mountain_biking", labelKey: "mountain_biking" },
+    { value: "gravel_cycling", labelKey: "gravel_cycling" },
+    { value: "road_cycling", labelKey: "road_cycling" },
+    { value: "indoor_cycling", labelKey: "indoor_cycling" },
+    { value: "virtual_ride", labelKey: "virtual_ride" },
+    { value: "handcycle", labelKey: "handcycle" },
   ],
   swim: [
-    { value: "open_water", label: "Open Water" },
-    { value: "lap_swimming", label: "Lap Swimming" },
+    { value: "open_water", labelKey: "open_water" },
+    { value: "lap_swimming", labelKey: "lap_swimming" },
   ],
   workout: [
-    { value: "strength_training", label: "Strength Training" },
-    { value: "crossfit", label: "CrossFit" },
-    { value: "yoga", label: "Yoga" },
-    { value: "elliptical", label: "Elliptical" },
-    { value: "stair_stepper", label: "Stair Stepper" },
-    { value: "pilates", label: "Pilates" },
+    { value: "strength_training", labelKey: "strength_training" },
+    { value: "crossfit", labelKey: "crossfit" },
+    { value: "yoga", labelKey: "yoga" },
+    { value: "elliptical", labelKey: "elliptical" },
+    { value: "stair_stepper", labelKey: "stair_stepper" },
+    { value: "pilates", labelKey: "pilates" },
   ],
   other: [
-    { value: "rock_climbing", label: "Rock Climbing" },
-    { value: "surfing", label: "Surfing" },
-    { value: "stand_up_paddling", label: "Stand Up Paddling" },
-    { value: "kayaking", label: "Kayaking" },
-    { value: "canoeing", label: "Canoeing" },
-    { value: "rowing", label: "Rowing" },
-    { value: "ice_skating", label: "Ice Skating" },
-    { value: "inline_skating", label: "Inline Skating" },
-    { value: "nordic_skiing", label: "Nordic Skiing" },
-    { value: "alpine_skiing", label: "Alpine Skiing" },
-    { value: "backcountry_skiing", label: "Backcountry Skiing" },
-    { value: "snowboarding", label: "Snowboarding" },
-    { value: "snowshoeing", label: "Snowshoeing" },
-    { value: "soccer", label: "Soccer" },
-    { value: "tennis", label: "Tennis" },
-    { value: "golf", label: "Golf" },
-    { value: "wheelchair", label: "Wheelchair" },
+    { value: "rock_climbing", labelKey: "rock_climbing" },
+    { value: "surfing", labelKey: "surfing" },
+    { value: "stand_up_paddling", labelKey: "stand_up_paddling" },
+    { value: "kayaking", labelKey: "kayaking" },
+    { value: "canoeing", labelKey: "canoeing" },
+    { value: "rowing", labelKey: "rowing" },
+    { value: "ice_skating", labelKey: "ice_skating" },
+    { value: "inline_skating", labelKey: "inline_skating" },
+    { value: "nordic_skiing", labelKey: "nordic_skiing" },
+    { value: "alpine_skiing", labelKey: "alpine_skiing" },
+    { value: "backcountry_skiing", labelKey: "backcountry_skiing" },
+    { value: "snowboarding", labelKey: "snowboarding" },
+    { value: "snowshoeing", labelKey: "snowshoeing" },
+    { value: "soccer", labelKey: "soccer" },
+    { value: "tennis", labelKey: "tennis" },
+    { value: "golf", labelKey: "golf" },
+    { value: "wheelchair", labelKey: "wheelchair" },
   ],
 };
 
 // ── Race types ────────────────────────────────────────────────────────
+//
+// `labelKey` values map to `labels.raceTypes.<labelKey>` in the message files.
 
 export const RACE_TYPES = [
-  { value: "road_run", label: "Road Run" },
-  { value: "trail_run", label: "Trail Run" },
-  { value: "marathon", label: "Marathon" },
-  { value: "ultra", label: "Ultra" },
-  { value: "triathlon", label: "Triathlon" },
-  { value: "cycling", label: "Cycling" },
-  { value: "other", label: "Other" },
+  { value: "road_run", labelKey: "road_run" },
+  { value: "trail_run", labelKey: "trail_run" },
+  { value: "marathon", labelKey: "marathon" },
+  { value: "ultra", labelKey: "ultra" },
+  { value: "triathlon", labelKey: "triathlon" },
+  { value: "cycling", labelKey: "cycling" },
+  { value: "other", labelKey: "other" },
 ] as const;
 
 // ── Source display labels ─────────────────────────────────────────────
+//
+// Values map to `labels.sources.<value>` in the message files. Render with
+// `t("labels.sources." + SOURCE_LABELS[source])`.
 
 export const SOURCE_LABELS: Record<string, string> = {
-  strava: "Strava",
-  garmin: "Garmin",
-  watch_push: "Watch Push",
-  manual: "Manual",
+  strava: "strava",
+  garmin: "garmin",
+  watch_push: "watchPush",
+  manual: "manual",
 };
 
 // ── Source badge colours ──────────────────────────────────────────────
@@ -118,15 +128,17 @@ export const SOURCE_COLORS: Record<string, "default" | "success" | "warning" | "
 };
 
 // ── Activity type labels (for filter buttons, etc.) ───────────────────
+//
+// Values map to `labels.activityTypes.<value>` in the message files.
 
 export const ACTIVITY_TYPE_LABELS: Record<string, string> = {
-  run: "Run",
-  ride: "Ride",
-  swim: "Swim",
-  hike: "Hike",
-  workout: "Workout",
-  walk: "Walk",
-  other: "Other",
+  run: "run",
+  ride: "ride",
+  swim: "swim",
+  hike: "hike",
+  workout: "workout",
+  walk: "walk",
+  other: "other",
 };
 
 // ── Day names ─────────────────────────────────────────────────────────

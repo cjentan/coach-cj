@@ -91,6 +91,7 @@ function MapContent({ points, expanded }: { points: RoutePoint[]; expanded: bool
 
 export function RouteMap({ points }: { points: RoutePoint[] }) {
   const t = useTranslations("activities.detail");
+  const trainingT = useTranslations("training");
   const [expanded, setExpanded] = useState(false);
 
   if (points.length < 3) return null;
@@ -100,11 +101,11 @@ export function RouteMap({ points }: { points: RoutePoint[] }) {
       {/* Normal card view */}
       <div className="rounded-lg border bg-muted/20 p-3">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-medium text-muted-foreground">Route</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{trainingT("route")}</h3>
           <button
             onClick={() => setExpanded(true)}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            title="Expand map"
+            title={trainingT("expandMap")}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 3 21 3 21 9" />
@@ -129,7 +130,7 @@ export function RouteMap({ points }: { points: RoutePoint[] }) {
           <div className="relative w-[95vw] h-[90vh] rounded-xl border bg-background shadow-2xl overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30 shrink-0">
-              <h3 className="text-sm font-semibold">Route Map</h3>
+              <h3 className="text-sm font-semibold">{trainingT("routeMap")}</h3>
               <button
                 onClick={() => setExpanded(false)}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"

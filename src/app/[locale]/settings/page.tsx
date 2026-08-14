@@ -35,6 +35,7 @@ export default function SettingsProfilePage() {
   // Language state
   const currentLocale = useLocale();
   const t = useTranslations("settings.general");
+  const settingsT = useTranslations("settings");
   const common = useTranslations("common");
 
   async function handleLocaleChange(newLocale: string) {
@@ -206,8 +207,8 @@ export default function SettingsProfilePage() {
       {/* Language */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Languages className="h-5 w-5" /> Language</CardTitle>
-          <CardDescription>Choose your preferred language</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Languages className="h-5 w-5" /> {settingsT("language")}</CardTitle>
+          <CardDescription>{settingsT("languageDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3 flex-wrap">

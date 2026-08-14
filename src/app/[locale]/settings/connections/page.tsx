@@ -373,14 +373,15 @@ function ApiKeysSection({ t, common }: { t: ReturnType<typeof useTranslations>; 
 export default function SettingsConnectionsPage() {
   const t = useTranslations("settings.integrations");
   const credT = useTranslations("settings.credentials");
+  const settingsT = useTranslations("settings");
   const common = useTranslations("common");
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">Connections</h1>
+        <h1 className="text-2xl font-bold">{settingsT("connectionsTab")}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Connect your training devices and manage API keys for external tools.
+          {settingsT("connectionsDesc")}
         </p>
       </div>
 

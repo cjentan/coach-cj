@@ -6,6 +6,8 @@
  * the same render logic and progress bar styling.
  */
 
+import { useTranslations } from "next-intl";
+
 interface StatRowProps {
   icon: React.ReactNode;
   label: string;
@@ -15,6 +17,7 @@ interface StatRowProps {
 }
 
 export function StatRow({ icon, label, planned, actual, fraction }: StatRowProps) {
+  const t = useTranslations("training-plan");
   const pct = Math.min(Math.round(fraction * 100), 100);
   const barColor =
     pct >= 90 ? "bg-green-500" : pct >= 70 ? "bg-amber-500" : "bg-red-500";
@@ -26,11 +29,11 @@ export function StatRow({ icon, label, planned, actual, fraction }: StatRowProps
         {label}
       </p>
       <div className="flex items-baseline gap-1.5 text-xs">
-        <span className="text-muted-foreground">P:</span>
+        <span className="text-muted-foreground">{t("plannedShort")}:</span>
         <span className="font-medium">{planned}</span>
       </div>
       <div className="flex items-baseline gap-1.5 text-xs mb-1.5">
-        <span className="text-muted-foreground">A:</span>
+        <span className="text-muted-foreground">{t("actualShort")}:</span>
         <span className="font-medium">{actual}</span>
       </div>
       <div className="h-1.5 rounded-full bg-muted overflow-hidden">

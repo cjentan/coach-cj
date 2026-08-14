@@ -165,6 +165,8 @@ function StepFooter({
 
 export default function OnboardingPage() {
   const t = useTranslations("onboarding");
+  const settingsT = useTranslations("settings");
+  const labelsT = useTranslations("labels");
   const common = useTranslations("common");
   const steps = [
     { num: 0, label: t("steps.integration"), icon: Activity },
@@ -285,14 +287,12 @@ export default function OnboardingPage() {
         setGarminDisplayName(data.displayName || null);
       } else if (data.mfaRequired) {
         setGarminMfaRequired(true);
-        setGarminError(
-          "Multi-factor authentication is enabled. Enter the code from your authenticator app or email."
-        );
+        setGarminError(t("integration.mfaRequired"));
       } else {
-        setGarminError(data.error || "Connection failed");
+        setGarminError(data.error || t("integration.connectionFailed"));
       }
     } catch {
-      setGarminError("Network error — check your connection");
+      setGarminError(t("integration.networkError"));
     } finally {
       setGarminConnecting(false);
     }
@@ -316,10 +316,10 @@ export default function OnboardingPage() {
         setCorosConnected(true);
         setIntegrationType("coros");
       } else {
-        setCorosError(data.error || "Connection failed");
+        setCorosError(data.error || t("integration.connectionFailed"));
       }
     } catch {
-      setCorosError("Network error — check your connection");
+      setCorosError(t("integration.networkError"));
     } finally {
       setCorosConnecting(false);
     }
@@ -421,7 +421,7 @@ export default function OnboardingPage() {
   };
 
   const handleDismiss = async () => {
-    if (!confirm("Skip the setup wizard? You can configure everything later from Settings.")) return;
+    if (!confirm(t("skipConfirm"))) return;
     setSaving(true);
     try {
       await fetch("/api/settings/onboarding", {
@@ -459,10 +459,10 @@ export default function OnboardingPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Watch className="h-5 w-5" /> COROS Training Hub
+                    <Watch className="h-5 w-5" /> {t("integration.corosTitle")}
                   </CardTitle>
                   <CardDescription>
-                    Sync activities from your COROS watch
+                    {t("integration.corosDesc")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -505,7 +505,7 @@ export default function OnboardingPage() {
                           onChange={(e) =>
                             setCorosPassword(e.target.value)
                           }
-                          placeholder="COROS password"
+                          placeholder={t("integration.corosPassword")}
                           disabled={corosConnecting}
                         />
                       </div>
@@ -547,7 +547,7 @@ export default function OnboardingPage() {
                     <Activity className="h-5 w-5" /> Garmin Connect
                   </CardTitle>
                   <CardDescription>
-                    Sync activities + health data from Garmin
+                    {t("integration.garminDesc")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -597,7 +597,7 @@ export default function OnboardingPage() {
                           onChange={(e) =>
                             setGarminPassword(e.target.value)
                           }
-                          placeholder="Garmin password"
+                          placeholder={t("integration.garminPassword")}
                           disabled={garminConnecting || garminMfaRequired}
                         />
                       </div>
@@ -616,7 +616,7 @@ export default function OnboardingPage() {
                             onChange={(e) =>
                               setGarminMfaCode(e.target.value)
                             }
-                            placeholder="6-digit code"
+                            placeholder={t("integration.mfaPlaceholder")}
                             disabled={garminConnecting}
                           />
                         </div>
@@ -701,16 +701,16 @@ export default function OnboardingPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="activity_count">
-                        After every N activities
+                        {settingsT("analysis.optionActivityCount")}
                       </SelectItem>
                       <SelectItem value="every_n_days">
-                        Review after every N days
+                        {settingsT("analysis.optionEveryNDays")}
                       </SelectItem>
-                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="daily">{settingsT("analysis.optionDaily")}</SelectItem>
                       <SelectItem value="weekly">
-                        Weekly (on review day)
+                        {settingsT("analysis.optionWeekly")}
                       </SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="monthly">{settingsT("analysis.optionMonthly")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -767,7 +767,7 @@ export default function OnboardingPage() {
                 {analysisTrigger === "weekly" && (
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1">
-                      <CalendarDays className="h-4 w-4" /> Day of Week
+                      <CalendarDays className="h-4 w-4" /> {settingsT("analysis.dayOfWeek")}
                     </Label>
                     <Select
                       value={reviewDay}
@@ -779,7 +779,7 @@ export default function OnboardingPage() {
                       <SelectContent>
                         {LONG_DAY_NAMES.map((d, i) => (
                           <SelectItem key={i} value={String(i)}>
-                            {d}
+                            {labelsT("days.long." + d)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -804,12 +804,12 @@ export default function OnboardingPage() {
                     />
                     <span className="text-sm text-muted-foreground">
                       {reviewDayOfMonth === 1
-                        ? "st"
+                        ? t("review.ordinalSt")
                         : reviewDayOfMonth === 2
-                          ? "nd"
+                          ? t("review.ordinalNd")
                           : reviewDayOfMonth === 3
-                            ? "rd"
-                            : "th"}
+                            ? t("review.ordinalRd")
+                            : t("review.ordinalTh")}
                     </span>
                   </div>
                 )}
@@ -817,7 +817,7 @@ export default function OnboardingPage() {
                 {/* Time — common across all options */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" /> Review Time
+                    <Clock className="h-4 w-4" /> {settingsT("analysis.reviewTime")}
                   </Label>
                   <Input
                     type="time"
@@ -871,24 +871,24 @@ export default function OnboardingPage() {
             ) : (
               <Card className="mb-4">
                 <CardHeader>
-                  <CardTitle className="text-base">New Goal</CardTitle>
+                  <CardTitle className="text-base">{settingsT("goals.newGoal")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5 sm:col-span-2">
                       <Label htmlFor="goal-name" className="text-xs">
-                        Goal Name
+                        {settingsT("goals.name")}
                       </Label>
                       <Input
                         id="goal-name"
                         value={goalName}
                         onChange={(e) => setGoalName(e.target.value)}
-                        placeholder="e.g. Chicago Marathon"
+                        placeholder={t("goal.namePlaceholder")}
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="goal-type" className="text-xs">
-                        Race Type
+                        {settingsT("goals.raceType")}
                       </Label>
                       <Select
                         value={goalRaceType}
@@ -898,9 +898,9 @@ export default function OnboardingPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {RACE_TYPES.map((t) => (
-                            <SelectItem key={t.value} value={t.value}>
-                              {t.label}
+                          {RACE_TYPES.map((rt) => (
+                            <SelectItem key={rt.value} value={rt.value}>
+                              {labelsT("raceTypes." + rt.labelKey)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -908,7 +908,7 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="goal-date" className="text-xs">
-                        Target Date
+                        {settingsT("goals.targetDate")}
                       </Label>
                       <Input
                         id="goal-date"
@@ -921,7 +921,7 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="goal-distance" className="text-xs">
-                        Distance
+                        {settingsT("goals.distance")}
                       </Label>
                       <div className="flex gap-2">
                         <Input
@@ -932,7 +932,7 @@ export default function OnboardingPage() {
                           className="flex-1"
                           value={goalDistance}
                           onChange={(e) => setGoalDistance(e.target.value)}
-                          placeholder={goalDistUnit === "m" ? "e.g. 42195" : goalDistUnit === "km" ? "e.g. 42.2" : "e.g. 26.2"}
+                          placeholder={goalDistUnit === "m" ? t("goal.distancePlaceholderM") : goalDistUnit === "km" ? t("goal.distancePlaceholderKm") : t("goal.distancePlaceholderMi")}
                         />
                         <Select value={goalDistUnit} onValueChange={(v) => setGoalDistUnit(v as DistanceUnit)}>
                           <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
@@ -962,7 +962,7 @@ export default function OnboardingPage() {
                           onChange={(e) =>
                             setGoalElevation(e.target.value)
                           }
-                          placeholder={goalEleUnit === "m" ? "e.g. 1200" : "e.g. 3937"}
+                          placeholder={goalEleUnit === "m" ? t("goal.elevationPlaceholderM") : t("goal.elevationPlaceholderFt")}
                         />
                         <Select value={goalEleUnit} onValueChange={(v) => setGoalEleUnit(v as ElevationUnit)}>
                           <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
@@ -1064,7 +1064,7 @@ export default function OnboardingPage() {
                         onChange={(e) =>
                           setMetricWeight(e.target.value)
                         }
-                        placeholder="e.g. 75.5"
+                        placeholder={t("bodyMetrics.weightPlaceholder")}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -1080,7 +1080,7 @@ export default function OnboardingPage() {
                         onChange={(e) =>
                           setMetricHeight(e.target.value)
                         }
-                        placeholder="e.g. 175"
+                        placeholder={t("bodyMetrics.heightPlaceholder")}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -1099,7 +1099,7 @@ export default function OnboardingPage() {
                         onChange={(e) =>
                           setMetricRestingHr(e.target.value)
                         }
-                        placeholder="e.g. 62"
+                        placeholder={t("bodyMetrics.restingHrPlaceholder")}
                       />
                     </div>
                   </div>
@@ -1143,8 +1143,7 @@ export default function OnboardingPage() {
                 {t("complete")}
               </h1>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                Here&apos;s what you&apos;ve configured so you can hit the
-                ground running.
+                {t("completionDescription")}
               </p>
             </div>
 
@@ -1164,15 +1163,15 @@ export default function OnboardingPage() {
                 label={t("summary.reviewSchedule")}
                 detail={
                   analysisTrigger === "weekly"
-                    ? `${LONG_DAY_NAMES[Number(reviewDay)]} at ${reviewTime}`
+                    ? `${labelsT("days.long." + LONG_DAY_NAMES[Number(reviewDay)])} ${t("review.at")} ${reviewTime}`
                     : analysisTrigger === "monthly"
-                      ? `Day ${reviewDayOfMonth} at ${reviewTime}`
+                      ? t("review.monthlySummary", { day: reviewDayOfMonth, time: reviewTime })
                       : analysisTrigger === "daily"
-                        ? `Daily at ${reviewTime}`
+                        ? t("review.dailySummary", { time: reviewTime })
                         : analysisTrigger === "every_n_days"
-                          ? `Every ${analysisTriggerValue} days at ${reviewTime}`
+                          ? t("review.everyNDaysSummary", { count: analysisTriggerValue, time: reviewTime })
                           : analysisTrigger === "activity_count"
-                            ? `After every ${analysisTriggerValue} activities`
+                            ? t("review.afterNActivities", { count: analysisTriggerValue })
                             : analysisTrigger
                 }
                 done

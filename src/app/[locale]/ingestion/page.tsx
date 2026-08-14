@@ -51,6 +51,8 @@ function fmtDistance(m: number | null): string {
 
 export default function IngestionPage() {
   const t = useTranslations("ingestion");
+  const common = useTranslations("common");
+  const labelsT = useTranslations("labels");
   const { data: session, status } = useSession();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,7 +132,7 @@ export default function IngestionPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        let msg = "Upload failed";
+        let msg = t("uploadFailed");
         try { const j = JSON.parse(text); msg = j.error || msg; } catch {}
         setStravaExportResult({ imported: 0, skipped: 0, errors: [msg], message: msg });
         setStravaExportLoading(false);
@@ -144,7 +146,7 @@ export default function IngestionPage() {
       if (contentType.includes("application/x-ndjson")) {
         const reader = res.body?.getReader();
         if (!reader) {
-          setStravaExportResult({ imported: 0, skipped: 0, errors: ["No response body"], message: "Upload failed" });
+          setStravaExportResult({ imported: 0, skipped: 0, errors: [t("noResponseBody")], message: t("uploadFailed") });
           setStravaExportLoading(false);
           setStravaExportPhase("");
           return;
@@ -202,7 +204,7 @@ export default function IngestionPage() {
                   const dur = event.duration ? ` ${fmtDuration(event.duration)}` : "";
                   const dist = event.distance ? ` ${fmtDistance(event.distance)}` : "";
                   const rich = event.hasRichData ? " 📡" : "";
-                  const label = event.name || event.externalId || "unknown";
+                  const label = event.name || event.externalId || t("unknown");
                   const detail = event.error || `${typeEmoji}${dur}${dist}${rich}`;
 
                   setStravaExportLog((prev) => [...prev, {
@@ -246,11 +248,11 @@ export default function IngestionPage() {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setStravaExportResult({
-          imported: 0, skipped: 0, errors: ["Import cancelled"],
-          message: "Import cancelled by user",
+          imported: 0, skipped: 0, errors: [t("importCancelled")],
+          message: t("importCancelled"),
         });
       } else {
-        setStravaExportResult({ imported: 0, skipped: 0, errors: ["Upload failed — network error"], message: "Upload failed — network error" });
+        setStravaExportResult({ imported: 0, skipped: 0, errors: [t("networkError")], message: t("networkError") });
       }
     }
     setStravaExportLoading(false);
@@ -275,9 +277,9 @@ export default function IngestionPage() {
       setCsvResult(await res.json());
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        setCsvResult({ imported: 0, skipped: 0, errors: ["Import cancelled"], message: "Import cancelled by user" });
+        setCsvResult({ imported: 0, skipped: 0, errors: [t("importCancelled")], message: t("importCancelled") });
       } else {
-        setCsvResult({ imported: 0, skipped: 0, errors: ["Upload failed"], message: "Upload failed" });
+        setCsvResult({ imported: 0, skipped: 0, errors: [t("uploadFailed")], message: t("uploadFailed") });
       }
     }
     setCsvLoading(false);
@@ -304,9 +306,9 @@ export default function IngestionPage() {
       setGpxResult(await res.json());
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        setGpxResult({ imported: 0, skipped: 0, errors: ["Import cancelled"], message: "Import cancelled by user", results: [] });
+        setGpxResult({ imported: 0, skipped: 0, errors: [t("importCancelled")], message: t("importCancelled"), results: [] });
       } else {
-        setGpxResult({ imported: 0, skipped: 0, errors: [], message: "Upload failed", results: [] });
+        setGpxResult({ imported: 0, skipped: 0, errors: [], message: t("uploadFailed"), results: [] });
       }
     }
     setGpxLoading(false);
@@ -322,7 +324,7 @@ export default function IngestionPage() {
     const durationSec = (parseInt(manualForm.durationMinutes || "0") * 60) + parseInt(manualForm.durationSeconds || "0");
 
     if (durationSec <= 0) {
-      setManualResult("Enter a valid duration");
+      setManualResult(t("manual.invalidDuration"));
       return;
     }
 
@@ -347,7 +349,7 @@ export default function IngestionPage() {
     });
 
     if (res.ok) {
-      setManualResult("Activity created successfully!");
+      setManualResult(t("manual.createdSuccess"));
       setManualForm({
         name: "", type: "run", subType: "", date: new Date().toISOString().slice(0, 16),
         durationMinutes: "", durationSeconds: "", distance: "", elevation: "",
@@ -355,11 +357,11 @@ export default function IngestionPage() {
       });
     } else {
       const data = await res.json();
-      setManualResult(data.error || "Failed to create activity");
+      setManualResult(data.error || t("manual.createFailed"));
     }
   }
 
-  if (status === "loading") return <div className="container mx-auto px-4 py-8">Loading...</div>;
+  if (status === "loading") return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -499,7 +501,7 @@ export default function IngestionPage() {
               {/* ── Results ───────────────────────────── */}
               {stravaExportResult && (
                 <div>
-                  <ResultBadge result={stravaExportResult as ImportResult} detail={`${stravaExportResult.totalRows || "?"} CSV rows`} />
+                  <ResultBadge result={stravaExportResult as ImportResult} detail={`${stravaExportResult.totalRows || "?"} ${t("csv.rowsLabel")}`} />
                   {stravaExportResult.imported > 0 && (
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                       <div className="p-3 rounded-lg bg-muted text-center">
@@ -646,16 +648,16 @@ export default function IngestionPage() {
                   <div className="space-y-2">
                     <Label>{t("manual.nameLabel")}</Label>
                     <Input value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
-                      placeholder="Morning Run" required />
+                      placeholder={t("manual.namePlaceholder")} required />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.typeLabel")}</Label>
                     <Select value={manualForm.type} onValueChange={(v) => { setManualForm({ ...manualForm, type: v, subType: "" }); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {ACTIVITY_TYPES.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            <span className="flex items-center gap-2"><t.icon className="h-4 w-4" /> {t.label}</span>
+                        {ACTIVITY_TYPES.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            <span className="flex items-center gap-2"><opt.icon className="h-4 w-4" /> {labelsT("activityTypes." + opt.labelKey)}</span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -665,11 +667,11 @@ export default function IngestionPage() {
                     <div className="space-y-2">
                       <Label>{t("manual.subTypeLabel")}</Label>
                       <Select value={manualForm.subType} onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}>
-                        <SelectTrigger><SelectValue placeholder="None (generic)" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={t("manual.subTypeNone")} /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="">{t("manual.subTypeNone")}</SelectItem>
                           {SUB_TYPE_OPTIONS[manualForm.type].map((st) => (
-                            <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>
+                            <SelectItem key={st.value} value={st.value}>{labelsT("subTypes." + st.labelKey)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -683,9 +685,9 @@ export default function IngestionPage() {
                   <div className="space-y-2">
                     <Label>{t("manual.durationLabel")}</Label>
                     <div className="flex gap-2">
-                      <Input type="number" placeholder="Min" value={manualForm.durationMinutes}
+                      <Input type="number" placeholder={t("manual.min")} value={manualForm.durationMinutes}
                         onChange={(e) => setManualForm({ ...manualForm, durationMinutes: e.target.value })} />
-                      <Input type="number" placeholder="Sec" value={manualForm.durationSeconds}
+                      <Input type="number" placeholder={t("manual.sec")} value={manualForm.durationSeconds}
                         onChange={(e) => setManualForm({ ...manualForm, durationSeconds: e.target.value })} />
                     </div>
                   </div>
@@ -718,7 +720,7 @@ export default function IngestionPage() {
                     <Label>{t("manual.notesLabel")}</Label>
                     <Input value={manualForm.description}
                       onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
-                      placeholder="Felt strong, negative split..." />
+                      placeholder={t("manual.notesPlaceholder")} />
                   </div>
                 </div>
 
