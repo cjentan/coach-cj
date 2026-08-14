@@ -14,6 +14,15 @@ vi.mock('@/lib/prisma', () => ({
       delete: vi.fn(),
       findFirst: vi.fn(),
     },
+    bodyMetric: {
+      findFirst: vi.fn(),
+    },
+    dailyHealth: {
+      findFirst: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 vi.mock('@/lib/metrics-snapshot', () => ({

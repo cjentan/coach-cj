@@ -21,6 +21,7 @@ import { generateActivityName } from "./activity-naming";
 import { snapshotWeek } from "./metrics-snapshot";
 import { classifyWorkoutType } from "./workout-classifier";
 import { computePrecomputedTrackpointMetrics } from "./trackpoint-metrics";
+import { getEffectiveMaxHr, getLatestRestingHr } from "./body-metrics";
 import { parseClientDate } from "./utils";
 
 // ─── Exported Types ──────────────────────────────────────
@@ -167,6 +168,10 @@ export async function syncCorosActivities(
     where: { userId },
   });
 
+  // Karvonen zones need the user's resting HR and max HR; fetch once per sync.
+  const restHr = await getLatestRestingHr(userId);
+  const maxHr = await getEffectiveMaxHr(userId);
+
   // ── Fetch ALL activities (paginated) ────────────────────
   const activities: Activity[] = [];
   let page = 1;
@@ -299,9 +304,12 @@ export async function syncCorosActivities(
 
         // Precompute trackpoint metrics while the trackpoints are in memory,
         // so dashboard chart routes never have to load the rawJson blobs.
+        // Zone math anchors to the user-level max HR, not this activity's
+        // observed max, so every activity's zones mean the same thing.
         const tpMetrics = computePrecomputedTrackpointMetrics(
           rawJson.trackPoints as TrackPoint[] | undefined,
-          parsed.maxHr,
+          maxHr,
+          restHr,
         );
 
         // Classify workout type
@@ -311,7 +319,8 @@ export async function syncCorosActivities(
           durationSeconds: parsed.durationSeconds,
           distanceMeters: parsed.distanceMeters,
           averageHr: parsed.averageHr,
-          maxHr: parsed.maxHr,
+          maxHr,
+          restHr,
           averagePower: parsed.averagePower,
           normalizedPower: parsed.normalizedPower,
           trackPoints: parsed.trackPoints,

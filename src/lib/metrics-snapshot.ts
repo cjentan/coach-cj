@@ -9,6 +9,7 @@ import { prisma } from "./prisma";
 import { computePMC } from "./pmc";
 import { computeBestTss } from "./trackpoint-metrics";
 import { estimateTss } from "@/lib/training-math";
+import { getEffectiveMaxHr, getLatestRestingHr } from "./body-metrics";
 import { getWeekStart } from "./utils";
 import { computeReadinessScore, computeFatigueSignals } from "./training-health";
 
@@ -24,7 +25,7 @@ export async function snapshotWeek(
   // ── Fetch data ──────────────────────────────────────────────
   const ninetyDaysBeforeEnd = new Date(weekEnd.getTime() - 90 * 86400000);
 
-  const [weekLogs, pmcLogs, goals, bodyMetrics] =
+  const [weekLogs, pmcLogs, goals, bodyMetrics, restHr, maxHr] =
     await Promise.all([
       // This week's logs (exclude merged duplicates)
       prisma.trainingLog.findMany({
@@ -74,6 +75,11 @@ export async function snapshotWeek(
         orderBy: { recordedAt: "desc" },
         take: 30,
       }),
+      // Karvonen anchors — fetched from the same helpers every other
+      // zone-consuming site uses. restHr prioritises the Garmin API value;
+      // maxHr is the user-level effective max (estimated > user-set > default).
+      getLatestRestingHr(userId),
+      getEffectiveMaxHr(userId),
     ]);
 
   // ── Weekly aggregates ───────────────────────────────────────
@@ -92,6 +98,8 @@ export async function snapshotWeek(
   const weeklyCount = weekLogs.length;
 
   // ── TSS computation (trackpoint-aware, per-log) ─────────────
+  // Zone math anchors to the user-level max HR (maxHr above), not each
+  // activity's own observed max, so all TSS across the app means the same thing.
   let weeklyTss = 0;
   for (const log of weekLogs) {
     const rawJson = log.rawJson as Record<string, unknown> | null;
@@ -101,8 +109,9 @@ export async function snapshotWeek(
         ? computeBestTss(
             trackPoints as any,
             log.averageHr,
-            log.maxHr,
+            maxHr,
             log.durationSeconds,
+            restHr,
           )
         : log.tss || estimateTss(log.durationSeconds);
     weeklyTss += tss;

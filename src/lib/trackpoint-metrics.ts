@@ -94,14 +94,51 @@ export interface IntensityDistribution {
 // ─── HR Zones ───────────────────────────────────────────────
 
 /**
- * Default HR zones as % of max HR (Coggan 5-zone model).
- * Zone 1: Active Recovery    (< 68%)
- * Zone 2: Endurance          (69-83%)
- * Zone 3: Tempo              (84-94%)
- * Zone 4: Threshold          (95-105%)
- * Zone 5: VO2Max/Anaerobic   (> 106%)
+ * Default HR zone bands (standard Garmin/Polar 5-zone model). Each value is a
+ * fraction of the HR range, applied with the Karvonen method when a resting HR
+ * is available:  boundary = rest + (max − rest) × band. Without a resting HR
+ * they degrade to the same bands as % of max HR.
+ *   Zone 1: Active Recovery  (50-60%)
+ *   Zone 2: Endurance        (60-70%)
+ *   Zone 3: Tempo            (70-80%)
+ *   Zone 4: Threshold        (80-90%)
+ *   Zone 5: VO2Max/Anaerobic (90-100%)
  */
-const HR_ZONE_PCTS = [0.68, 0.83, 0.94, 1.05, 1.0]; // upper bounds as ratio
+const HR_ZONE_PCTS = [0.60, 0.70, 0.80, 0.90, 1.0]; // upper bounds as fraction of HR range
+
+/**
+ * Convert a zone-band fraction into a bpm boundary.
+ *
+ * Karvonen (heart-rate reserve) when a valid resting HR is supplied:
+ *   rest + (max − rest) × pct
+ * Otherwise % of max HR. A resting HR is only honored when it lies strictly
+ * between 0 and maxHr, so missing/out-of-range rest values degrade to %maxHR
+ * instead of producing NaN or inverted zones.
+ */
+export function hrZoneBoundaryBpm(
+  maxHr: number,
+  pct: number,
+  restHr?: number | null,
+): number | null {
+  if (maxHr <= 0) return null;
+  const rest = restHr != null && restHr > 0 && restHr < maxHr ? restHr : null;
+  return rest != null
+    ? Math.round(rest + (maxHr - rest) * pct)
+    : Math.round(maxHr * pct);
+}
+
+/**
+ * Fraction of the HR range at `hr`: (hr − rest) / (max − rest) with Karvonen,
+ * or hr / max when no resting HR is available.
+ */
+export function hrZoneRatio(
+  hr: number,
+  maxHr: number,
+  restHr?: number | null,
+): number {
+  const rest = restHr != null && restHr > 0 && restHr < maxHr ? restHr : 0;
+  return (hr - rest) / (maxHr - rest);
+}
 
 /**
  * Default power zones as % of FTP (Coggan 7-zone condensed to 5).
@@ -123,17 +160,25 @@ const POWER_ZONE_PCTS = [0.55, 0.75, 0.90, 1.05, 1.20, 1.50];
  * hrTSS = Σ (time_in_zone_i × zone_weight_i) × 100 / 3600
  *
  * Zone weights: Z1=0.5, Z2=0.65, Z3=0.8, Z4=1.0, Z5=1.3
+ *
+ * `maxHr` is the user-level max HR (see `getEffectiveMaxHr` in body-metrics.ts)
+ * — every caller passes the same value so zones mean the same thing across
+ * activities, rather than anchoring to each activity's own observed max.
  */
 export function computeHrTss(
   trackPoints: TrackpointInput,
   maxHr: number,
-  restingHr?: number
+  restHr?: number | null
 ): HrTssResult | null {
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
   if (hrPoints.length < 10 || maxHr <= 0) return null;
 
-  const hrReserve = restingHr ? maxHr - restingHr : maxHr;
-  const zones = HR_ZONE_PCTS.map((pct) => Math.round(restingHr ? restingHr + hrReserve * pct : maxHr * pct));
+  // Zone boundaries use the Karvonen method (heart-rate reserve) when a resting
+  // HR is available, matching computeIntensityDistribution; without one they
+  // fall back to the same bands as % of max HR.
+  const zones = HR_ZONE_PCTS.map(
+    (pct) => hrZoneBoundaryBpm(maxHr, pct, restHr) ?? Math.round(maxHr * pct),
+  );
 
   // Zone weights (intensity factor per zone)
   const zoneWeights = [0.5, 0.65, 0.8, 1.0, 1.3];
@@ -172,12 +217,13 @@ export function computeHrTss(
 
 /**
  * Compute intensity distribution from trackpoint HR data.
- * Uses the 5-zone Coggan model:
- *   Zone 1: Active Recovery    (< 68% maxHR)
- *   Zone 2: Endurance          (68-83% maxHR)
- *   Zone 3: Tempo              (83-94% maxHR)
- *   Zone 4: Threshold          (94-105% maxHR)
- *   Zone 5: VO2Max/Anaerobic   (> 105% maxHR)
+ * Uses the standard 5-zone model applied to heart-rate reserve (Karvonen) when
+ * a resting HR is provided, else to % of max HR:
+ *   Zone 1: Active Recovery  (50-60%)
+ *   Zone 2: Endurance        (60-70%)
+ *   Zone 3: Tempo            (70-80%)
+ *   Zone 4: Threshold        (80-90%)
+ *   Zone 5: VO2Max/Anaerobic (90-100%)
  *
  * Distribution classification (3-zone polarization mapped from Coggan):
  *   Z1 (Easy)   = Coggan Z1 + Z2
@@ -187,20 +233,25 @@ export function computeHrTss(
  * Polarized = Easy > 75% and Hard > 5%
  * Pyramidal = Easy > Moderate > Hard
  * Threshold-heavy = Moderate > 30%
+ *
+ * `maxHr` is the user-level max HR (see `getEffectiveMaxHr` in body-metrics.ts)
+ * — every caller passes the same value so zones mean the same thing across
+ * activities, rather than anchoring to each activity's own observed max.
  */
 export function computeIntensityDistribution(
   trackPoints: TrackpointInput,
-  maxHr: number
+  maxHr: number,
+  restHr?: number | null
 ): IntensityDistribution | null {
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
   if (hrPoints.length < 30 || maxHr <= 0) return null;
 
-  const thresholds = [0.68, 0.83, 0.94, 1.05]; // upper bounds as ratio of maxHR
+  const thresholds = [0.60, 0.70, 0.80, 0.90]; // upper bounds as fraction of HR range
   const zoneCount = [0, 0, 0, 0, 0];
 
   for (const tp of hrPoints) {
     const hr = tp.hr!;
-    const ratio = hr / maxHr;
+    const ratio = hrZoneRatio(hr, maxHr, restHr);
     if (ratio < thresholds[0]) zoneCount[0]++;
     else if (ratio < thresholds[1]) zoneCount[1]++;
     else if (ratio < thresholds[2]) zoneCount[2]++;
@@ -440,7 +491,7 @@ export function computeEfficiencyFactor(
  * Best-available TSS: uses power TSS if power data available,
  * falls back to hrTSS if HR data available, falls back to estimate.
  */
-export function computeBestTss(trackPoints: TrackpointInput | null, avgHr: number | null, maxHr: number | null, durationSeconds: number): number {
+export function computeBestTss(trackPoints: TrackpointInput | null, avgHr: number | null, maxHr: number | null, durationSeconds: number, restHr?: number | null): number {
   if (trackPoints && trackPoints.length >= 30) {
     // Try power-based TSS first
     const powerMetrics = computePowerMetrics(trackPoints);
@@ -450,7 +501,7 @@ export function computeBestTss(trackPoints: TrackpointInput | null, avgHr: numbe
 
     // Try hrTSS
     if (maxHr && maxHr > 0) {
-      const hrTssResult = computeHrTss(trackPoints, maxHr);
+      const hrTssResult = computeHrTss(trackPoints, maxHr, restHr);
       if (hrTssResult?.hrTss != null && hrTssResult.hrTss > 0) {
         return hrTssResult.hrTss;
       }
@@ -482,17 +533,18 @@ export function extractMetrics(
   rawJson: Record<string, unknown> | null,
   maxHr: number | null,
   avgHr: number | null,
-  durationSeconds: number
+  durationSeconds: number,
+  restHr?: number | null
 ): TrackpointMetrics {
   const trackPoints = (rawJson?.trackPoints as TrackPoint[]) || null;
 
   const powerMetrics = trackPoints ? computePowerMetrics(trackPoints) : null;
-  const hrTss = (trackPoints && maxHr) ? computeHrTss(trackPoints, maxHr) : null;
-  const intensityDistribution = (trackPoints && maxHr) ? computeIntensityDistribution(trackPoints, maxHr) : null;
+  const hrTss = (trackPoints && maxHr) ? computeHrTss(trackPoints, maxHr, restHr) : null;
+  const intensityDistribution = (trackPoints && maxHr) ? computeIntensityDistribution(trackPoints, maxHr, restHr) : null;
   const decoupling = trackPoints ? computeDecoupling(trackPoints, powerMetrics != null) : null;
   const efResult = trackPoints ? computeEfficiencyFactor(trackPoints) : null;
   const efficiencyFactor = efResult?.ef ?? null;
-  const bestTss = computeBestTss(trackPoints, avgHr, maxHr, durationSeconds);
+  const bestTss = computeBestTss(trackPoints, avgHr, maxHr, durationSeconds, restHr);
 
   return {
     hrTss,
@@ -548,17 +600,22 @@ const EMPTY_PRECOMPUTED_METRICS: PrecomputedTrackpointMetrics = {
  * Compute the precomputed trackpoint metrics from a parsed activity's
  * trackpoints. Call this at ingestion time (when the trackpoints are already
  * in memory) and store the result on the TrainingLog row.
+ *
+ * `maxHr` is the user-level max HR (see `getEffectiveMaxHr` in body-metrics.ts)
+ * — ingestion passes the same value every site uses, so the stored zone
+ * columns reflect the user's zones rather than each activity's observed max.
  */
 export function computePrecomputedTrackpointMetrics(
   trackPoints: TrackpointInput | null | undefined,
   maxHr: number | null,
+  restHr?: number | null,
 ): PrecomputedTrackpointMetrics {
   if (!trackPoints || trackPoints.length < 30) {
     return { ...EMPTY_PRECOMPUTED_METRICS };
   }
 
   const intensity = maxHr
-    ? computeIntensityDistribution(trackPoints, maxHr)
+    ? computeIntensityDistribution(trackPoints, maxHr, restHr)
     : null;
   // Mirror the dashboard's live logic: an "insufficient_data" distribution was
   // skipped in the aggregate, so persist null for it to reproduce that filter.

@@ -180,6 +180,29 @@ describe('classifyWorkoutType', () => {
         }),
       ).not.toBeNull();
     });
+
+    it('reclassifies a fixed effort lower under Karvonen', () => {
+      // Flat 135 bpm for 45 min, maxHr=180:
+      //   %maxHR: 135 is in Z3 (126–144) → tempo
+      //   Karvonen (rest 50): 135 is in Z2 (128–141) → easy
+      const trackPoints = Array.from({ length: 2700 }, () => ({ hr: 135 }));
+      const byMaxHr = classifyWorkoutType({
+        type: 'run',
+        durationSeconds: 2700,
+        trackPoints,
+        maxHr: 180,
+      });
+      expect(byMaxHr).toBe('tempo');
+
+      const karvonen = classifyWorkoutType({
+        type: 'run',
+        durationSeconds: 2700,
+        trackPoints,
+        maxHr: 180,
+        restHr: 50,
+      });
+      expect(karvonen).toBe('easy');
+    });
   });
 
   describe('edge cases', () => {

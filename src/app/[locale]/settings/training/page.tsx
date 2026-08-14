@@ -526,11 +526,138 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
   );
 }
 
+// ─── Section: Max Heart Rate ───────────────────────────────────────────────
+interface MaxHrInfo {
+  effective: number;
+  source: "estimated" | "user-set" | "default";
+  userSet: number | null;
+  estimated: number | null;
+}
+
+function MaxHrSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
+  const { status } = useSession();
+  const [info, setInfo] = useState<MaxHrInfo | null>(null);
+  const [value, setValue] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetch("/api/settings/max-hr")
+      .then((r) => r.json())
+      .then((data: MaxHrInfo) => {
+        setInfo(data);
+        setValue(data.userSet != null ? String(data.userSet) : "");
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [status]);
+
+  async function handleSave() {
+    const trimmed = value.trim();
+    if (trimmed !== "" && (!/^\d+$/.test(trimmed) || Number(trimmed) < 30 || Number(trimmed) > 220)) {
+      setError(t("rangeError"));
+      return;
+    }
+    setSaving(true); setError(""); setSaved(false);
+    try {
+      const res = await fetch("/api/settings/max-hr", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxHr: trimmed === "" ? null : Number(trimmed) }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const updated = (await res.json()) as MaxHrInfo;
+      setInfo(updated);
+      setValue(updated.userSet != null ? String(updated.userSet) : "");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { setError(t("saveFailed")); }
+    setSaving(false);
+  }
+
+  async function handleClear() {
+    if (!window.confirm(t("clearConfirm"))) return;
+    setSaving(true); setError("");
+    try {
+      const res = await fetch("/api/settings/max-hr", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxHr: null }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const updated = (await res.json()) as MaxHrInfo;
+      setInfo(updated);
+      setValue("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch { setError(t("saveFailed")); }
+    setSaving(false);
+  }
+
+  const sourceLabel =
+    info?.source === "estimated" ? t("sourceEstimated")
+    : info?.source === "user-set" ? t("sourceUserSet")
+    : t("sourceDefault");
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Heart className="h-5 w-5" /> {t("title")}</CardTitle>
+        <CardDescription>{t("description")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded mb-4">{error}</div>}
+
+        <div className="flex items-baseline gap-3 mb-4 p-3 rounded-lg border bg-muted/30">
+          <span className="text-2xl font-bold tabular-nums">{info?.effective ?? "—"}</span>
+          <span className="text-sm text-muted-foreground">bpm</span>
+          <div className="ml-auto text-right">
+            <div className="text-[10px] text-muted-foreground uppercase">{t("currentLabel")}</div>
+            <div className="text-xs">{info ? sourceLabel : "…"}</div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="max-hr-input">{t("label")}</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="max-hr-input"
+              type="number"
+              inputMode="numeric"
+              min={30}
+              max={220}
+              placeholder={t("placeholder")}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="max-w-[10rem]"
+              disabled={loading}
+            />
+            <Button onClick={handleSave} disabled={loading || saving}>
+              {saving ? common("saving") : t("save")}
+            </Button>
+            {info?.userSet != null && (
+              <Button variant="ghost" size="sm" onClick={handleClear} disabled={saving}>
+                {t("clear")}
+              </Button>
+            )}
+            {saved && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3.5 w-3.5" /> {t("saved")}</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">{t("hint")}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────
 export default function SettingsTrainingPage() {
   const gt = useTranslations("settings.general");
   const goalsT = useTranslations("settings.goals");
   const bmT = useTranslations("settings.bodyMetrics");
+  const maxHrT = useTranslations("settings.maxHr");
   const settingsT = useTranslations("settings");
   const common = useTranslations("common");
 
@@ -544,6 +671,7 @@ export default function SettingsTrainingPage() {
       </div>
 
       <TrainingContextSection t={gt} common={common} />
+      <MaxHrSection t={maxHrT} common={common} />
       <GoalsSection t={goalsT} common={common} />
       <BodyMetricsSection t={bmT} common={common} />
     </div>

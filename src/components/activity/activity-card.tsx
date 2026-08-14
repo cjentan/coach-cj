@@ -64,6 +64,10 @@ export interface DuplicateGroupInfo {
 
 export interface ActivityCardProps {
   log: TrainingLog;
+  /** Resting HR — anchors the Karvonen (HRR) zone chart. */
+  restingHr?: number | null;
+  /** User-level effective max HR — the anchor for the Karvonen zone chart. */
+  maxHr?: number | null;
   remarksText: string;
   remarksDirty: boolean;
   saved: boolean;
@@ -125,7 +129,7 @@ function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ classNa
 // ── ActivityCard (extracted from activities/[id]/page.tsx) ─────────────────
 
 export function ActivityCard({
-  log, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup,
+  log, restingHr, maxHr, remarksText, remarksDirty, saved, deleting, similarRoutes, duplicateGroup,
   onRemarksChange, onDelete, coachAnalysisText, analyzing, analyzeError, analysisStatus,
   onAnalyze, onClearAnalysis, isRace, isRaceDirty, onIsRaceChange,
 }: ActivityCardProps) {
@@ -168,7 +172,9 @@ export function ActivityCard({
   // Compute all chart data
   const splitMeters = log.type === "swim" ? 100 : log.type === "ride" ? 5000 : 1000;
   const splits = hasTrackpoints ? computeSplits(trackPoints!, splitMeters) : [];
-  const hrZones = hasTrackpoints && log.maxHr ? computeHrZoneBreakdown(trackPoints!, log.maxHr) : null;
+  // Zone chart anchors to the user-level max HR (estimated > user-set > 190),
+  // not this activity's own observed max, so it agrees with the dashboard.
+  const hrZones = hasTrackpoints && maxHr ? computeHrZoneBreakdown(trackPoints!, maxHr, restingHr) : null;
   const vam = hasTrackpoints ? computeVam(trackPoints!) : null;
   const routePoints = hasTrackpoints ? extractRoutePoints(trackPoints!) : [];
   const combinedDistData = hasTrackpoints ? computeCombinedDistanceData(trackPoints!) : [];

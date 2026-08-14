@@ -35,7 +35,7 @@ interface Stats {
   weeklyDistance: number; weeklyElevation: number; weeklyDuration: number;
   weeklyCount: number; weeklyTss: number; avgDailyTss: number;
   avgHr: number | null; activeGoals: number; latestWeight: number | null;
-  latestRestingHr: number | null; estimatedMaxHr: number | null;
+  latestRestingHr: number | null; maxHr: number; maxHrSource: "estimated" | "user-set" | "default";
   lastWeek: StatsComparison | null; currentMonth: StatsComparison | null; lastMonth: StatsComparison | null;
 }
 
@@ -332,33 +332,45 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
   // ─── Helper components ─────────────────────────────────────────────
 
   function HrZoneCard({ stats }: { stats: Stats }) {
-    const maxHr = stats.estimatedMaxHr;
+    const maxHr = stats.maxHr;
     const restHr = stats.latestRestingHr;
+    // Label which value is in effect: data-derived estimate, the user's
+    // manually set value, or the generic default.
+    const maxHrLabel =
+      stats.maxHrSource === "estimated"
+        ? t("maxHrSourceEstimated")
+        : stats.maxHrSource === "user-set"
+          ? t("maxHrSourceUserSet")
+          : t("maxHrSourceDefault");
     return (
       <Card><CardContent className="py-4">
         <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-2"><Heart className="h-3.5 w-3.5 text-red-500" /> {t("hr")}</span>
         <div className="flex items-baseline gap-3 mb-3 pb-3 border-b">
           {restHr ? <><div><span className="text-2xl font-bold">{restHr}</span><span className="text-sm text-muted-foreground ml-1">bpm</span><div className="text-[10px] text-muted-foreground">{t("restingHr")}</div></div></>
             : <div className="text-xs text-muted-foreground italic">{t("noRestingHr")}</div>}
-          {maxHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{maxHr}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{t("estMaxHr")}</div></div>}
+          <div className="border-l pl-3"><span className="text-lg font-semibold">{maxHr}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{maxHrLabel}</div></div>
           {stats.avgHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{Math.round(stats.avgHr)}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{t("avgExerciseHr")}</div></div>}
         </div>
         {(() => {
-          if (!maxHr) return <div className="text-xs text-muted-foreground italic">{t("hrZonesHint")}</div>;
-          const thresholds = [0.68, 0.83, 0.94, 1.05];
+          const thresholds = [0.60, 0.70, 0.80, 0.90];
           const labels = t.raw("hrZones") as unknown as string[];
           const colors = ["bg-blue-400", "bg-green-400", "bg-amber-400", "bg-orange-500", "bg-red-500"];
           const textColors = ["text-blue-500", "text-green-500", "text-amber-500", "text-orange-600", "text-red-500"];
+          // Karvonen (heart-rate reserve) when a resting HR is recorded, else the
+          // same bands as % of max HR — matching computeIntensityDistribution.
+          // The last zone (Z5) is bounded by max HR itself, so an out-of-range
+          // index (which previously produced NaN) is impossible.
+          const zoneToBpm = (pct: number) =>
+            restHr && restHr > 0 && restHr < maxHr
+              ? Math.round(restHr + (maxHr - restHr) * pct)
+              : Math.round(maxHr * pct);
           return <div className="space-y-1">{labels.map((label, i) => {
-            // Zone boundaries are % of max HR (Z2 = 68–83% of max HR) — the same
-            // thresholds the intensity-distribution classification uses. Applying
-            // them to heart-rate reserve (Karvonen) inflated every boundary.
-            const lower = i === 0 ? 0 : Math.round(maxHr * thresholds[i - 1]);
-            const upper = i < 5 ? Math.round(maxHr * thresholds[Math.min(i, 4)]) : 999;
+            const lower = i === 0 ? 0 : zoneToBpm(thresholds[i - 1]);
+            const upper = i < thresholds.length ? zoneToBpm(thresholds[i]) : maxHr;
             return <div key={label} className="flex items-center gap-2 text-[11px]">
               <span className="w-auto min-w-[3rem] text-muted-foreground shrink-0">{label}</span>
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden"><div className={`${colors[i]} h-full rounded-full`} style={{ width: "20%", marginLeft: `${(lower / (maxHr * 1.1)) * 100}%` }} /></div>
-              <span className={`w-auto min-w-[4rem] text-right font-medium tabular-nums ${textColors[i]}`}>{lower === 0 ? `<${upper}` : upper >= 999 ? `>${lower}` : `${lower}–${upper}`} bpm</span>
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden"><div className={`${colors[i]} h-full rounded-full`} style={{ width: "20%", marginLeft: `${(lower / maxHr) * 100}%` }} /></div>
+              <span className={`w-auto min-w-[4rem] text-right font-medium tabular-nums ${textColors[i]}`}>{lower === 0 ? `<${upper}` : `${lower}–${upper}`} bpm</span>
             </div>;
           })}</div>;
         })()}

@@ -8,6 +8,7 @@ import {
   ReferenceArea, ComposedChart,
 } from "recharts";
 import { formatTime as fmtTime } from "@/lib/trackpoint-charts";
+import { hrZoneBoundaryBpm } from "@/lib/trackpoint-metrics";
 import { getCurrentUnits } from "@/lib/utils";
 import type { CombinedDataPoint } from "@/lib/trackpoint-charts";
 
@@ -91,18 +92,18 @@ export function ElevationChart({ data }: { data: { distance: number; ele: number
 
 // ─── Heart Rate Chart with Zone Bands ────────────────────────
 
-export function HrChart({ data, maxHr, restingHr }: {
+export function HrChart({ data, maxHr, restHr }: {
   data: { distance: number; hr: number }[];
   maxHr: number;
-  restingHr?: number;
+  restHr?: number | null;
 }) {
   const t = useTranslations("activities.detail");
-  const base = restingHr || 0;
-  const reserve = maxHr - base;
-  const z1 = Math.round(base + reserve * 0.68);
-  const z2 = Math.round(base + reserve * 0.83);
-  const z3 = Math.round(base + reserve * 0.94);
-  const z4 = Math.round(base + reserve * 1.05);
+  // Zone bands use Karvonen (HR reserve) when a resting HR is available,
+  // falling back to % of max HR — matching the rest of the app.
+  const z1 = hrZoneBoundaryBpm(maxHr, 0.60, restHr) ?? Math.round(maxHr * 0.60);
+  const z2 = hrZoneBoundaryBpm(maxHr, 0.70, restHr) ?? Math.round(maxHr * 0.70);
+  const z3 = hrZoneBoundaryBpm(maxHr, 0.80, restHr) ?? Math.round(maxHr * 0.80);
+  const z4 = hrZoneBoundaryBpm(maxHr, 0.90, restHr) ?? Math.round(maxHr * 0.90);
 
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
@@ -119,7 +120,7 @@ export function HrChart({ data, maxHr, restingHr }: {
               formatter={(v: number) => [`${v} bpm`, t("seriesHr")]}
             />
             {/* Zone bands */}
-            <ReferenceArea y1={base} y2={z1} fill="#6b7280" fillOpacity={0.06} />
+            <ReferenceArea y1={0} y2={z1} fill="#6b7280" fillOpacity={0.06} />
             <ReferenceArea y1={z1} y2={z2} fill="#3b82f6" fillOpacity={0.06} />
             <ReferenceArea y1={z2} y2={z3} fill="#f59e0b" fillOpacity={0.06} />
             <ReferenceArea y1={z3} y2={z4} fill="#ef4444" fillOpacity={0.06} />
@@ -131,7 +132,7 @@ export function HrChart({ data, maxHr, restingHr }: {
       {/* Zone legend */}
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
         {[
-          { label: "Z1", color: "#6b7280", range: `${Math.round(base)}–${z1}` },
+          { label: "Z1", color: "#6b7280", range: `0–${z1}` },
           { label: "Z2", color: "#3b82f6", range: `${z1}–${z2}` },
           { label: "Z3", color: "#f59e0b", range: `${z2}–${z3}` },
           { label: "Z4", color: "#ef4444", range: `${z3}–${z4}` },

@@ -161,6 +161,9 @@
     "restingHr": "静息",
     "noRestingHr": "无静息心率数据",
     "estMaxHr": "估算最大",
+    "maxHrSourceEstimated": "估算最大",
+    "maxHrSourceUserSet": "设定最大",
+    "maxHrSourceDefault": "默认",
     "avgExerciseHr": "平均运动",
     "hrZonesHint": "记录含心率数据的活动以计算心率区间。",
     "hrZones": [
@@ -448,6 +451,8 @@
       "weightLabel": "体重（公斤）*",
       "heightLabel": "身高（厘米，可选）",
       "restingHrLabel": "静息心率（bpm，可选）",
+      "maxHrLabel": "最大心率（bpm，可选）",
+      "maxHrPlaceholder": "例如 188",
       "saveEntry": "保存记录",
       "explanation": "体重用于计算相对强度指标（如瓦特/公斤、VO₂ 估算值）。追踪静息心率有助于发现疲劳趋势。即使仅录入一次也能提高分析准确性。",
       "weightPlaceholder": "如：75.5",
@@ -916,6 +921,23 @@
       "textSizeNormal": "标准",
       "textSizeLarge": "大",
       "textSizeXLarge": "特大"
+    },
+    "maxHr": {
+      "title": "最大心率",
+      "description": "最大心率是所有心率区间（卡沃宁法/储备心率）的锚点。留空时我们会根据你的活动估算，若无数据则使用标准默认值。",
+      "currentLabel": "当前生效",
+      "sourceEstimated": "根据活动估算",
+      "sourceUserSet": "你手动设定",
+      "sourceDefault": "标准默认值（190 bpm）",
+      "label": "最大心率（bpm）",
+      "placeholder": "例如 188",
+      "save": "保存",
+      "saved": "已保存",
+      "saveFailed": "保存最大心率失败",
+      "clear": "清除",
+      "clearConfirm": "清除自定义最大心率？我们将回退到估算值或默认值。",
+      "rangeError": "必须是 30 到 220 之间的整数",
+      "hint": "一旦你有足够多的活动，估算的最大心率（近两年活动中最高心率）将优先于手动设定值。"
     },
     "bodyMetrics": {
       "title": "身体指标",

@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
             llmApiKey: s.llmApiKey ?? null,
             onboardingCompleted: s.onboardingCompleted ?? false,
             dashboardPrefs: s.dashboardPrefs ?? undefined,
+            maxHr: s.maxHr ?? null,
           },
         });
       }

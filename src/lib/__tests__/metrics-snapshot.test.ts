@@ -4,9 +4,11 @@ import { getWeekStart } from '../utils';
 import { buildTrainingLog, buildRaceGoal, buildBodyMetric } from '@/test/factories';
 
 const mockPrisma = vi.hoisted(() => ({
-  trainingLog: { findMany: vi.fn() },
+  trainingLog: { findMany: vi.fn(), findFirst: vi.fn() },
   raceGoal: { findMany: vi.fn() },
-  bodyMetric: { findMany: vi.fn() },
+  bodyMetric: { findMany: vi.fn(), findFirst: vi.fn() },
+  dailyHealth: { findFirst: vi.fn() },
+  user: { findUnique: vi.fn() },
   weeklyAssessment: { upsert: vi.fn() },
 }));
 
@@ -30,6 +32,13 @@ describe('snapshotWeek', () => {
     mockPrisma.trainingLog.findMany.mockResolvedValueOnce(overrides.pmcLogs ?? []);
     mockPrisma.raceGoal.findMany.mockResolvedValueOnce(overrides.goals ?? []);
     mockPrisma.bodyMetric.findMany.mockResolvedValueOnce(overrides.bodyMetrics ?? []);
+    // Karvonen anchors: no Garmin daily health, no manual resting HR, no
+    // estimated max HR and no user-set max HR → effective max falls back to
+    // the DEFAULT_MAX_HR (190). Keeps zone-dependent assertions deterministic.
+    mockPrisma.dailyHealth.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.bodyMetric.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.trainingLog.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null);
     mockPrisma.weeklyAssessment.upsert.mockResolvedValue({} as any);
   }
 

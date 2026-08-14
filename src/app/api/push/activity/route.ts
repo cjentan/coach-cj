@@ -34,6 +34,7 @@ import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 import { ActivityType } from "@prisma/client";
 import { computePrecomputedTrackpointMetrics, PrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
+import { getEffectiveMaxHr, getLatestRestingHr } from "@/lib/body-metrics";
 
 const VALID_TYPES: ActivityType[] = ["run", "ride", "swim", "hike", "walk", "workout", "other"];
 
@@ -50,6 +51,10 @@ export async function POST(req: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Invalid or revoked API key" }, { status: 401 });
   }
+
+  // Karvonen zones need the user's resting HR and max HR; fetch once per request.
+  const restHr = await getLatestRestingHr(userId);
+  const maxHr = await getEffectiveMaxHr(userId);
 
   // ── Parse query overrides ───────────────────────────────
   const { searchParams } = new URL(req.url);
@@ -132,10 +137,12 @@ export async function POST(req: Request) {
       const rawJson = buildRawJson(activity, fileName);
 
       // Precompute trackpoint metrics while the trackpoints are in memory, so
-      // dashboard chart routes never have to load the rawJson blobs.
+      // dashboard chart routes never have to load the rawJson blobs. Zone math
+      // anchors to the user-level max HR, not this activity's observed max.
       const tpMetrics = computePrecomputedTrackpointMetrics(
         activity.trackPoints,
-        activity.maxHr,
+        maxHr,
+        restHr,
       );
 
       // Check for exact duplicate from same source before inserting.

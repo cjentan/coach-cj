@@ -25,6 +25,7 @@ import { getWeekStart, parseClientDate } from "@/lib/utils";
 import { classifyWorkoutType } from "@/lib/workout-classifier";
 import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
 import { computePrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
+import { getEffectiveMaxHr, getLatestRestingHr } from "@/lib/body-metrics";
 
 const HEARTBEAT_MS = 3000; // ping every 3 seconds to keep proxies alive
 
@@ -151,6 +152,10 @@ export async function POST(req: Request) {
         const affectedWeeks = new Set<string>();
         let totalCsvRows = 0;
 
+        // Karvonen zones need the user's resting HR and max HR; fetch once per request.
+        const restHr = await getLatestRestingHr(userId);
+        const maxHr = await getEffectiveMaxHr(userId);
+
         s({
           type: "progress",
           phase: "importing",
@@ -211,7 +216,8 @@ export async function POST(req: Request) {
                   durationSeconds: activity.durationSeconds,
                   distanceMeters: activity.distanceMeters,
                   averageHr: activity.averageHr,
-                  maxHr: activity.maxHr,
+                  maxHr,
+                  restHr,
                   averagePower: activity.averagePower,
                   normalizedPower: activity.normalizedPower,
                   trackPoints: activity.rawJson
@@ -229,12 +235,14 @@ export async function POST(req: Request) {
 
                 // Precompute trackpoint metrics while the trackpoints are in
                 // memory, so dashboard chart routes never have to load the
-                // rawJson blobs.
+                // rawJson blobs. Zone math anchors to the user-level max HR,
+                // not this activity's observed max.
                 const tpMetrics = computePrecomputedTrackpointMetrics(
                   activity.rawJson
                     ? (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined
                     : undefined,
-                  activity.maxHr,
+                  maxHr,
+                  restHr,
                 );
 
                 if (existing) {

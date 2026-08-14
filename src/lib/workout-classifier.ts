@@ -27,6 +27,8 @@ export interface ClassifierInput {
   distanceMeters?: number | null;
   averageHr?: number | null;
   maxHr?: number | null;
+  /** Resting HR — anchors the Karvonen zone classification. */
+  restHr?: number | null;
   averagePower?: number | null;
   normalizedPower?: number | null;
   trackPoints?: Array<Partial<TrackPoint>> | null;
@@ -37,7 +39,7 @@ export interface ClassifierInput {
  * Returns null when there isn't enough data to classify confidently.
  */
 export function classifyWorkoutType(input: ClassifierInput): WorkoutType | null {
-  const { type, subType, durationSeconds, trackPoints, maxHr } = input;
+  const { type, subType, durationSeconds, trackPoints, maxHr, restHr } = input;
   const durationMinutes = durationSeconds / 60;
 
   // Non-running/riding activities → cross_training
@@ -47,7 +49,7 @@ export function classifyWorkoutType(input: ClassifierInput): WorkoutType | null 
 
   // Try trackpoint-based classification if HR data is available
   if (trackPoints && trackPoints.length >= 30 && maxHr && maxHr > 0) {
-    const distribution = computeIntensityDistribution(trackPoints, maxHr);
+    const distribution = computeIntensityDistribution(trackPoints, maxHr, restHr);
     if (distribution && distribution.analyzedDuration >= 60) {
       return classifyFromZones(distribution, durationMinutes, type, subType);
     }

@@ -69,6 +69,7 @@ export interface BackupSettings {
       llmApiKey: string | null;
       onboardingCompleted: boolean;
       dashboardPrefs: unknown;
+      maxHr: number | null;
     };
   };
 }

@@ -9,6 +9,7 @@ import { getWeekStart } from "@/lib/utils";
 import { classifyWorkoutType } from "@/lib/workout-classifier";
 import { simplifyTrackPoints } from "@/lib/simplify-trackpoints";
 import { computePrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
+import { getEffectiveMaxHr, getLatestRestingHr } from "@/lib/body-metrics";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
     let imported = 0;
     const newActivityIds: string[] = [];
     const affectedWeeks = new Set<string>();
+
+    // Karvonen zones need the user's resting HR and max HR; fetch once per request.
+    const restHr = await getLatestRestingHr(session.user.id);
+    const maxHr = await getEffectiveMaxHr(session.user.id);
 
     for (const file of files) {
       try {
@@ -77,9 +82,12 @@ export async function POST(req: Request) {
 
           // Precompute trackpoint metrics while the trackpoints are in memory,
           // so dashboard chart routes never have to load the rawJson blobs.
+          // Zone math anchors to the user-level max HR, not this activity's
+          // observed max, so every activity's zones mean the same thing.
           const tpMetrics = computePrecomputedTrackpointMetrics(
             rawJson.trackPoints as TrackPoint[] | undefined,
-            activity.maxHr,
+            maxHr,
+            restHr,
           );
 
           const created = await prisma.trainingLog.upsert({
@@ -151,7 +159,8 @@ export async function POST(req: Request) {
             durationSeconds: activity.durationSeconds,
             distanceMeters: activity.distanceMeters,
             averageHr: activity.averageHr,
-            maxHr: activity.maxHr,
+            maxHr,
+            restHr,
             averagePower: activity.averagePower,
             normalizedPower: activity.normalizedPower,
             trackPoints: activity.trackPoints,

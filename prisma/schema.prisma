@@ -28,6 +28,7 @@ model User {
   analysisTriggerValue Int                 @default(1) @map("analysis_trigger_value")
   onboardingCompleted  Boolean             @default(false) @map("onboarding_completed")
   reviewDayOfMonth     Int?                @default(1) @map("review_day_of_month")
+  maxHr                Int?                @map("max_hr")
   trainingContext      String?             @map("training_context")
   dashboardPrefs       Json?               @map("dashboard_prefs")
   locale               String              @default("en")

@@ -4,15 +4,24 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
+import { getLatestRestingHr, getMaxHrInfo } from "@/lib/body-metrics";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const log = await prisma.trainingLog.findUnique({
-    where: { id: params.id, userId: session.user.id },
-  });
+  // Karvonen zones need the user's resting HR and effective max HR (for live
+  // zone charts). Every activity anchors to the same user-level max, so the
+  // zone chart means the same thing as the dashboard's.
+  const [log, restingHr, maxHrInfo] = await Promise.all([
+    prisma.trainingLog.findUnique({
+      where: { id: params.id, userId: session.user.id },
+    }),
+    getLatestRestingHr(session.user.id),
+    getMaxHrInfo(session.user.id),
+  ]);
   if (!log) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const { effective: maxHr, source: maxHrSource } = maxHrInfo;
 
   const url = new URL(req.url);
   if (url.searchParams.get("neighbors") === "true" || url.searchParams.get("neighbors") === "full") {
@@ -33,12 +42,12 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       }),
     ]);
     if (wantFull) {
-      return NextResponse.json({ log, prev: prev || null, next: next || null });
+      return NextResponse.json({ log, restingHr, maxHr, maxHrSource, prev: prev || null, next: next || null });
     }
-    return NextResponse.json({ log, prevId: prev?.id || null, nextId: next?.id || null });
+    return NextResponse.json({ log, restingHr, maxHr, maxHrSource, prevId: prev?.id || null, nextId: next?.id || null });
   }
 
-  return NextResponse.json(log);
+  return NextResponse.json({ ...log, restingHr, maxHr, maxHrSource });
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {

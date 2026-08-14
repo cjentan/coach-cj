@@ -8,6 +8,8 @@ import {
   computeBestTss,
   extractMetrics,
   computePrecomputedTrackpointMetrics,
+  hrZoneBoundaryBpm,
+  hrZoneRatio,
 } from '../trackpoint-metrics';
 import { buildTrackPoints } from '@/test/factories';
 
@@ -42,15 +44,15 @@ describe('computeHrTss', () => {
   it('distributes very low HR points into Z1', () => {
     const lowPoints = buildTrackPoints(100, { baseHr: 90 });
     const lowResult = computeHrTss(lowPoints, 200);
-    // With maxHr=200, Z1 upper is 136. baseHr=90 ± 20 = 70-110, all in Z1
+    // With maxHr=200, Z1 upper is 120. baseHr=90 ± 20 = 70-110, all in Z1
     expect(lowResult!.zonePct[0]).toBe(100);
   });
 
   it('distributes high HR points mostly into Z4+Z5', () => {
     const highPoints = buildTrackPoints(100, { baseHr: 190 });
     const highResult = computeHrTss(highPoints, 200);
-    // With maxHr=200, Z4 = 188-210, Z5 > 210
-    // baseHr=190 ± 20 = 170-210 — spans Z3-Z5
+    // With maxHr=200, Z4 = 161-180, Z5 = 181-200
+    // baseHr=190 ± 20 = 170-210 — spans Z4-Z5
     const highZonePct = highResult!.zonePct[3] + highResult!.zonePct[4];
     expect(highZonePct).toBeGreaterThan(50);
   });
@@ -59,14 +61,71 @@ describe('computeHrTss', () => {
     const points = buildTrackPoints(100, { baseHr: 140 });
     const result = computeHrTss(points, 180);
     expect(result!.zoneHrRanges[0]).toBeLessThan(result!.zoneHrRanges[1]);
-    expect(result!.zoneHrRanges[3]).toBeGreaterThan(170);
+    expect(result!.zoneHrRanges[3]).toBe(Math.round(180 * 0.9));
   });
 
-  it('uses resting HR when provided (Karvonen method)', () => {
+  it('computes zone boundaries as % of max HR', () => {
+    // Zones are % of max HR (matching computeIntensityDistribution): Z1 upper =
+    // 60% max, Z2 = 60–70%, …, Z5 = 90–100% (bounded by max HR). Resting HR is
+    // not part of the boundaries, so they scale purely off max HR.
     const points = buildTrackPoints(100, { baseHr: 120 });
-    const withoutRhr = computeHrTss(points, 180);
-    const withRhr = computeHrTss(points, 180, 50);
-    expect(withRhr!.zoneHrRanges).not.toEqual(withoutRhr!.zoneHrRanges);
+    const result = computeHrTss(points, 200)!;
+    expect(result.zoneHrRanges[0]).toBe(Math.round(200 * 0.6));
+    expect(result.zoneHrRanges[1]).toBe(Math.round(200 * 0.7));
+    expect(result.zoneHrRanges[2]).toBe(Math.round(200 * 0.8));
+    expect(result.zoneHrRanges[3]).toBe(Math.round(200 * 0.9));
+    expect(result.zoneHrRanges[4]).toBe(Math.round(200 * 1.0));
+  });
+
+  it('computes zone boundaries with Karvonen (HR reserve) when restHr is given', () => {
+    // Karvonen: boundary = restHr + (maxHr − restHr) × pct. maxHr=200, restHr=50
+    // → reserve 150 → Z1<140, Z2 140–155, Z3 155–170, Z4 170–185, Z5 185–200.
+    const points = buildTrackPoints(100, { baseHr: 120 });
+    const result = computeHrTss(points, 200, 50)!;
+    expect(result.zoneHrRanges[0]).toBe(Math.round(50 + 150 * 0.6)); // 140
+    expect(result.zoneHrRanges[1]).toBe(Math.round(50 + 150 * 0.7)); // 155
+    expect(result.zoneHrRanges[2]).toBe(Math.round(50 + 150 * 0.8)); // 170
+    expect(result.zoneHrRanges[3]).toBe(Math.round(50 + 150 * 0.9)); // 185
+    expect(result.zoneHrRanges[4]).toBe(Math.round(200 * 1.0)); // Z5 capped at max HR
+  });
+
+  it('ignores an invalid restHr and falls back to % of max HR', () => {
+    // restHr must satisfy 0 < restHr < maxHr; otherwise boundaries are %maxHR.
+    const points = buildTrackPoints(100, { baseHr: 120 });
+    const expected = computeHrTss(points, 200)!;
+    for (const bad of [0, -10, 200, 250]) {
+      const result = computeHrTss(points, 200, bad)!;
+      expect(result.zoneHrRanges).toEqual(expected.zoneHrRanges);
+    }
+  });
+});
+
+describe('hrZoneBoundaryBpm / hrZoneRatio (Karvonen helpers)', () => {
+  it('computes Karvonen boundaries from the HR reserve', () => {
+    expect(hrZoneBoundaryBpm(200, 0.6, 50)).toBe(Math.round(50 + 150 * 0.6));
+    expect(hrZoneBoundaryBpm(200, 0.9, 50)).toBe(Math.round(50 + 150 * 0.9));
+  });
+
+  it('falls back to % of max HR when restHr is missing or invalid', () => {
+    expect(hrZoneBoundaryBpm(200, 0.6)).toBe(Math.round(200 * 0.6));
+    expect(hrZoneBoundaryBpm(200, 0.6, null)).toBe(Math.round(200 * 0.6));
+    expect(hrZoneBoundaryBpm(200, 0.6, 0)).toBe(Math.round(200 * 0.6)); // restHr 0
+    expect(hrZoneBoundaryBpm(200, 0.6, 250)).toBe(Math.round(200 * 0.6)); // restHr ≥ maxHr
+  });
+
+  it('returns null for a non-positive maxHr', () => {
+    expect(hrZoneBoundaryBpm(0, 0.6, 50)).toBeNull();
+    expect(hrZoneBoundaryBpm(-10, 0.6, 50)).toBeNull();
+  });
+
+  it('maps HR onto the 0..1 reserve scale', () => {
+    expect(hrZoneRatio(200, 200, 50)).toBe(1); // at max → 100%
+    expect(hrZoneRatio(50, 200, 50)).toBe(0); // at rest → 0%
+    expect(hrZoneRatio(125, 200, 50)).toBeCloseTo(0.5, 5); // midpoint of reserve
+  });
+
+  it('uses 0 as the effective rest anchor when restHr is absent', () => {
+    expect(hrZoneRatio(100, 200)).toBeCloseTo(0.5, 5);
   });
 });
 
@@ -101,6 +160,19 @@ describe('computeIntensityDistribution', () => {
     expect(['polarized', 'pyramidal', 'threshold-heavy', 'insufficient_data']).toContain(
       result!.distributionType,
     );
+  });
+
+  it('shifts mid-range HR into a lower zone under Karvonen', () => {
+    // Flat 150 bpm with maxHr=200:
+    //   %maxHR: 150 is in Z3 (140–160) → zone3Pct = 100
+    //   Karvonen (rest 50): 150 is in Z2 (140–155) → zone2Pct = 100
+    const points = Array.from({ length: 100 }, () => ({ hr: 150 }));
+    const byMaxHr = computeIntensityDistribution(points as any, 200)!;
+    expect(byMaxHr.zone3Pct).toBe(100);
+
+    const karvonen = computeIntensityDistribution(points as any, 200, 50)!;
+    expect(karvonen.zone2Pct).toBe(100);
+    expect(karvonen.zone3Pct).toBe(0);
   });
 });
 
@@ -368,6 +440,24 @@ describe('computePrecomputedTrackpointMetrics', () => {
     expect(result.decouplingPct).not.toBeNull();
     expect(result.efficiencyFactor).not.toBeNull();
     expect(result.trackpointNormalizedPower).not.toBeNull();
+  });
+
+  it('uses Karvonen zone distribution when restHr is provided', () => {
+    const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
+    const result = computePrecomputedTrackpointMetrics(points, 180, 60);
+
+    const dist = computeIntensityDistribution(points, 180, 60)!;
+    expect(result.zone1Pct).toBe(dist.zone1Pct);
+    expect(result.zone2Pct).toBe(dist.zone2Pct);
+    expect(result.zone3Pct).toBe(dist.zone3Pct);
+    expect(result.zone4Pct).toBe(dist.zone4Pct);
+    expect(result.zone5Pct).toBe(dist.zone5Pct);
+
+    // Karvonen boundaries (rest 60, max 180, reserve 120) must differ from the
+    // %maxHR boundaries the same points would get without a resting HR.
+    const byMaxHr = computePrecomputedTrackpointMetrics(points, 180);
+    expect(dist).not.toEqual(computeIntensityDistribution(points, 180)!);
+    expect(byMaxHr).not.toEqual(result);
   });
 
   it('matches the live compute functions the old dashboard routes used', () => {

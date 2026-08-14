@@ -6,6 +6,7 @@
  */
 import { TrackPoint } from "./gpx-parser";
 import { haversine } from "./utils";
+import { hrZoneBoundaryBpm } from "./trackpoint-metrics";
 
 // ─── Downsampling ────────────────────────────────────────────
 
@@ -431,16 +432,14 @@ export interface HrZoneBreakdown {
 export function computeHrZoneBreakdown(
   trackPoints: TrackPoint[],
   maxHr: number,
-  restingHr?: number,
+  restHr?: number | null,
 ): HrZoneBreakdown | null {
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
   if (hrPoints.length < 10 || maxHr <= 0) return null;
 
-  const hrReserve = restingHr ? maxHr - restingHr : maxHr;
-  const baseHr = restingHr || 0;
-
-  // 5-zone model
-  const zonePcts = [0.68, 0.83, 0.94, 1.05, 1.0]; // upper bounds as % of maxHR/HRR
+  // 5-zone model — boundaries use the Karvonen method when a resting HR is
+  // available, matching computeIntensityDistribution.
+  const zonePcts = [0.60, 0.70, 0.80, 0.90, 1.0]; // upper bounds as fraction of HR range
   const labels = [
     "Z1 · Recovery",
     "Z2 · Endurance",
@@ -451,7 +450,9 @@ export function computeHrZoneBreakdown(
   const colors = ["#6b7280", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7"];
 
   const timeInZone = [0, 0, 0, 0, 0];
-  const upperBounds = zonePcts.map((pct) => Math.round(baseHr + hrReserve * pct));
+  const upperBounds = zonePcts.map(
+    (pct) => hrZoneBoundaryBpm(maxHr, pct, restHr) ?? Math.round(maxHr * pct),
+  );
 
   for (const tp of hrPoints) {
     const hr = tp.hr!;
@@ -470,7 +471,7 @@ export function computeHrZoneBreakdown(
     label: labels[i],
     pct: Math.round((count / total) * 1000) / 10,
     timeMin: Math.round(count / 60),
-    lowerBpm: i === 0 ? baseHr : upperBounds[i - 1],
+    lowerBpm: i === 0 ? 0 : upperBounds[i - 1],
     upperBpm: upperBounds[i],
   }));
 

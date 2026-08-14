@@ -230,6 +230,7 @@ export default function OnboardingPage() {
   const [metricWeight, setMetricWeight] = useState("");
   const [metricHeight, setMetricHeight] = useState("");
   const [metricRestingHr, setMetricRestingHr] = useState("");
+  const [metricMaxHr, setMetricMaxHr] = useState("");
   const [metricSaving, setMetricSaving] = useState(false);
   const [metricSaved, setMetricSaved] = useState(false);
 
@@ -396,6 +397,19 @@ export default function OnboardingPage() {
       });
       if (res.ok) {
         setMetricSaved(true);
+      }
+
+      // Optional max HR — anchors all HR zones. Saved separately via the
+      // settings API so an empty body-metrics save never blocks it.
+      if (metricMaxHr) {
+        const maxHrNum = Number(metricMaxHr);
+        if (Number.isInteger(maxHrNum) && maxHrNum >= 30 && maxHrNum <= 220) {
+          await fetch("/api/settings/max-hr", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ maxHr: maxHrNum }),
+          }).catch(() => {});
+        }
       }
     } catch {
       // Ignore
@@ -1100,6 +1114,20 @@ export default function OnboardingPage() {
                           setMetricRestingHr(e.target.value)
                         }
                         placeholder={t("bodyMetrics.restingHrPlaceholder")}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="metric-max-hr" className="text-xs">
+                        {t("bodyMetrics.maxHrLabel")}
+                      </Label>
+                      <Input
+                        id="metric-max-hr"
+                        type="number"
+                        min="30"
+                        max="220"
+                        value={metricMaxHr}
+                        onChange={(e) => setMetricMaxHr(e.target.value)}
+                        placeholder={t("bodyMetrics.maxHrPlaceholder")}
                       />
                     </div>
                   </div>

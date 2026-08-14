@@ -31,6 +31,8 @@ export default function ActivityDetailPage() {
   const [isRaceDirty, setIsRaceDirty] = useState(false);
   const [similarRoutes, setSimilarRoutes] = useState<RouteMatch[]>([]);
   const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroupInfo | null>(null);
+  const [restingHr, setRestingHr] = useState<number | null>(null);
+  const [maxHr, setMaxHr] = useState<number | null>(null);
   const touchRef = useRef<{ startX: number; startY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +70,8 @@ export default function ActivityDetailPage() {
       .then((data) => {
         const l = data.log || data;
         setLog(l);
+        setRestingHr(data.restingHr ?? null);
+        setMaxHr(data.maxHr ?? null);
         setRemarksText(l.remarks || "");
         setCoachAnalysisText(l.coachAnalysis || "");
         setAnalysisStatus(l.analysisStatus || null);
@@ -256,6 +260,8 @@ export default function ActivityDetailPage() {
       .then((data) => {
         const l = data.log || data;
         setLog(l);
+        setRestingHr(data.restingHr ?? null);
+        setMaxHr(data.maxHr ?? null);
         setRemarksText(l.remarks || "");
         setRemarksDirty(false);
         setSaved(false);
@@ -357,6 +363,8 @@ export default function ActivityDetailPage() {
         <div className="transition-transform duration-200 ease-out">
           <ActivityCard
             log={log}
+            restingHr={restingHr}
+            maxHr={maxHr}
             remarksText={remarksText}
             remarksDirty={remarksDirty}
             saved={saved}

@@ -161,6 +161,9 @@
     "restingHr": "Resting",
     "noRestingHr": "No resting HR",
     "estMaxHr": "Est. max",
+    "maxHrSourceEstimated": "Est. max",
+    "maxHrSourceUserSet": "Set max",
+    "maxHrSourceDefault": "Default",
     "avgExerciseHr": "Avg ex.",
     "hrZonesHint": "Log activities with HR data to calculate zones.",
     "hrZones": [
@@ -448,6 +451,8 @@
       "weightLabel": "Weight (kg) *",
       "heightLabel": "Height (cm, optional)",
       "restingHrLabel": "Resting HR (bpm, optional)",
+      "maxHrLabel": "Max HR (bpm, optional)",
+      "maxHrPlaceholder": "e.g. 188",
       "saveEntry": "Save Entry",
       "explanation": "Body weight is used to calculate relative intensity metrics (e.g., watts/kg, VO₂ estimates). Tracking your resting heart rate helps detect fatigue trends. Even a one-time entry improves your analysis.",
       "weightPlaceholder": "e.g. 75.5",
@@ -916,6 +921,23 @@
       "textSizeNormal": "Normal",
       "textSizeLarge": "Large",
       "textSizeXLarge": "Extra Large"
+    },
+    "maxHr": {
+      "title": "Max Heart Rate",
+      "description": "Your max heart rate anchors all HR zones (Karvonen / heart-rate reserve). Leave it blank and we'll use an estimate from your activities, falling back to a standard default.",
+      "currentLabel": "In effect",
+      "sourceEstimated": "Estimated from your activities",
+      "sourceUserSet": "Set by you",
+      "sourceDefault": "Standard default (190 bpm)",
+      "label": "Max HR (bpm)",
+      "placeholder": "e.g. 188",
+      "save": "Save",
+      "saved": "Saved",
+      "saveFailed": "Failed to save max HR",
+      "clear": "Clear",
+      "clearConfirm": "Clear your custom max HR? We'll fall back to the estimate or default.",
+      "rangeError": "Must be an integer between 30 and 220",
+      "hint": "Once you have enough activities, your estimated max HR (highest workout max over the last 2 years) takes precedence over this value."
     },
     "bodyMetrics": {
       "title": "Body Metrics",

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { localWeekStart, localDateStr, localDayOfWeek, parseClientDate } from "@/lib/utils";
 import { computePMC, fillDailyTss } from "@/lib/pmc";
 import { computeReadinessScore } from "@/lib/training-health";
+import { getLatestRestingHr, getMaxHrInfo } from "@/lib/body-metrics";
 
 interface PeriodStats {
   weeklyDistance: number;
@@ -77,8 +78,9 @@ export async function GET(request: Request) {
     goals,
     bodyMetrics,
     latestPlan,
-    maxHrLog,
+    maxHrInfo,
     latestAnalysisReport,
+    restingHr,
   ] = await Promise.all([
     // This week's logs — merged display + stats query
     prisma.trainingLog.findMany({
@@ -115,22 +117,20 @@ export async function GET(request: Request) {
       orderBy: { generatedAt: "desc" },
       select: { coachNotes: true, generatedAt: true },
     }),
-    // Max HR estimate (highest maxHr from last 2 years)
-    prisma.trainingLog.findFirst({
-      where: {
-        userId: session.user.id, maxHr: { not: null },
-        startDate: { gte: new Date(now.getTime() - 2 * 365 * 86400000) },
-        mergedIntoId: null,
-      },
-      orderBy: { maxHr: "desc" },
-      select: { maxHr: true },
-    }),
+    // Effective max HR (estimated from data > user-set > 190 default) — the
+    // Karvonen anchor for the HrZoneCard. Must match getEffectiveMaxHr so the
+    // dashboard zones agree with activity-detail and ingestion-time zones.
+    getMaxHrInfo(session.user.id),
     // Latest analysis report for reasoning/metadata display
     prisma.analysisReport.findFirst({
       where: { userId: session.user.id, reportType: "coach_notes" },
       orderBy: { createdAt: "desc" },
       select: { id: true, reasoning: true, metrics: true, createdAt: true },
     }),
+    // Effective resting HR (Garmin API value first, manual fallback) — the
+    // Karvonen anchor for the HrZoneCard. Must match getLatestRestingHr so the
+    // dashboard zones agree with activity-detail and ingestion-time zones.
+    getLatestRestingHr(session.user.id),
   ]);
 
   // Derive last-week, this-month, and last-month logs from the 90-day PMC data
@@ -150,8 +150,8 @@ export async function GET(request: Request) {
 
   const goalCount = goals.length;
   const latestWeight = bodyMetrics[0]?.weightKg || null;
-  const latestRestingHr = bodyMetrics.find((m) => m.restingHr != null)?.restingHr || null;
-  const estimatedMaxHr = maxHrLog?.maxHr || null;
+  const latestRestingHr = restingHr;
+  const { effective: maxHr, source: maxHrSource } = maxHrInfo;
 
   const stats = {
     weeklyDistance: aggregateLogs(weekLogs, 7).weeklyDistance,
@@ -164,7 +164,8 @@ export async function GET(request: Request) {
     activeGoals: goalCount,
     latestWeight,
     latestRestingHr,
-    estimatedMaxHr,
+    maxHr,
+    maxHrSource,
     lastWeek: lastWeekLogs.length > 0 ? aggregateLogs(lastWeekLogs, daysElapsedThisWeek) : null,
     currentMonth: monthLogs.length > 0 ? aggregateLogs(monthLogs, daysThisMonth) : null,
     lastMonth: lastMonthLogs.length > 0 ? aggregateLogs(lastMonthLogs, daysLastMonth) : null,

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 import { classifyWorkoutType } from "@/lib/workout-classifier";
+import { getEffectiveMaxHr, getLatestRestingHr } from "@/lib/body-metrics";
 
 const manualSchema = z.object({
   name: z.string().min(1, "Activity name is required"),
@@ -62,14 +63,20 @@ export async function POST(req: Request) {
       },
     });
 
-    // Classify workout type from available data
+    // Classify workout type from available data. Zone math anchors to the
+    // user-level max HR, not this activity's observed max.
+    const [restHr, maxHr] = await Promise.all([
+      getLatestRestingHr(session.user.id),
+      getEffectiveMaxHr(session.user.id),
+    ]);
     const workoutType = classifyWorkoutType({
       type: data.type,
       subType: data.subType,
       durationSeconds: data.durationSeconds,
       distanceMeters: data.distanceMeters,
       averageHr: data.averageHr,
-      maxHr: data.maxHr,
+      maxHr,
+      restHr,
     });
     if (workoutType) {
       await prisma.trainingLog.update({

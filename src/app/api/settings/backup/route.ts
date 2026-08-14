@@ -163,6 +163,7 @@ async function performBackup(userId: string, statusFile: string) {
         trainingContext: true,
         onboardingCompleted: true,
         dashboardPrefs: true,
+        maxHr: true,
       },
     }),
     // Load activities WITHOUT rawJson (GPS trackpoints are handled separately)
@@ -245,6 +246,7 @@ async function performBackup(userId: string, statusFile: string) {
         llmApiKey: user.llmApiKey,
         onboardingCompleted: user.onboardingCompleted,
         dashboardPrefs: user.dashboardPrefs,
+        maxHr: user.maxHr,
       },
     },
   });
