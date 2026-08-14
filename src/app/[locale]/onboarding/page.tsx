@@ -40,6 +40,12 @@ import {
   Check,
 } from "lucide-react";
 import { LONG_DAY_NAMES, RACE_TYPES } from "@/lib/constants";
+import {
+  distanceToMeters, elevationToMeters,
+  defaultDistanceUnit, defaultElevationUnit,
+  type DistanceUnit, type ElevationUnit,
+} from "@/lib/utils";
+import { useUnits } from "@/hooks/use-units";
 
 // ── Helper Components ────────────────────────────────────────
 
@@ -167,6 +173,7 @@ export default function OnboardingPage() {
     { num: 3, label: t("steps.bodyMetrics"), icon: Scale },
   ];
   const { data: session, status } = useSession();
+  const { units } = useUnits();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -206,6 +213,10 @@ export default function OnboardingPage() {
   const [goalTargetDate, setGoalTargetDate] = useState("");
   const [goalDistance, setGoalDistance] = useState("");
   const [goalElevation, setGoalElevation] = useState("");
+  // Input units default to the app-wide Units setting; values convert to
+  // meters before saving.
+  const [goalDistUnit, setGoalDistUnit] = useState<DistanceUnit>(() => defaultDistanceUnit(units));
+  const [goalEleUnit, setGoalEleUnit] = useState<ElevationUnit>(() => defaultElevationUnit(units));
   const [goalPriority, setGoalPriority] = useState("B");
   const [goalSaving, setGoalSaving] = useState(false);
   const [goalSaved, setGoalSaved] = useState(false);
@@ -348,9 +359,9 @@ export default function OnboardingPage() {
         name: goalName,
         raceType: goalRaceType,
         targetDate: goalTargetDate,
-        distanceMeters: Number(goalDistance),
+        distanceMeters: distanceToMeters(Number(goalDistance), goalDistUnit),
       };
-      if (goalElevation) body.elevationGainMeters = Number(goalElevation);
+      if (goalElevation) body.elevationGainMeters = elevationToMeters(Number(goalElevation), goalEleUnit);
       body.priority = goalPriority;
 
       const res = await fetch("/api/goals", {
@@ -910,16 +921,28 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="goal-distance" className="text-xs">
-                        Distance (meters)
+                        Distance
                       </Label>
-                      <Input
-                        id="goal-distance"
-                        type="number"
-                        min="0"
-                        value={goalDistance}
-                        onChange={(e) => setGoalDistance(e.target.value)}
-                        placeholder="e.g. 42195"
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          id="goal-distance"
+                          type="number"
+                          min="0"
+                          step="any"
+                          className="flex-1"
+                          value={goalDistance}
+                          onChange={(e) => setGoalDistance(e.target.value)}
+                          placeholder={goalDistUnit === "m" ? "e.g. 42195" : goalDistUnit === "km" ? "e.g. 42.2" : "e.g. 26.2"}
+                        />
+                        <Select value={goalDistUnit} onValueChange={(v) => setGoalDistUnit(v as DistanceUnit)}>
+                          <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="m">{t("goal.unitMeters")}</SelectItem>
+                            <SelectItem value="km">{t("goal.unitKilometers")}</SelectItem>
+                            <SelectItem value="mi">{t("goal.unitMiles")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label
@@ -928,16 +951,27 @@ export default function OnboardingPage() {
                       >
                         {t("goal.elevationLabel")}
                       </Label>
-                      <Input
-                        id="goal-elevation"
-                        type="number"
-                        min="0"
-                        value={goalElevation}
-                        onChange={(e) =>
-                          setGoalElevation(e.target.value)
-                        }
-                        placeholder="e.g. 500"
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          id="goal-elevation"
+                          type="number"
+                          min="0"
+                          step="any"
+                          className="flex-1"
+                          value={goalElevation}
+                          onChange={(e) =>
+                            setGoalElevation(e.target.value)
+                          }
+                          placeholder={goalEleUnit === "m" ? "e.g. 1200" : "e.g. 3937"}
+                        />
+                        <Select value={goalEleUnit} onValueChange={(v) => setGoalEleUnit(v as ElevationUnit)}>
+                          <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="m">{t("goal.unitMeters")}</SelectItem>
+                            <SelectItem value="ft">{t("goal.unitFeet")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                   <Button

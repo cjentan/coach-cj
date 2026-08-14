@@ -5,6 +5,8 @@
  * These functions are pure computations; callers supply the pre-fetched data.
  */
 
+import { localDateStr } from "./utils";
+
 // ── Types ──────────────────────────────────────────────────────────
 
 export interface ReadinessInput {
@@ -23,6 +25,13 @@ export interface ReadinessInput {
   } | null;
   /** Activity logs in the period — used for consistency calculation */
   activityLogs: ReadonlyArray<{ startDate: Date }>;
+  /**
+   * Client's UTC offset in minutes as reported by `Date.getTimezoneOffset()`
+   * (negative for UTC+). Activity dates are bucketed to this local calendar
+   * day so consistency matches the caller's week boundaries. Defaults to UTC
+   * for callers without a timezone context (e.g. background snapshot jobs).
+   */
+  tzOffset?: number;
 }
 
 export interface ReadinessResult {
@@ -66,6 +75,7 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
     weekEndDate,
     primaryGoal,
     activityLogs,
+    tzOffset,
   } = input;
   const now = new Date();
   const endDate = weekEndDate ?? now;
@@ -86,7 +96,11 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
     );
   }
 
-  // Consistency — proportion of days in the window with at least one activity
+  // Consistency — proportion of days in the window with at least one activity.
+  // Bucket by the user's LOCAL calendar day so it aligns with the elapsed-days
+  // window above (which is derived from the caller's local week boundaries);
+  // `toISOString()` would shift activities into UTC days. tzOffset defaults to
+  // UTC (0) for background callers that don't know the user's timezone.
   const elapsedDays = Math.max(
     1,
     Math.min(
@@ -99,7 +113,7 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
     ),
   );
   const activeDays = new Set(
-    activityLogs.map((l) => l.startDate.toISOString().split("T")[0]),
+    activityLogs.map((l) => localDateStr(l.startDate, tzOffset ?? 0)),
   ).size;
   const consistencyScore = Math.min(
     100,

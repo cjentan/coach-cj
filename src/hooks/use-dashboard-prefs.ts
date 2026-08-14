@@ -6,8 +6,8 @@ const STORAGE_KEY = "coach-dashboard-prefs";
 const DEFAULTS: DashboardPrefs = {
   timeframeDays: 30,
   pmcMetrics: ["ctl", "tsb"],
-  trendMetrics: ["readinessScore", "weeklyVolumeMeters"],
   volumePeriod: "week",
+  units: "metric",
 };
 
 /**
@@ -22,7 +22,6 @@ function loadLocal(): DashboardPrefs | null {
     if (
       typeof parsed.timeframeDays === "number" &&
       Array.isArray(parsed.pmcMetrics) &&
-      Array.isArray(parsed.trendMetrics) &&
       ["week", "month"].includes(parsed.volumePeriod)
     ) {
       return parsed;
@@ -84,10 +83,17 @@ export function useDashboardPrefs() {
 
   // — 2. Save to server (debounced) whenever prefs change —
   const persistToServer = useCallback((latest: DashboardPrefs) => {
+    // Send only the dashboard keys. `units` is owned by the UnitsProvider and
+    // written via the same endpoint — including it here could overwrite the
+    // user's choice with a stale value from this hook's local copy.
     fetch("/api/dashboard/preferences", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(latest),
+      body: JSON.stringify({
+        timeframeDays: latest.timeframeDays,
+        pmcMetrics: latest.pmcMetrics,
+        volumePeriod: latest.volumePeriod,
+      }),
     }).catch(() => {
       /* background — don't block the UI */
     });

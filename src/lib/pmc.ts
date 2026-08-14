@@ -22,21 +22,25 @@ const CTL_TC = 42;
 const ATL_TC = 7;
 
 /**
- * Fill in missing dates between the first activity and today (UTC) with tss: 0,
- * so rest days are counted and CTL/ATL/TSB decay to reflect recovery.
+ * Fill in missing dates between the first activity and today with tss: 0, so
+ * rest days are counted and CTL/ATL/TSB decay to reflect recovery.
  *
  * Extends through today even when the last activity was earlier, so the
  * dashboard scores and PMC chart reflect the current date rather than
  * stopping at the last workout.
+ *
+ * `todayKey` defaults to today in UTC; pass a local "YYYY-MM-DD" (e.g. via
+ * `localDateStr`) when the input dates are bucketed by the user's timezone so
+ * the series extends to the user's today.
  */
-export function fillDailyTss(input: { date: string; tss: number }[]): { date: string; tss: number }[] {
+export function fillDailyTss(input: { date: string; tss: number }[], todayKey?: string): { date: string; tss: number }[] {
   if (input.length === 0) return [];
 
   const startDate = new Date(input[0].date);
   const lastActivityDate = input[input.length - 1].date;
-  const todayKey = new Date().toISOString().split("T")[0];
+  const resolvedToday = todayKey ?? new Date().toISOString().split("T")[0];
   // Don't truncate if an activity is dated after today (clock skew)
-  const endKey = lastActivityDate > todayKey ? lastActivityDate : todayKey;
+  const endKey = lastActivityDate > resolvedToday ? lastActivityDate : resolvedToday;
   const endDate = new Date(endKey);
 
   const inputMap = new Map(input.map((d) => [d.date, d.tss]));

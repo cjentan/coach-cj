@@ -7,9 +7,16 @@ import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, MessageSq
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDistance, formatDuration, localDateStr, getWeekStart } from "@/lib/utils";
+import { formatDistance, formatDuration, localDateStr, getWeekStart, getCurrentUnits } from "@/lib/utils";
 import ImportModal from "@/components/training/import-modal";
 import { SOURCE_LABELS, SOURCE_COLORS, ACTIVITY_TYPE_LABELS } from "@/lib/constants";
+
+/** Elevation with thousands separators in the active unit ("1,200m" / "3,937ft"). */
+function formatElevationShort(meters: number): string {
+  const units = getCurrentUnits();
+  const v = units === "imperial" ? meters * 3.28084 : meters;
+  return `${Math.round(v).toLocaleString()}${units === "imperial" ? "ft" : "m"}`;
+}
 
 type ActivityLog = {
   id: string; type: string; subType: string | null; name: string; startDate: string;
@@ -606,7 +613,7 @@ export default function ActivitiesPage() {
             <p className="text-muted-foreground mt-1">
               {activeBar.activityCount} activit{activeBar.activityCount !== 1 ? "ies" : ""}
               {activeBar.activityCount > 0 && (
-                <> — {formatDistance(activeBar.totalDistance)} · {Math.round(activeBar.totalElevation).toLocaleString()}m ↑</>
+                <> — {formatDistance(activeBar.totalDistance)} · {formatElevationShort(activeBar.totalElevation)} ↑</>
               )}
             </p>
           )}
@@ -739,7 +746,7 @@ export default function ActivitiesPage() {
                 <> · {formatDuration(activeBar.totalDurationSeconds)}</>
               )}
               {activeBar.totalElevation > 0 && (
-                <> · {Math.round(activeBar.totalElevation).toLocaleString()}m ↑</>
+                <> · {formatElevationShort(activeBar.totalElevation)} ↑</>
               )}
             </div>
           )}
@@ -856,7 +863,7 @@ export default function ActivitiesPage() {
                     </div>
                     <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                       {weekDist > 0 && <span className="font-medium">{formatDistance(weekDist)}</span>}
-                      {weekElev > 0 && <span className="font-medium">{Math.round(weekElev)}m ↑</span>}
+                      {weekElev > 0 && <span className="font-medium">{formatElevationShort(weekElev)} ↑</span>}
                       <span className="font-medium">{formatDuration(weekDur)}</span>
                       {weekTss > 0 && <span className="font-medium">TSS {Math.round(weekTss)}</span>}
                     </div>

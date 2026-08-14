@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getWeekStart, getMonthStart, getMonthEnd } from "@/lib/utils";
+import { localWeekStart, localDateStr, localDayOfWeek, parseClientDate } from "@/lib/utils";
 import { computePMC, fillDailyTss } from "@/lib/pmc";
 import { computeReadinessScore } from "@/lib/training-health";
 
@@ -33,21 +33,42 @@ function aggregateLogs(
   return { weeklyDistance, weeklyElevation, weeklyDuration, weeklyCount, weeklyTss, avgDailyTss, avgHr };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const now = new Date();
-  const weekStart = getWeekStart(now);
+  const url = new URL(request.url);
+  const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0", 10) || 0;
+
+  // Current period boundaries in the user's local timezone, converted to UTC
+  // instants so they compare correctly against DB timestamps (which are UTC).
+  const weekStart = parseClientDate(localWeekStart(now, tzOffset), tzOffset);
+  const [localYear, localMonth, localDay] = localDateStr(now, tzOffset).split("-").map(Number);
+  const monthStart = parseClientDate(`${localYear}-${String(localMonth).padStart(2, "0")}-01`, tzOffset);
+  const prevLocalMonth = localMonth === 1 ? 12 : localMonth - 1;
+  const prevLocalYear = prevLocalMonth === 12 ? localYear - 1 : localYear;
+  const prevLocalMonthStr = String(prevLocalMonth).padStart(2, "0");
+
   const fourWeeksAgo = new Date(now.getTime() - 28 * 86400000);
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
 
-  // Period boundaries for stats (all UTC-based)
+  // Comparison windows. The current period is partial (this local week/month so
+  // far), so the "prior" window mirrors exactly how far into it we are — the
+  // same day last week/month — rather than the full prior period, which would
+  // always look like a large shortfall.
   const lastWeekStart = new Date(weekStart.getTime() - 7 * 86400000);
-  const lastWeekEnd = new Date(weekStart.getTime() - 1);
-  const monthStart = getMonthStart(now);
-  const lastMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const lastMonthEnd = getMonthEnd(lastMonthStart);
+  const lastMonthStart = parseClientDate(`${prevLocalYear}-${prevLocalMonthStr}-01`, tzOffset);
+
+  const daysElapsedThisWeek = Math.max(1, ((localDayOfWeek(now, tzOffset) + 6) % 7) + 1);
+  const lastWeekSameDayEnd = new Date(lastWeekStart.getTime() + daysElapsedThisWeek * 86400000);
+
+  const daysElapsedThisMonth = localDay;
+  const daysInLastMonth = new Date(Date.UTC(localYear, localMonth - 1, 0)).getUTCDate();
+  const lastMonthSameDayEnd = parseClientDate(
+    `${prevLocalYear}-${prevLocalMonthStr}-${String(Math.min(daysElapsedThisMonth, daysInLastMonth) + 1).padStart(2, "0")}`,
+    tzOffset,
+  );
 
   // Single batch of parallel queries — covers all dashboard data
   const [
@@ -114,18 +135,18 @@ export async function GET() {
 
   // Derive last-week, this-month, and last-month logs from the 90-day PMC data
   const lastWeekLogs = pmcLogs.filter(
-    (l) => l.startDate >= lastWeekStart && l.startDate < weekStart
+    (l) => l.startDate >= lastWeekStart && l.startDate < lastWeekSameDayEnd
   );
   const monthLogs = pmcLogs.filter(
     (l) => l.startDate >= monthStart
   );
   const lastMonthLogs = pmcLogs.filter(
-    (l) => l.startDate >= lastMonthStart && l.startDate <= lastMonthEnd
+    (l) => l.startDate >= lastMonthStart && l.startDate < lastMonthSameDayEnd
   );
 
   // ── Stats ─────────────────────────────────────────────────────────
   const daysThisMonth = Math.max(1, Math.ceil((now.getTime() - monthStart.getTime()) / 86400000));
-  const daysLastMonth = Math.max(1, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)).getUTCDate());
+  const daysLastMonth = Math.max(1, Math.min(daysElapsedThisMonth, daysInLastMonth));
 
   const goalCount = goals.length;
   const latestWeight = bodyMetrics[0]?.weightKg || null;
@@ -144,7 +165,7 @@ export async function GET() {
     latestWeight,
     latestRestingHr,
     estimatedMaxHr,
-    lastWeek: lastWeekLogs.length > 0 ? aggregateLogs(lastWeekLogs, 7) : null,
+    lastWeek: lastWeekLogs.length > 0 ? aggregateLogs(lastWeekLogs, daysElapsedThisWeek) : null,
     currentMonth: monthLogs.length > 0 ? aggregateLogs(monthLogs, daysThisMonth) : null,
     lastMonth: lastMonthLogs.length > 0 ? aggregateLogs(lastMonthLogs, daysLastMonth) : null,
   };
@@ -223,6 +244,9 @@ export async function GET() {
     weekStartDate: weekStart,
     primaryGoal: goals[0] || null,
     activityLogs: weekLogs,
+    // Bucket consistency's active days in the user's local timezone, matching
+    // the local week boundaries used for weekStart/elapsed days above.
+    tzOffset,
   });
 
   let readinessLabel: string;

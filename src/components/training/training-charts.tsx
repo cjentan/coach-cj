@@ -8,11 +8,54 @@ import {
   ReferenceArea, ComposedChart,
 } from "recharts";
 import { formatTime as fmtTime } from "@/lib/trackpoint-charts";
+import { getCurrentUnits } from "@/lib/utils";
 import type { CombinedDataPoint } from "@/lib/trackpoint-charts";
 
 // ─── Shared tooltip style ────────────────────────────────────
 
 const tooltipStyle = { fontSize: 12, borderRadius: 6, border: "1px solid var(--border)" };
+
+// ─── Units-aware formatters ──────────────────────────────────
+// Chart data is always computed in metric (km, min/km, meters); these helpers
+// convert at display time when imperial is active. The pace scale is linear,
+// so relabeling ticks keeps the axis shape identical.
+
+function scalePace(v: number): number {
+  return getCurrentUnits() === "imperial" ? v * 1.60934 : v;
+}
+
+function formatPaceVal(v: number): string {
+  const scaled = scalePace(v);
+  const min = Math.floor(scaled);
+  const sec = Math.round((scaled - min) * 60);
+  return `${min}:${sec.toString().padStart(2, "0")}`;
+}
+
+function paceUnit(): string {
+  return getCurrentUnits() === "imperial" ? "/mi" : "/km";
+}
+
+/** Compact distance for axis ticks, e.g. "12.5km" / "7.8mi". */
+function formatDistAxis(v: number): string {
+  const units = getCurrentUnits();
+  return units === "imperial" ? `${(v / 1609.344).toFixed(1)}mi` : `${(v / 1000).toFixed(1)}km`;
+}
+
+/** Distance for tooltip labels, e.g. "12.5 km" / "7.8 mi". */
+function formatDistTooltip(v: number): string {
+  const units = getCurrentUnits();
+  return units === "imperial" ? `${(v / 1609.344).toFixed(2)} mi` : `${(v / 1000).toFixed(2)} km`;
+}
+
+/** Compact elevation for axis ticks, e.g. "450m" / "1476ft". */
+function formatEleAxis(v: number): string {
+  return getCurrentUnits() === "imperial" ? `${Math.round(v * 3.28084)}ft` : `${v}m`;
+}
+
+/** Elevation for tooltip values, e.g. "450 m" / "1476 ft". */
+function formatEleTooltip(v: number): string {
+  return getCurrentUnits() === "imperial" ? `${Math.round(v * 3.28084)} ft` : `${v} m`;
+}
 
 // ─── Elevation Profile ───────────────────────────────────────
 
@@ -31,12 +74,12 @@ export function ElevationChart({ data }: { data: { distance: number; ele: number
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}km`} />
-            <YAxis tick={{ fontSize: 10 }} width={36} tickFormatter={(v: number) => `${v}m`} />
+            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
+            <YAxis tick={{ fontSize: 10 }} width={36} tickFormatter={(v: number) => formatEleAxis(v)} />
             <Tooltip
               contentStyle={tooltipStyle}
-              labelFormatter={(v: number) => `${(v / 1000).toFixed(2)} km`}
-              formatter={(v: number) => [`${v} m`, t("seriesElevation")]}
+              labelFormatter={(v: number) => formatDistTooltip(v)}
+              formatter={(v: number) => [formatEleTooltip(v), t("seriesElevation")]}
             />
             <Area type="monotone" dataKey="ele" stroke="#8b5cf6" fill="url(#eleGrad)" strokeWidth={1.5} dot={false} />
           </AreaChart>
@@ -68,11 +111,11 @@ export function HrChart({ data, maxHr, restingHr }: {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}km`} />
+            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
             <YAxis tick={{ fontSize: 10 }} width={32} domain={["dataMin - 5", "dataMax + 5"]} />
             <Tooltip
               contentStyle={tooltipStyle}
-              labelFormatter={(v: number) => `${(v / 1000).toFixed(2)} km`}
+              labelFormatter={(v: number) => formatDistTooltip(v)}
               formatter={(v: number) => [`${v} bpm`, t("seriesHr")]}
             />
             {/* Zone bands */}
@@ -145,22 +188,14 @@ export function PaceChart({ data }: { data: { distance: number; pace: number }[]
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}km`} />
+            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
             <YAxis tick={{ fontSize: 10 }} width={40} reversed domain={["dataMin - 0.5", "dataMax + 0.5"]}
-              tickFormatter={(v: number) => {
-                const min = Math.floor(v);
-                const sec = Math.round((v - min) * 60);
-                return `${min}:${sec.toString().padStart(2, "0")}`;
-              }}
+              tickFormatter={(v: number) => formatPaceVal(v)}
             />
             <Tooltip
               contentStyle={tooltipStyle}
-              labelFormatter={(v: number) => `${(v / 1000).toFixed(2)} km`}
-              formatter={(v: number) => {
-                const min = Math.floor(v);
-                const sec = Math.round((v - min) * 60);
-                return [`${min}:${sec.toString().padStart(2, "0")} /km`, t("seriesPace")];
-              }}
+              labelFormatter={(v: number) => formatDistTooltip(v)}
+              formatter={(v: number) => [`${formatPaceVal(v)} ${paceUnit()}`, t("seriesPace")]}
             />
             <Line type="monotone" dataKey="pace" stroke="#0ea5e9" strokeWidth={1.5} dot={false} />
           </LineChart>
@@ -211,22 +246,14 @@ export function GapChart({ data }: { data: { distance: number; pace: number; gap
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}km`} />
+            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
             <YAxis tick={{ fontSize: 10 }} width={40} reversed domain={["dataMin - 0.5", "dataMax + 0.5"]}
-              tickFormatter={(v: number) => {
-                const min = Math.floor(v);
-                const sec = Math.round((v - min) * 60);
-                return `${min}:${sec.toString().padStart(2, "0")}`;
-              }}
+              tickFormatter={(v: number) => formatPaceVal(v)}
             />
             <Tooltip
               contentStyle={tooltipStyle}
-              labelFormatter={(v: number) => `${(v / 1000).toFixed(2)} km`}
-              formatter={(v: number, name: string) => {
-                const min = Math.floor(v);
-                const sec = Math.round((v - min) * 60);
-                return [`${min}:${sec.toString().padStart(2, "0")} /km`, name === "gap" ? t("seriesGap") : t("seriesActualPace")];
-              }}
+              labelFormatter={(v: number) => formatDistTooltip(v)}
+              formatter={(v: number, name: string) => [`${formatPaceVal(v)} ${paceUnit()}`, name === "gap" ? t("seriesGap") : t("seriesActualPace")]}
             />
             <Line type="monotone" dataKey="pace" stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 3" dot={false} />
             <Line type="monotone" dataKey="gap" stroke="#10b981" strokeWidth={2} dot={false} />
@@ -287,21 +314,15 @@ const METRICS: MetricDef[] = [
   { key: "ele",  label: "Elevation", color: "#8b5cf6", unit: "m",       yAxisId: "ele",   orientation: "left" },
   { key: "hr",   label: "Heart Rate",color: "#ef4444", unit: "bpm",     yAxisId: "hr",    orientation: "left" },
   { key: "pace", label: "Pace",      color: "#0ea5e9", unit: "/km",    yAxisId: "pace",  orientation: "right", reversed: true,
-    formatValue: (v) => { const m = Math.floor(v); return `${m}:${Math.round((v - m) * 60).toString().padStart(2, "0")}`; } },
+    formatValue: (v) => formatPaceVal(v) },
   { key: "gap",  label: "GAP",       color: "#10b981", unit: "/km",    yAxisId: "gap",   orientation: "right", reversed: true,
-    formatValue: (v) => { const m = Math.floor(v); return `${m}:${Math.round((v - m) * 60).toString().padStart(2, "0")}`; } },
+    formatValue: (v) => formatPaceVal(v) },
   { key: "power",label: "Power",     color: "#f59e0b", unit: "W",       yAxisId: "power", orientation: "right" },
 ];
 
-function formatPaceVal(v: number): string {
-  const min = Math.floor(v);
-  const sec = Math.round((v - min) * 60);
-  return `${min}:${sec.toString().padStart(2, "0")}`;
-}
-
 /** Format the x-axis label depending on mode. */
 function formatXAxis(value: number, mode: XAxisMode): string {
-  if (mode === "distance") return `${(value / 1000).toFixed(1)}km`;
+  if (mode === "distance") return formatDistAxis(value);
   return fmtTime(value);
 }
 
@@ -411,7 +432,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                 tick={{ fontSize: 10, fill: "#8b5cf6" }}
                 width={36}
                 domain={domain("ele")}
-                tickFormatter={(v: number) => `${Math.round(v)}m`}
+                tickFormatter={(v: number) => formatEleAxis(v)}
               />
             )}
             {visible.hr && (
@@ -468,10 +489,10 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
               labelFormatter={(v: number) => formatXAxis(v, xAxisMode)}
               formatter={(v: number, name: string) => {
                 switch (name) {
-                  case "ele":   return [`${Math.round(v)} m`, t("seriesElevation")];
+                  case "ele":   return [formatEleTooltip(v), t("seriesElevation")];
                   case "hr":    return [`${Math.round(v)} bpm`, t("seriesHr")];
-                  case "pace":  return [`${formatPaceVal(v)} /km`, t("seriesPace")];
-                  case "gap":   return [`${formatPaceVal(v)} /km`, t("seriesGap")];
+                  case "pace":  return [`${formatPaceVal(v)} ${paceUnit()}`, t("seriesPace")];
+                  case "gap":   return [`${formatPaceVal(v)} ${paceUnit()}`, t("seriesGap")];
                   case "power": return [`${Math.round(v)} W`, t("seriesPower")];
                   case "smoothedPower": return [`${Math.round(v)} W`, t("seriesPowerSmoothed")];
                   default:      return [v, name];

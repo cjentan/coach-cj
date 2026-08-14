@@ -11,7 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatDistance, cn } from "@/lib/utils";
+import {
+  formatDistance, formatElevation, formatWeight, formatHeight,
+  kgToLb, lbToKg, cmToIn, inToCm, cn,
+  defaultDistanceUnit, defaultElevationUnit,
+  distanceToMeters, metersToDistance, elevationToMeters, metersToElevation,
+  type DistanceUnit, type ElevationUnit,
+} from "@/lib/utils";
+import { useUnits } from "@/hooks/use-units";
 import { format, differenceInDays } from "date-fns";
 import {
   MapPin, Plus, Pencil, Trash2, Target, Calendar, Mountain, Route,
@@ -27,14 +34,19 @@ interface RaceGoal {
 }
 
 interface GoalFormData {
-  name: string; raceType: string; targetDate: string; distanceMeters: string;
-  elevationGainMeters: string; priority: string; notes: string; goalStatement: string;
+  name: string; raceType: string; targetDate: string; distance: string;
+  elevationGain: string; priority: string; notes: string; goalStatement: string;
 }
 
 const DEFAULT_GOAL_FORM: GoalFormData = {
-  name: "", raceType: "trail_run", targetDate: "", distanceMeters: "",
-  elevationGainMeters: "", priority: "B", notes: "", goalStatement: "",
+  name: "", raceType: "trail_run", targetDate: "", distance: "",
+  elevationGain: "", priority: "B", notes: "", goalStatement: "",
 };
+
+/** Format a converted number for a text input: up to 2 decimals, no noise. */
+function trimNum(n: number): string {
+  return String(Math.round(n * 100) / 100);
+}
 
 // ─── Body Metric Types ─────────────────────────────────────────────────────
 interface BodyMetric {
@@ -129,11 +141,16 @@ function TrainingContextSection({ t, common }: { t: ReturnType<typeof useTransla
 
 // ─── Section: Goals ────────────────────────────────────────────────────────
 function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
+  const { units } = useUnits();
   const [goalList, setGoalList] = useState<RaceGoal[]>([]);
   const [gShowForm, setGShowForm] = useState(false);
   const [gEditingId, setGEditingId] = useState<string | null>(null);
   const [gLoading, setGLoading] = useState(true);
   const [gForm, setGForm] = useState<GoalFormData>(DEFAULT_GOAL_FORM);
+  // Input units default to the app-wide Units setting; the user can override
+  // per field. Values are converted to meters before saving.
+  const [distUnit, setDistUnit] = useState<DistanceUnit>(() => defaultDistanceUnit(units));
+  const [eleUnit, setEleUnit] = useState<ElevationUnit>(() => defaultElevationUnit(units));
 
   const fetchGoals = useCallback(async () => {
     const res = await fetch("/api/goals");
@@ -147,6 +164,8 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
     setGForm(DEFAULT_GOAL_FORM);
     setGShowForm(false);
     setGEditingId(null);
+    setDistUnit(defaultDistanceUnit(units));
+    setEleUnit(defaultElevationUnit(units));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,8 +173,8 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
     const body = {
       name: gForm.name, raceType: gForm.raceType,
       targetDate: new Date(gForm.targetDate).toISOString(),
-      distanceMeters: Number(gForm.distanceMeters),
-      elevationGainMeters: gForm.elevationGainMeters ? Number(gForm.elevationGainMeters) : null,
+      distanceMeters: distanceToMeters(Number(gForm.distance), distUnit),
+      elevationGainMeters: gForm.elevationGain ? elevationToMeters(Number(gForm.elevationGain), eleUnit) : null,
       priority: gForm.priority, notes: gForm.notes || null, goalStatement: gForm.goalStatement || null,
     };
     if (gEditingId) {
@@ -167,10 +186,14 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
   }
 
   function startEdit(goal: RaceGoal) {
+    const dUnit = defaultDistanceUnit(units);
+    const eUnit = defaultElevationUnit(units);
+    setDistUnit(dUnit);
+    setEleUnit(eUnit);
     setGForm({
       name: goal.name, raceType: goal.raceType, targetDate: goal.targetDate.split("T")[0],
-      distanceMeters: String(goal.distanceMeters),
-      elevationGainMeters: goal.elevationGainMeters ? String(goal.elevationGainMeters) : "",
+      distance: trimNum(metersToDistance(goal.distanceMeters, dUnit)),
+      elevationGain: goal.elevationGainMeters ? trimNum(metersToElevation(goal.elevationGainMeters, eUnit)) : "",
       priority: goal.priority, notes: goal.notes || "", goalStatement: goal.goalStatement || "",
     });
     setGEditingId(goal.id); setGShowForm(true);
@@ -183,6 +206,9 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
   }
 
   const statusLabels: Record<string, string> = { active: t("statusActive"), completed: t("statusCompleted") };
+
+  const distPlaceholder = distUnit === "m" ? "42195" : distUnit === "km" ? "42.2" : "26.2";
+  const elePlaceholder = eleUnit === "m" ? "1200" : "3937";
 
   if (gLoading) return <p className="py-4 text-sm text-muted-foreground">{common("loading")}</p>;
 
@@ -228,8 +254,33 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2"><Label>{t("distance")}</Label><Input type="number" value={gForm.distanceMeters} onChange={(e) => setGForm({ ...gForm, distanceMeters: e.target.value })} placeholder="100000" required /></div>
-                <div className="space-y-2"><Label>{t("elevationGain")}</Label><Input type="number" value={gForm.elevationGainMeters} onChange={(e) => setGForm({ ...gForm, elevationGainMeters: e.target.value })} placeholder="6000" /></div>
+                <div className="space-y-2">
+                  <Label>{t("distance")}</Label>
+                  <div className="flex gap-2">
+                    <Input type="number" min="0" step="any" value={gForm.distance} onChange={(e) => setGForm({ ...gForm, distance: e.target.value })} placeholder={distPlaceholder} className="flex-1" required />
+                    <Select value={distUnit} onValueChange={(v) => setDistUnit(v as DistanceUnit)}>
+                      <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="m">{t("unitMeters")}</SelectItem>
+                        <SelectItem value="km">{t("unitKilometers")}</SelectItem>
+                        <SelectItem value="mi">{t("unitMiles")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("elevationGain")}</Label>
+                  <div className="flex gap-2">
+                    <Input type="number" min="0" step="any" value={gForm.elevationGain} onChange={(e) => setGForm({ ...gForm, elevationGain: e.target.value })} placeholder={elePlaceholder} className="flex-1" />
+                    <Select value={eleUnit} onValueChange={(v) => setEleUnit(v as ElevationUnit)}>
+                      <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="m">{t("unitMeters")}</SelectItem>
+                        <SelectItem value="ft">{t("unitFeet")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="space-y-2"><Label>{t("notes")}</Label><Input value={gForm.notes} onChange={(e) => setGForm({ ...gForm, notes: e.target.value })} placeholder={t("notesPlaceholder")} /></div>
                 <div className="space-y-2 md:col-span-2"><Label>{t("goalStatement")}</Label><Textarea value={gForm.goalStatement} onChange={(e) => setGForm({ ...gForm, goalStatement: e.target.value })} placeholder={t("goalStatementPlaceholder")} rows={2} /></div>
               </div>
@@ -260,7 +311,7 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
                     </div>
                     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1"><Route className="h-3 w-3" /> {formatDistance(goal.distanceMeters)}</span>
-                      {goal.elevationGainMeters ? <span className="flex items-center gap-1"><Mountain className="h-3 w-3" /> {formatDistance(goal.elevationGainMeters)}</span> : null}
+                      {goal.elevationGainMeters ? <span className="flex items-center gap-1"><Mountain className="h-3 w-3" /> {formatElevation(goal.elevationGainMeters)}</span> : null}
                       <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(new Date(goal.targetDate), "MMM d, yyyy")}</span>
                       <span className={daysUntil < 30 ? "text-destructive font-medium" : ""}>{daysUntil > 0 ? common("daysLeft", { days: daysUntil }) : common("pastDue")}</span>
                     </div>
@@ -281,6 +332,7 @@ function GoalsSection({ t, common }: { t: ReturnType<typeof useTranslations>; co
 
 // ─── Section: Body Metrics ─────────────────────────────────────────────────
 function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslations>; common: ReturnType<typeof useTranslations> }) {
+  const { units } = useUnits();
   const [bmMetrics, setBmMetrics] = useState<BodyMetric[]>([]);
   const [bmLoading, setBmLoading] = useState(true);
   const [bmError, setBmError] = useState<string | null>(null);
@@ -313,6 +365,18 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
     ? Math.round((recentEnough[0].weightKg - recentEnough[recentEnough.length - 1].weightKg) * 10) / 10
     : null;
   const weightTrend = weekChange !== null ? (weekChange > 0 ? "up" : weekChange < 0 ? "down" : "stable") : null;
+
+  // Imperial entry-mode helpers. The form state always stores kg/cm (the API
+  // contract); these convert to lb and ft/in for display and back on change.
+  const heightTotalIn = bmForm.heightCm ? cmToIn(Number(bmForm.heightCm)) : 0;
+  const heightFt = heightTotalIn ? String(Math.floor(heightTotalIn / 12)) : "";
+  const heightIn = heightTotalIn ? String(Math.round(heightTotalIn % 12)) : "";
+
+  function setHeightFromParts(ft: number, inches: number) {
+    let totalIn = ft * 12 + inches;
+    if (inches >= 12) totalIn = (ft + 1) * 12 + (inches % 12);
+    setBmForm({ ...bmForm, heightCm: totalIn > 0 ? inToCm(totalIn).toFixed(1) : "" });
+  }
 
   async function handleBmSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -359,7 +423,7 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
         <div className="grid gap-3 sm:grid-cols-3 mb-6">
           <div className="p-3 rounded-lg border">
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Scale className="h-3 w-3" /> {t("latestWeight")}</p>
-            <p className="text-xl font-bold">{latestWeight != null ? `${latestWeight.toFixed(1)} ${t("unitKg")}` : "—"}</p>
+            <p className="text-xl font-bold">{latestWeight != null ? formatWeight(latestWeight, units) : "—"}</p>
           </div>
           <div className="p-3 rounded-lg border">
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
@@ -367,12 +431,12 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
               {t("sevenDayChange")}
             </p>
             <p className={cn("text-xl font-bold", weekChange !== null && weekChange > 0 && "text-destructive", weekChange !== null && weekChange < 0 && "text-green-500")}>
-              {weekChange !== null ? `${weekChange > 0 ? "+" : ""}${weekChange.toFixed(1)} ${t("unitKg")}` : "—"}
+              {weekChange !== null ? `${weekChange > 0 ? "+" : ""}${formatWeight(Math.abs(weekChange), units)}` : "—"}
             </p>
           </div>
           <div className="p-3 rounded-lg border">
             <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Heart className="h-3 w-3" /> {t("averageWeight")}</p>
-            <p className="text-xl font-bold">{bmAvg != null ? `${bmAvg.toFixed(1)} ${t("unitKg")}` : "—"}</p>
+            <p className="text-xl font-bold">{bmAvg != null ? formatWeight(bmAvg, units) : "—"}</p>
           </div>
         </div>
 
@@ -383,8 +447,27 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
             <form onSubmit={handleBmSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2"><Label>{t("date")}</Label><Input type="date" value={bmForm.recordedAt} onChange={(e) => setBmForm({ ...bmForm, recordedAt: e.target.value })} required /></div>
-                <div className="space-y-2"><Label>{t("formWeight")}</Label><Input type="number" step="0.1" min="20" max="500" value={bmForm.weightKg} onChange={(e) => setBmForm({ ...bmForm, weightKg: e.target.value })} required /></div>
-                <div className="space-y-2"><Label>{t("formHeight")}</Label><Input type="number" min="100" max="250" value={bmForm.heightCm} onChange={(e) => setBmForm({ ...bmForm, heightCm: e.target.value })} /></div>
+                <div className="space-y-2">
+                  <Label>{units === "imperial" ? t("formWeightLb") : t("formWeight")}</Label>
+                  {units === "imperial" ? (
+                    <Input type="number" step="0.1" min="50" max="1000"
+                      value={bmForm.weightKg ? kgToLb(Number(bmForm.weightKg)).toFixed(1) : ""}
+                      onChange={(e) => setBmForm({ ...bmForm, weightKg: e.target.value === "" ? "" : lbToKg(Number(e.target.value)).toFixed(2) })} required />
+                  ) : (
+                    <Input type="number" step="0.1" min="20" max="500" value={bmForm.weightKg} onChange={(e) => setBmForm({ ...bmForm, weightKg: e.target.value })} required />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>{units === "imperial" ? t("formHeightFt") : t("formHeight")}</Label>
+                  {units === "imperial" ? (
+                    <div className="flex gap-2">
+                      <Input type="number" min="0" max="9" placeholder="ft" value={heightFt} onChange={(e) => setHeightFromParts(Number(e.target.value) || 0, heightTotalIn ? Math.round(heightTotalIn % 12) : 0)} />
+                      <Input type="number" min="0" max="11.5" step="0.5" placeholder="in" value={heightIn} onChange={(e) => setHeightFromParts(heightTotalIn ? Math.floor(heightTotalIn / 12) : 0, Number(e.target.value) || 0)} />
+                    </div>
+                  ) : (
+                    <Input type="number" min="100" max="250" value={bmForm.heightCm} onChange={(e) => setBmForm({ ...bmForm, heightCm: e.target.value })} />
+                  )}
+                </div>
                 <div className="space-y-2"><Label>{t("formRestingHr")}</Label><Input type="number" min="30" max="220" value={bmForm.restingHr} onChange={(e) => setBmForm({ ...bmForm, restingHr: e.target.value })} /></div>
                 <div className="space-y-2 sm:col-span-2"><Label>{t("notes")}</Label><textarea rows={2} className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" value={bmForm.notes} onChange={(e) => setBmForm({ ...bmForm, notes: e.target.value })} /></div>
               </div>
@@ -410,8 +493,8 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
                 {bmSorted.map((metric) => (
                   <tr key={metric.id} className="border-b last:border-b-0">
                     <td className="px-3 py-2 whitespace-nowrap">{formatDate(metric.recordedAt)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap font-medium">{metric.weightKg.toFixed(1)} {t("unitKg")}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground hidden sm:table-cell">{metric.heightCm != null ? `${metric.heightCm} ${t("unitCm")}` : "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-medium">{formatWeight(metric.weightKg, units)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground hidden sm:table-cell">{metric.heightCm != null ? formatHeight(metric.heightCm, units) : "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-muted-foreground hidden sm:table-cell">{metric.restingHr != null ? metric.restingHr : "—"}</td>
                     <td className="px-3 py-2 text-right">
                       {bmDelConfirm === metric.id ? (

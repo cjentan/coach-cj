@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AccessibilityProvider } from "@/hooks/use-accessibility";
+import { UnitsProvider } from "@/hooks/use-units";
 import AuthProvider from "@/components/providers/session-provider";
 import FloatingCoachButton from "@/components/coach/floating-coach-button";
 
@@ -97,12 +98,14 @@ export default async function LocaleLayout({
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             <AccessibilityProvider>
-              <AuthProvider>
-                <Navbar />
-                <MobileNav />
-                <main className="min-h-screen bg-background pb-16 md:pb-0">{children}</main>
-                <FloatingCoachButton />
-              </AuthProvider>
+              <UnitsProvider>
+                <AuthProvider>
+                  <Navbar />
+                  <MobileNav />
+                  <main className="min-h-screen bg-background pb-16 md:pb-0">{children}</main>
+                  <FloatingCoachButton />
+                </AuthProvider>
+              </UnitsProvider>
             </AccessibilityProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

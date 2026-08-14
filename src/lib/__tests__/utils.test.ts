@@ -1,11 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
   cn,
   formatDistance,
   formatDuration,
   formatPace,
   formatElevation,
+  formatHeight,
+  formatWeight,
   getActivityIcon,
+  getCurrentUnits,
   getWeekStart,
   getWeekEnd,
   getMonthStart,
@@ -13,6 +16,13 @@ import {
   haversine,
   inferEffort,
   inferSurface,
+  setDefaultUnits,
+  defaultDistanceUnit,
+  defaultElevationUnit,
+  distanceToMeters,
+  metersToDistance,
+  elevationToMeters,
+  metersToElevation,
 } from '../utils';
 
 describe('cn', () => {
@@ -52,6 +62,30 @@ describe('formatDistance', () => {
 
     const zhTW = formatDistance(10000, undefined, 'zh-TW');
     expect(zhTW).toContain('公里');
+  });
+});
+
+describe('formatDistance (imperial)', () => {
+  it('formats >= 1 mi as miles with 1 decimal', () => {
+    expect(formatDistance(10000, undefined, 'en', 'imperial')).toBe('6.2 mi');
+    expect(formatDistance(42195, undefined, 'en', 'imperial')).toBe('26.2 mi');
+  });
+
+  it('formats 0.25–1 mi as miles with 2 decimals', () => {
+    expect(formatDistance(800, undefined, 'en', 'imperial')).toBe('0.50 mi');
+    expect(formatDistance(500, undefined, 'en', 'imperial')).toBe('0.31 mi');
+  });
+
+  it('formats < 0.25 mi as feet', () => {
+    expect(formatDistance(100, undefined, 'en', 'imperial')).toBe('328 ft');
+  });
+
+  it('formats swims in yards', () => {
+    expect(formatDistance(3000, 'swim', 'en', 'imperial')).toBe('3281 yd');
+  });
+
+  it('localizes imperial unit labels', () => {
+    expect(formatDistance(10000, undefined, 'zh-TW', 'imperial')).toContain('英里');
   });
 });
 
@@ -110,13 +144,47 @@ describe('formatPace', () => {
   });
 });
 
+describe('formatPace (imperial)', () => {
+  it('formats run pace as min/mi', () => {
+    // 4 m/s → 6:42 min/mi (1609.344/4/60 = 6.7056)
+    const pace = formatPace(4, 'run', 'en', 'imperial');
+    expect(pace).toMatch(/\d+:\d+/);
+    expect(pace).toContain('/mi');
+  });
+
+  it('formats ride pace as mph', () => {
+    // 10 m/s → 22.4 mph
+    const pace = formatPace(10, 'ride', 'en', 'imperial');
+    expect(pace).toContain('22.4');
+    expect(pace).toContain('mph');
+  });
+
+  it('formats swim pace as min/100yd', () => {
+    // 1.5 m/s → 1:01 /100yd
+    const pace = formatPace(1.5, 'swim', 'en', 'imperial');
+    expect(pace).toContain('/100yd');
+  });
+
+  it('still returns "--:--" for 0 pace', () => {
+    expect(formatPace(0, 'run', 'en', 'imperial')).toBe('--:--');
+  });
+});
+
 describe('formatElevation', () => {
   it('formats < 1000m as meters', () => {
     expect(formatElevation(450)).toBe('450m');
   });
 
-  it('formats >= 1000m as km', () => {
-    expect(formatElevation(1200)).toBe('1.2km');
+  it('always uses meters (never km) for elevation', () => {
+    expect(formatElevation(450)).toBe('450m');
+    expect(formatElevation(1200)).toBe('1200m');
+    expect(formatElevation(5000)).toBe('5000m');
+  });
+
+  it('formats as feet in imperial', () => {
+    expect(formatElevation(450, 'imperial')).toBe('1476ft');
+    expect(formatElevation(1200, 'imperial')).toBe('3937ft');
+    expect(formatElevation(5000, 'imperial')).toBe('16404ft');
   });
 
   it('returns empty string for null/undefined/zero/negative', () => {
@@ -264,5 +332,95 @@ describe('inferSurface', () => {
 
   it('returns null for ambiguous descriptions', () => {
     expect(inferSurface('Morning exercise')).toBeNull();
+  });
+});
+
+describe('formatWeight', () => {
+  it('formats in kg by default', () => {
+    expect(formatWeight(75.5)).toBe('75.5 kg');
+    expect(formatWeight(75.5, 'metric')).toBe('75.5 kg');
+  });
+
+  it('formats in lb for imperial', () => {
+    expect(formatWeight(75.5, 'imperial')).toBe('166.4 lb');
+  });
+
+  it('returns empty string for null/zero', () => {
+    expect(formatWeight(null)).toBe('');
+    expect(formatWeight(undefined)).toBe('');
+    expect(formatWeight(0)).toBe('');
+  });
+});
+
+describe('formatHeight', () => {
+  it('formats in cm by default', () => {
+    expect(formatHeight(175)).toBe('175 cm');
+    expect(formatHeight(175, 'metric')).toBe('175 cm');
+  });
+
+  it('formats as ft/in for imperial', () => {
+    expect(formatHeight(175, 'imperial')).toBe(`5'9"`);
+    expect(formatHeight(183, 'imperial')).toBe(`6'0"`);
+  });
+
+  it('carries 12 inches up to the next foot', () => {
+    // 181.9 cm ≈ 71.6 in → 5'11.6" rounds up to 6'0"
+    expect(formatHeight(181.9, 'imperial')).toBe(`6'0"`);
+  });
+
+  it('returns empty string for null/zero', () => {
+    expect(formatHeight(null)).toBe('');
+    expect(formatHeight(undefined)).toBe('');
+    expect(formatHeight(0)).toBe('');
+  });
+});
+
+describe('goal unit converters', () => {
+  it('converts distances to meters', () => {
+    expect(distanceToMeters(42, 'm')).toBe(42);
+    expect(distanceToMeters(42.2, 'km')).toBeCloseTo(42200, 5);
+    expect(distanceToMeters(26.2, 'mi')).toBeCloseTo(42164.81, 2);
+  });
+
+  it('converts meters to distances', () => {
+    expect(metersToDistance(42195, 'm')).toBe(42195);
+    expect(metersToDistance(42195, 'km')).toBeCloseTo(42.195, 3);
+    expect(metersToDistance(42195, 'mi')).toBeCloseTo(26.219, 3);
+  });
+
+  it('converts elevation to/from meters', () => {
+    expect(elevationToMeters(100, 'm')).toBe(100);
+    expect(elevationToMeters(328.084, 'ft')).toBeCloseTo(100, 5);
+    expect(metersToElevation(100, 'm')).toBe(100);
+    expect(metersToElevation(100, 'ft')).toBeCloseTo(328.084, 3);
+  });
+
+  it('defaults input units to match the app-wide setting', () => {
+    expect(defaultDistanceUnit('metric')).toBe('km');
+    expect(defaultDistanceUnit('imperial')).toBe('mi');
+    expect(defaultElevationUnit('metric')).toBe('m');
+    expect(defaultElevationUnit('imperial')).toBe('ft');
+  });
+});
+
+describe('default units', () => {
+  afterEach(() => {
+    setDefaultUnits('metric');
+  });
+
+  it('defaults to metric', () => {
+    expect(getCurrentUnits()).toBe('metric');
+    expect(formatDistance(10000)).toBe('10.0 km');
+  });
+
+  it('setDefaultUnits flips the formatters without explicit units args', () => {
+    setDefaultUnits('imperial');
+    expect(getCurrentUnits()).toBe('imperial');
+    expect(formatDistance(10000)).toBe('6.2 mi');
+    expect(formatPace(10, 'ride')).toContain('mph');
+    expect(formatWeight(75.5)).toBe('166.4 lb');
+    expect(formatHeight(175)).toBe(`5'9"`);
+    // Restore metric so the module default stays clean for other tests.
+    setDefaultUnits('metric');
   });
 });

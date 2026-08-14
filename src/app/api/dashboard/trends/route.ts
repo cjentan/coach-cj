@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { localDateStr } from "@/lib/utils";
 
 /** GET — return historical weekly snapshots for trend charts */
 export async function GET(req: Request) {
@@ -9,6 +10,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
+  const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0", 10) || 0;
   const weeks = Math.min(
     200,
     Math.max(4, parseInt(url.searchParams.get("weeks") || "52")),
@@ -40,7 +42,7 @@ export async function GET(req: Request) {
   const trends = assessments.map((a) => {
     const raw = a.rawData as Record<string, any> | null;
     return {
-      weekStartDate: a.weekStartDate.toISOString().split("T")[0],
+      weekStartDate: localDateStr(a.weekStartDate, tzOffset),
       readinessScore: a.readinessScore,
       ctl: a.chronicTrainingLoad,
       atl: a.acuteTrainingLoad,

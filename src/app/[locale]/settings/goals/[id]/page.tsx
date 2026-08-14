@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDistance } from "@/lib/utils";
+import { formatDistance, formatElevation } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
 import { Target, Calendar, Mountain, Route, Clock, ArrowLeft, Upload, Check, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -76,7 +76,7 @@ export default function SettingsGoalDetailPage() {
               <Card>
                 <CardContent className="py-4 text-center">
                   <Mountain className="h-5 w-5 mx-auto text-primary mb-1" />
-                  <div className="text-xl font-bold">{formatDistance(goal.elevationGainMeters)}</div>
+                  <div className="text-xl font-bold">{formatElevation(goal.elevationGainMeters)}</div>
                   <div className="text-xs text-muted-foreground">{t("elevationGainLabel")}</div>
                 </CardContent>
               </Card>
@@ -124,11 +124,11 @@ export default function SettingsGoalDetailPage() {
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
                         <div className="text-xs text-muted-foreground">{t("courseProfileElev")}</div>
-                        <div className="font-semibold text-sm">{formatDistance(goal.courseProfile.elevationGainMeters)}</div>
+                        <div className="font-semibold text-sm">{formatElevation(goal.courseProfile.elevationGainMeters)}</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
                         <div className="text-xs text-muted-foreground">{t("courseProfileMaxElev")}</div>
-                        <div className="font-semibold text-sm">{goal.courseProfile.maxElevation}m</div>
+                        <div className="font-semibold text-sm">{formatElevation(goal.courseProfile.maxElevation)}</div>
                       </div>
                       <div className="p-2 rounded bg-muted/50 text-center">
                         <div className="text-xs text-muted-foreground">{t("courseProfilePoints")}</div>
@@ -241,7 +241,7 @@ export default function SettingsGoalDetailPage() {
                 {goal.elevationGainMeters && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{t("recommendedWeeklyVert")}</span>
-                    <span className="font-medium">{formatDistance(goal.elevationGainMeters * 0.5)}</span>
+                    <span className="font-medium">{formatElevation(goal.elevationGainMeters * 0.5)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">

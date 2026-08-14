@@ -5,37 +5,73 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export type Units = "metric" | "imperial";
+
 type UnitLabels = {
   km: string;
   m: string;
+  mi: string;
+  ft: string;
+  yd: string;
   h: string;
   min: string;
   sec: string;
-  kmh: string;
-  perKm: string;
-  per100m: string;
+  speed: string;
+  perDistance: string;
+  per100: string;
 };
 
-const UNIT_MAP: Record<string, UnitLabels> = {
-  en: { km: "km", m: "m", h: "h", min: "m", sec: "s", kmh: "km/h", perKm: "/km", per100m: "/100m" },
-  "zh-CN": { km: "公里", m: "米", h: "小时", min: "分", sec: "秒", kmh: "公里/小时", perKm: "/公里", per100m: "/100米" },
-  "zh-TW": { km: "公里", m: "公尺", h: "小時", min: "分", sec: "秒", kmh: "公里/小時", perKm: "/公里", per100m: "/100公尺" },
+const METRIC_LABELS: Record<string, UnitLabels> = {
+  en: { km: "km", m: "m", mi: "mi", ft: "ft", yd: "yd", h: "h", min: "m", sec: "s", speed: "km/h", perDistance: "/km", per100: "/100m" },
+  "zh-CN": { km: "公里", m: "米", mi: "英里", ft: "英尺", yd: "码", h: "小时", min: "分", sec: "秒", speed: "公里/小时", perDistance: "/公里", per100: "/100米" },
+  "zh-TW": { km: "公里", m: "公尺", mi: "英里", ft: "英尺", yd: "碼", h: "小時", min: "分", sec: "秒", speed: "公里/小時", perDistance: "/公里", per100: "/100公尺" },
 };
 
-function getUnits(locale = "en"): UnitLabels {
-  return UNIT_MAP[locale] || UNIT_MAP.en;
+const IMPERIAL_LABELS: Record<string, UnitLabels> = {
+  en: { km: "mi", m: "ft", mi: "mi", ft: "ft", yd: "yd", h: "h", min: "m", sec: "s", speed: "mph", perDistance: "/mi", per100: "/100yd" },
+  "zh-CN": { km: "英里", m: "英尺", mi: "英里", ft: "英尺", yd: "码", h: "小时", min: "分", sec: "秒", speed: "英里/小时", perDistance: "/英里", per100: "/100码" },
+  "zh-TW": { km: "英里", m: "英尺", mi: "英里", ft: "英尺", yd: "碼", h: "小時", min: "分", sec: "秒", speed: "英里/小時", perDistance: "/英里", per100: "/100碼" },
+};
+
+// Module-level default so the format* helpers reflect the active setting
+// without every call site threading a `units` argument. The UnitsProvider
+// calls setDefaultUnits() when the user toggles the setting.
+let defaultUnits: Units = "metric";
+export function setDefaultUnits(units: Units) {
+  defaultUnits = units;
+}
+export function getCurrentUnits(): Units {
+  return defaultUnits;
 }
 
-export function formatDistance(meters: number, type?: string, locale = "en"): string {
-  const units = getUnits(locale);
-  // Swims: always show in meters (pool distances are typically < 5km)
+function getUnits(locale = "en", units: Units = defaultUnits): UnitLabels {
+  const map = units === "imperial" ? IMPERIAL_LABELS : METRIC_LABELS;
+  return map[locale] || map.en;
+}
+
+export function formatDistance(meters: number, type?: string, locale = "en", units: Units = defaultUnits): string {
+  const labels = getUnits(locale, units);
+  // Swims: always show in meters (metric) or yards (imperial) — pool distances
+  // are typically well under a mile, so miles would be awkward.
   if (type === "swim") {
-    return `${Math.round(meters)} ${units.m}`;
+    if (units === "imperial") {
+      return `${Math.round(meters * 1.09361)} ${labels.yd}`;
+    }
+    return `${Math.round(meters)} ${labels.m}`;
+  }
+  if (units === "imperial") {
+    if (meters >= 1609.344) {
+      return `${(meters / 1609.344).toFixed(1)} ${labels.mi}`;
+    }
+    if (meters >= 402.336) {
+      return `${(meters / 1609.344).toFixed(2)} ${labels.mi}`;
+    }
+    return `${Math.round(meters * 3.28084)} ${labels.ft}`;
   }
   if (meters >= 1000) {
-    return `${(meters / 1000).toFixed(1)} ${units.km}`;
+    return `${(meters / 1000).toFixed(1)} ${labels.km}`;
   }
-  return `${Math.round(meters)} ${units.m}`;
+  return `${Math.round(meters)} ${labels.m}`;
 }
 
 export function formatDuration(seconds: number, locale = "en"): string {
@@ -48,25 +84,106 @@ export function formatDuration(seconds: number, locale = "en"): string {
   return `${m}${units.min}`;
 }
 
-export function formatPace(metersPerSecond: number, type?: string, locale = "en"): string {
-  const units = getUnits(locale);
+export function formatPace(metersPerSecond: number, type?: string, locale = "en", units: Units = defaultUnits): string {
+  const labels = getUnits(locale, units);
   if (metersPerSecond === 0) return "--:--";
-  // Rides: show speed in km/h
+  // Rides: show speed
   if (type === "ride") {
-    return `${(metersPerSecond * 3.6).toFixed(1)} ${units.kmh}`;
+    const speed = units === "imperial" ? metersPerSecond * 2.23694 : metersPerSecond * 3.6;
+    return `${speed.toFixed(1)} ${labels.speed}`;
   }
-  // Swims: pace as min/100m
+  // Swims: pace as min/100m (metric) or min/100yd (imperial)
   if (type === "swim") {
-    const minPer100m = 100 / metersPerSecond / 60;
-    const minutes = Math.floor(minPer100m);
-    const seconds = Math.round((minPer100m - minutes) * 60);
-    return `${minutes}:${seconds.toString().padStart(2, "0")} ${units.per100m}`;
+    const distance = units === "imperial" ? 91.44 : 100;
+    const minPer = distance / metersPerSecond / 60;
+    const minutes = Math.floor(minPer);
+    const seconds = Math.round((minPer - minutes) * 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")} ${labels.per100}`;
   }
-  // Runs & others: pace as min/km
-  const minPerKm = 1000 / metersPerSecond / 60;
-  const minutes = Math.floor(minPerKm);
-  const seconds = Math.round((minPerKm - minutes) * 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")} ${units.perKm}`;
+  // Runs & others: pace as min/km (metric) or min/mi (imperial)
+  const distance = units === "imperial" ? 1609.344 : 1000;
+  const minPer = distance / metersPerSecond / 60;
+  const minutes = Math.floor(minPer);
+  const seconds = Math.round((minPer - minutes) * 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")} ${labels.perDistance}`;
+}
+
+// ── Body-metric conversions ──────────────────────────────
+
+export function kgToLb(kg: number): number {
+  return kg * 2.2046226218;
+}
+export function lbToKg(lb: number): number {
+  return lb / 2.2046226218;
+}
+export function cmToIn(cm: number): number {
+  return cm / 2.54;
+}
+export function inToCm(inches: number): number {
+  return inches * 2.54;
+}
+
+/** Format a weight (kg) for display, honoring the active units. */
+export function formatWeight(kg: number | null | undefined, units: Units = defaultUnits): string {
+  if (kg == null || kg <= 0) return "";
+  if (units === "imperial") return `${kgToLb(kg).toFixed(1)} lb`;
+  return `${kg.toFixed(1)} kg`;
+}
+
+/** Format a height (cm) for display, honoring the active units. */
+export function formatHeight(cm: number | null | undefined, units: Units = defaultUnits): string {
+  if (cm == null || cm <= 0) return "";
+  if (units === "imperial") {
+    const totalIn = cmToIn(cm);
+    const ft = Math.floor(totalIn / 12);
+    let inches = Math.round(totalIn % 12);
+    if (inches === 12) {
+      return `${ft + 1}'0"`;
+    }
+    return `${ft}'${inches}"`;
+  }
+  return `${Math.round(cm)} cm`;
+}
+
+// ── Goal / race input unit conversions ──────────────────────
+// Race-goal forms store meters server-side, but let the user enter distance
+// in m/km/mi and elevation in m/ft. These convert between the two.
+
+export type DistanceUnit = "m" | "km" | "mi";
+export type ElevationUnit = "m" | "ft";
+
+/** Default input unit for a new goal, matching the app-wide Units setting. */
+export function defaultDistanceUnit(units: Units): DistanceUnit {
+  return units === "imperial" ? "mi" : "km";
+}
+
+/** Default input unit for elevation, matching the app-wide Units setting. */
+export function defaultElevationUnit(units: Units): ElevationUnit {
+  return units === "imperial" ? "ft" : "m";
+}
+
+/** Convert a distance entered in any supported unit to meters. */
+export function distanceToMeters(value: number, unit: DistanceUnit): number {
+  if (unit === "km") return value * 1000;
+  if (unit === "mi") return value * 1609.344;
+  return value;
+}
+
+/** Convert meters to a distance in the given unit. */
+export function metersToDistance(meters: number, unit: DistanceUnit): number {
+  if (unit === "km") return meters / 1000;
+  if (unit === "mi") return meters / 1609.344;
+  return meters;
+}
+
+/** Convert an elevation entered in meters or feet to meters. */
+export function elevationToMeters(value: number, unit: ElevationUnit): number {
+  return unit === "ft" ? value / 3.28084 : value;
+}
+
+/** Convert meters to an elevation in the given unit. */
+export function metersToElevation(meters: number, unit: ElevationUnit): number {
+  return unit === "ft" ? meters * 3.28084 : meters;
 }
 
 /**
@@ -315,13 +432,15 @@ export function inferSurface(description?: string): SurfaceType {
 
 /**
  * Format elevation gain in meters for display.
- * Shows as e.g. "450m" under 1000m, and "1.2km" above.
+ * Metric shows e.g. "450m" under 1000m and "1.2km" above; imperial always
+ * shows feet.
  */
-export function formatElevation(meters: number | null | undefined): string {
+export function formatElevation(meters: number | null | undefined, units: Units = defaultUnits): string {
   if (!meters || meters <= 0) return "";
-  if (meters >= 1000) {
-    return `${(meters / 1000).toFixed(1)}km`;
+  if (units === "imperial") {
+    return `${Math.round(meters * 3.28084)}ft`;
   }
+  // Elevation is always expressed in meters (or feet), never scaled to km/mi.
   return `${Math.round(meters)}m`;
 }
 

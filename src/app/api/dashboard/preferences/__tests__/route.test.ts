@@ -39,7 +39,7 @@ describe('GET /api/dashboard/preferences', () => {
   it('returns user preferences', async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      dashboardPrefs: { timeframeDays: 90, pmcMetrics: ['ctl'], trendMetrics: [], volumePeriod: 'month' },
+      dashboardPrefs: { timeframeDays: 90, pmcMetrics: ['ctl'], volumePeriod: 'month' },
     } as any);
 
     const res = await GET();
@@ -80,6 +80,26 @@ describe('PUT /api/dashboard/preferences', () => {
     expect(res.status).toBe(400);
   });
 
+  it('accepts a valid units value', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ dashboardPrefs: null } as any);
+    vi.mocked(prisma.user.update).mockResolvedValue({} as any);
+
+    const res = await PUT(jsonRequest('/api/dashboard/preferences', {
+      units: 'imperial',
+    }));
+    expect(res.status).toBe(200);
+    expect(prisma.user.update).toHaveBeenCalled();
+  });
+
+  it('returns 400 for an invalid units value', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
+    const res = await PUT(jsonRequest('/api/dashboard/preferences', {
+      units: 'stones',
+    }));
+    expect(res.status).toBe(400);
+  });
+
   it('returns 400 for unknown keys', async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
     const res = await PUT(jsonRequest('/api/dashboard/preferences', {
@@ -91,7 +111,7 @@ describe('PUT /api/dashboard/preferences', () => {
   it('merges with existing preferences', async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      dashboardPrefs: { timeframeDays: 90, pmcMetrics: ['ctl'], trendMetrics: [], volumePeriod: 'month' },
+      dashboardPrefs: { timeframeDays: 90, pmcMetrics: ['ctl'], volumePeriod: 'month' },
     } as any);
     vi.mocked(prisma.user.update).mockResolvedValue({} as any);
 

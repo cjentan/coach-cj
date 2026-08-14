@@ -8,11 +8,11 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDistance, formatDuration } from "@/lib/utils";
+import { formatDistance, formatDuration, formatWeight } from "@/lib/utils";
 import type { PlanDay, PlanDayActual, PlanDayPlanned, PlanWeekData } from "@/lib/training-plan-types";
 import { Activity, ChevronRight, Route, Mountain, Clock, Heart, Target, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, BarChart3, Database, Info, ChevronLeft, AlertCircle } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useDashboardPrefs } from "@/hooks/use-dashboard-prefs";
 
@@ -46,14 +46,13 @@ interface PmcData {
   tsbTrend: "up" | "down" | "stable";
 }
 
-interface PmcHistoryPoint { date: string; tss: number; ctl: number; atl: number; tsb: number; }
+interface PmcHistoryPoint { date: string; tss: number; ctl: number; atl: number; tsb: number; ef: number | null; measuredEf: boolean; decoupling: number | null; measuredDecoupling: boolean; }
 
 interface TrackpointInsights {
   available: boolean; message?: string; activityCount?: number;
   intensityDistribution?: { zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number;
     distributionType: "polarized" | "pyramidal" | "threshold-heavy"; activityCount: number; totalAnalyzedHours: number; } | null;
   decoupling?: { avgDecouplingPct: number; status: "excellent" | "good" | "elevated"; activityCount: number; } | null;
-  efTrend?: { weekStart: string; ef: number; activityCount: number }[];
   estimatedFtp?: number | null; estimatedFtpWkg?: number | null; weightSource?: string | null;
 }
 
@@ -62,14 +61,6 @@ interface DailyHealthItem {
   sleepScore: number | null; deepSleepSeconds: number | null; bodyBatteryMin: number | null;
   bodyBatteryMax: number | null; avgStress: number | null; hrvStatus: string | null;
   overnightHrv: number | null; steps: number | null;
-}
-
-interface TrendPoint {
-  weekStartDate: string; readinessScore: number | null; ctl: number | null; atl: number | null;
-  tsb: number | null; weeklyVolumeMeters: number | null; weeklyElevationMeters: number | null;
-  weeklyDurationSeconds: number | null; weeklyTss: number; activityCount: number;
-  avgDailyTss: number; avgHr: number | null; volumeAdherence: number | null;
-  consistency: number | null; fatigueSeverity: string;
 }
 
 interface AnalysisReportData {
@@ -85,16 +76,30 @@ const TIME_RANGES = [
   { label: "7D", days: 7 }, { label: "30D", days: 30 }, { label: "90D", days: 90 }, { label: "6M", days: 180 }, { label: "1Y", days: 365 }, { label: "Max", days: 730 },
 ];
 
+/**
+ * Parse a "YYYY-MM-DD" date string as a LOCAL date (midnight in the browser's
+ * timezone). The dashboard API returns local date strings, so constructing via
+ * local components keeps day-of-month / weekday rendering correct regardless of
+ * the browser's offset — `new Date("YYYY-MM-DD")` would parse as UTC midnight
+ * and shift a day for negative-offset users.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const t = useTranslations("dashboard");
   const common = useTranslations("common");
   const { prefs, setPrefs } = useDashboardPrefs();
+  // Browser's UTC offset in minutes (negative for UTC+); all dashboard dates
+  // are bucketed/labeled in the user's local timezone.
+  const tzOffset = new Date().getTimezoneOffset();
   const timeframeDays = prefs.timeframeDays;
   const volumePeriod = prefs.volumePeriod;
   const pmcMetrics = new Set(prefs.pmcMetrics);
-  const trendMetrics = new Set(prefs.trendMetrics);
 
   const [stats, setStats] = useState<Stats | null>(null);
   const [goals, setGoals] = useState<GoalSummary[]>([]);
@@ -110,24 +115,88 @@ export default function DashboardPage() {
   const [raceReadiness, setRaceReadiness] = useState<Map<string, RaceReadinessOutput>>(new Map());
   const [dailyHealth, setDailyHealth] = useState<DailyHealthItem[]>([]);
   const [trackpointInsights, setTrackpointInsights] = useState<TrackpointInsights | null>(null);
-  const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  // Metric explainer: null = dialog closed, otherwise the key of the metric shown.
+  const [explainerMetric, setExplainerMetric] = useState<string | null>(null);
 
-  const PMC_METRICS = [
-    { key: "tss", label: "Daily TSS Load", color: "#a855f7", unit: "", format: (v: number) => String(Math.round(v)) },
-    { key: "ctl", label: "CTL · Fitness", color: "#3b82f6", unit: "", format: (v: number) => String(Math.round(v)) },
-    { key: "atl", label: "ATL · Fatigue", color: "#f59e0b", unit: "", format: (v: number) => String(Math.round(v)) },
-    { key: "tsb", label: "TSB · Form", color: "#22c55e", unit: "", format: (v: number) => String(Math.round(v)) },
-  ] as const;
+  type ExplainerParagraph = { k: string; strong?: boolean; note?: boolean };
 
-  const TREND_METRICS = [
-    { key: "readinessScore", label: "Readiness", color: "#ef4444", format: (v: number) => String(Math.round(v)), yAxisId: "left", orientation: "left" as const, tickFormatter: (v: number) => String(Math.round(v)) },
-    { key: "weeklyVolumeMeters", label: "Volume", color: "#3b82f6", format: (v: number) => `${(v / 1000).toFixed(1)}`, yAxisId: "right1", orientation: "right" as const, tickFormatter: (v: number) => `${(v / 1000).toFixed(0)}k` },
-    { key: "weeklyTss", label: "Weekly TSS", color: "#a855f7", format: (v: number) => String(Math.round(v)), yAxisId: "right2", orientation: "right" as const, tickFormatter: (v: number) => String(Math.round(v)) },
-    { key: "activityCount", label: "Activities", color: "#22c55e", format: (v: number) => String(Math.round(v)), yAxisId: "right3", orientation: "right" as const, tickFormatter: (v: number) => String(Math.round(v)) },
-  ] as const;
+  interface PmcMetric {
+    key: string;
+    label: string;
+    color: string;
+    format: (v: number) => string;
+    yAxisId: string;
+    measuredField?: string;
+    paragraphs: readonly ExplainerParagraph[];
+  }
+
+  const PMC_METRICS: readonly PmcMetric[] = [
+    { key: "tss", label: "Daily TSS Load", color: "#a855f7", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+      paragraphs: [
+        { k: "metricTssP1" },
+        { k: "metricTssP2", strong: true },
+        { k: "metricTssP3", strong: true },
+        { k: "metricTssP4", strong: true },
+        { k: "metricTssNote", note: true },
+      ] },
+    { key: "ctl", label: "CTL · Fitness", color: "#3b82f6", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+      paragraphs: [
+        { k: "ctlDialogP1", strong: true },
+        { k: "ctlDialogP2" },
+        { k: "ctlDialogP3", note: true },
+      ] },
+    { key: "atl", label: "ATL · Fatigue", color: "#f59e0b", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+      paragraphs: [
+        { k: "atlDialogP1", strong: true },
+        { k: "atlDialogP2" },
+        { k: "atlDialogP3", note: true },
+      ] },
+    { key: "tsb", label: "TSB · Form", color: "#22c55e", format: (v: number) => String(Math.round(v)), yAxisId: "main",
+      paragraphs: [
+        { k: "tsbDialogP1", strong: true },
+        { k: "tsbDialogP2", strong: true },
+        { k: "tsbDialogP3", strong: true },
+        { k: "tsbDialogP4", note: true },
+      ] },
+    // EF and HR decoupling are on completely different scales (EF ≈0.5–3, drift
+    // 0–15%) than the PMC curves, so they get their own right-side axes instead
+    // of sharing the left one. Both are sparse — only measured on some days — so
+    // measuredField marks the real measurements for the dot rendering.
+    { key: "ef", label: "EF · Efficiency", color: "#06b6d4", format: (v: number) => v == null ? "—" : v.toFixed(2), yAxisId: "ef", measuredField: "measuredEf",
+      paragraphs: [
+        { k: "metricEfP1" },
+        { k: "metricEfP2", strong: true },
+        { k: "metricEfP3", strong: true },
+        { k: "metricEfP4" },
+        { k: "metricEfNote", note: true },
+      ] },
+    { key: "decoupling", label: "Decoupling · HR Drift", color: "#ec4899", format: (v: number) => v == null ? "—" : `${v.toFixed(1)}%`, yAxisId: "decoupling", measuredField: "measuredDecoupling",
+      paragraphs: [
+        { k: "hrDecouplingDialogP1" },
+        { k: "hrDecouplingDialogP2", strong: true },
+        { k: "hrDecouplingDialogP3", strong: true },
+        { k: "hrDecouplingDialogP4", strong: true },
+        { k: "hrDecouplingDialogP5", note: true },
+      ] },
+  ];
+
+  // One shared explainer for every metric — each info button on the dashboard
+  // opens it with its metric preselected. Chart metrics inherit label/color/
+  // paragraphs from PMC_METRICS; readiness is the first, non-chart entry.
+  const METRIC_EXPLAINERS: readonly { key: string; label: string; color: string; paragraphs: readonly ExplainerParagraph[] }[] = [
+    { key: "readiness", label: "Readiness", color: "#6366f1",
+      paragraphs: [
+        { k: "readinessDialogP1", strong: true },
+        { k: "readinessDialogP2", strong: true },
+        { k: "readinessDialogP3", strong: true },
+        { k: "readinessDialogP4", strong: true },
+        { k: "readinessDialogP5", note: true },
+      ] },
+    ...PMC_METRICS.map((m) => ({ key: m.key, label: m.label, color: m.color, paragraphs: m.paragraphs })),
+  ];
 
   function computeDelta(current: number, prior: number | null | undefined): { direction: "up" | "down" | "flat" | "new"; pct: number } | null {
     if (prior === null || prior === undefined || prior === 0) {
@@ -145,7 +214,7 @@ export default function DashboardPage() {
     setLoading(true);
     setFetchError("");
     try {
-      const res = await fetch("/api/dashboard/load");
+      const res = await fetch(`/api/dashboard/load?tzOffset=${tzOffset}`);
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       setStats(data.stats || null);
@@ -154,12 +223,9 @@ export default function DashboardPage() {
       setPmc(data.pmc || null);
       if (data.analysisReport) setAnalysisReport(data.analysisReport);
 
-      fetch("/api/dashboard/trackpoint-insights").then((r) => r.ok ? r.json() : null).then((d) => d && setTrackpointInsights(d)).catch(() => {});
-      const w = Math.max(1, Math.ceil(timeframeDays / 7));
-const g = timeframeDays > 90 ? "month" : "week";
-fetch(`/api/dashboard/trends?weeks=${w}&grouping=${g}`).then((r) => r.ok ? r.json() : null).then((d) => d?.trends && setTrends(d.trends)).catch(() => {});
-fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)}`).then((r) => r.ok ? r.json() : null).then((d) => d?.distribution && setIntensityDist(d.distribution)).catch(() => {});
-      fetch("/api/daily-health?days=7").then((r) => r.ok ? r.json() : null).then((d) => d?.healthData && setDailyHealth(d.healthData)).catch(() => {});
+      fetch(`/api/dashboard/trackpoint-insights?tzOffset=${tzOffset}`).then((r) => r.ok ? r.json() : null).then((d) => d && setTrackpointInsights(d)).catch(() => {});
+fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)}&tzOffset=${tzOffset}`).then((r) => r.ok ? r.json() : null).then((d) => d?.distribution && setIntensityDist(d.distribution)).catch(() => {});
+      fetch(`/api/daily-health?days=7&tzOffset=${tzOffset}`).then((r) => r.ok ? r.json() : null).then((d) => d?.healthData && setDailyHealth(d.healthData)).catch(() => {});
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -169,20 +235,20 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
 
   const fetchPmcHistory = useCallback(async (days: number) => {
     try {
-      const res = await fetch(`/api/dashboard/pmc-history?days=${days}`);
+      const res = await fetch(`/api/dashboard/pmc-history?days=${days}&tzOffset=${tzOffset}`);
       if (res.ok) { const data = await res.json(); setPmcHistory(data.series || []); }
     } catch { /* ignore */ }
-  }, []);
+  }, [tzOffset]);
 
   const loadPlan = useCallback(async (offset: number) => {
     try {
-      const res = await fetch(`/api/dashboard/plan?weekOffset=${offset}`);
+      const res = await fetch(`/api/dashboard/plan?weekOffset=${offset}&tzOffset=${tzOffset}`);
       if (res.ok) {
         const data = await res.json();
         setPlan(data);
       }
     } catch { /* ignore */ }
-  }, []);
+  }, [tzOffset]);
 
   // Reload plan when weekOffset changes
   useEffect(() => { loadPlan(weekOffset); }, [weekOffset, loadPlan]);
@@ -244,14 +310,10 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
     let cancelled = false;
     const pmcDays = Math.min(timeframeDays, 365);
     fetchPmcHistory(pmcDays);
-    const weeks = Math.max(1, Math.ceil(timeframeDays / 7));
-    const grouping = timeframeDays > 90 ? "month" : "week";
-    fetch(`/api/dashboard/trends?weeks=${weeks}&grouping=${grouping}`)
-      .then((r) => r.ok ? r.json() : null).then((d) => { if (!cancelled && d?.trends) setTrends(d.trends); }).catch(() => {});
-    fetch(`/api/dashboard/intensity-distribution?days=${pmcDays}`)
+    fetch(`/api/dashboard/intensity-distribution?days=${pmcDays}&tzOffset=${tzOffset}`)
       .then((r) => r.ok ? r.json() : null).then((d) => { if (!cancelled && d?.distribution) setIntensityDist(d.distribution); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [status, timeframeDays, fetchPmcHistory]);
+  }, [status, timeframeDays, fetchPmcHistory, tzOffset]);
 
   // ─── Helper components ─────────────────────────────────────────────
 
@@ -297,8 +359,9 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
           {latestDate && (
             <span className="text-[10px] text-muted-foreground">
               {(() => {
-                const d = new Date(latestDate);
+                const d = parseLocalDate(latestDate);
                 const today = new Date();
+                today.setHours(0, 0, 0, 0);
                 const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
                 if (diff === 0) return "Today";
                 if (diff === 1) return "Yesterday";
@@ -386,25 +449,9 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("readiness")}
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("readinessInfo")}>
-                          <Info className="h-3 w-3" />
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{t("readinessDialogTitle")}</DialogTitle>
-                          <DialogDescription className="space-y-2 pt-2">
-                            <p>{t.rich("readinessDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t.rich("readinessDialogP2", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t.rich("readinessDialogP3", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t.rich("readinessDialogP4", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p className="text-xs text-muted-foreground pt-1">{t("readinessDialogP5")}</p>
-                          </DialogDescription>
-                        </DialogHeader>
-                      </DialogContent>
-                    </Dialog>
+                    <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("readinessInfo")} onClick={() => setExplainerMetric("readiness")}>
+                      <Info className="h-3 w-3" />
+                    </button>
                   </div>
                   <div className={`font-semibold text-sm ${readiness.score >= 70 ? "text-green-600" : readiness.score >= 50 ? "text-amber-600" : "text-red-600"}`}>
                     {readiness.label}
@@ -415,23 +462,9 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               <div className="sm:col-span-3 grid grid-cols-3 gap-3">
                 <div className="rounded-lg border bg-muted/20 p-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">CTL · Fitness
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("ctlInfo")}>
-                          <Info className="h-3 w-3" />
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{t("ctlDialogTitle")}</DialogTitle>
-                          <DialogDescription className="space-y-2 pt-2">
-                            <p>{t.rich("ctlDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t("ctlDialogP2")}</p>
-                            <p className="text-xs text-muted-foreground pt-1">{t("ctlDialogP3")}</p>
-                          </DialogDescription>
-                        </DialogHeader>
-                      </DialogContent>
-                    </Dialog>
+                    <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("ctlInfo")} onClick={() => setExplainerMetric("ctl")}>
+                      <Info className="h-3 w-3" />
+                    </button>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-xl font-bold ${pmc.ctl >= 50 ? "text-blue-600" : "text-blue-400"}`}>{pmc.ctl}</span>
@@ -441,23 +474,9 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">ATL · Fatigue
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("atlInfo")}>
-                          <Info className="h-3 w-3" />
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{t("atlDialogTitle")}</DialogTitle>
-                          <DialogDescription className="space-y-2 pt-2">
-                            <p>{t.rich("atlDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t("atlDialogP2")}</p>
-                            <p className="text-xs text-muted-foreground pt-1">{t("atlDialogP3")}</p>
-                          </DialogDescription>
-                        </DialogHeader>
-                      </DialogContent>
-                    </Dialog>
+                    <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("atlInfo")} onClick={() => setExplainerMetric("atl")}>
+                      <Info className="h-3 w-3" />
+                    </button>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-xl font-bold ${pmc.atl > 80 ? "text-red-600" : pmc.atl > 50 ? "text-amber-600" : "text-green-600"}`}>{pmc.atl}</span>
@@ -466,24 +485,9 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 </div>
                 <div className="rounded-lg border bg-muted/20 p-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">TSB · Form
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("tsbInfo")}>
-                          <Info className="h-3 w-3" />
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{t("tsbDialogTitle")}</DialogTitle>
-                          <DialogDescription className="space-y-2 pt-2">
-                            <p>{t.rich("tsbDialogP1", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t.rich("tsbDialogP2", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p>{t.rich("tsbDialogP3", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                            <p className="text-xs text-muted-foreground pt-1">{t("tsbDialogP4")}</p>
-                          </DialogDescription>
-                        </DialogHeader>
-                      </DialogContent>
-                    </Dialog>
+                    <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("tsbInfo")} onClick={() => setExplainerMetric("tsb")}>
+                      <Info className="h-3 w-3" />
+                    </button>
                   </div>
                   <div className="flex items-baseline gap-1.5">
                     <span className={`text-xl font-bold ${pmc.tsb >= 0 ? "text-green-600" : pmc.tsb >= -10 ? "text-amber-600" : "text-red-600"}`}>{pmc.tsb}</span>
@@ -540,7 +544,10 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         <Card className="mb-6">
           <CardContent className="py-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4" /> {t("volumeAndLoad")}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2"><BarChart3 className="h-4 w-4" /> {t("volumeAndLoad")}</h2>
+                <span className="text-[10px] text-muted-foreground normal-case font-normal">{volumePeriod === "week" ? "vs same days last week" : "vs same day last month"}</span>
+              </div>
               <Tabs value={volumePeriod} onValueChange={(v) => setPrefs({ volumePeriod: v as "week" | "month" })}>
                 <TabsList className="h-8"><TabsTrigger value="week" className="text-xs px-3">Week</TabsTrigger><TabsTrigger value="month" className="text-xs px-3">Month</TabsTrigger></TabsList>
               </Tabs>
@@ -576,17 +583,22 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         </Card>
       )}
 
-      {/* ═══ 4. TRAINING ANALYSIS (PMC + Intensity Dist + Historical) ═══ */}
-      {(pmcHistory.length > 0 || intensityDist || trends.length >= 2) && (
+      {/* ═══ 4. TRAINING ANALYSIS (PMC + Intensity Dist) ═══ */}
+      {(pmcHistory.length > 0 || intensityDist) && (
         <Card className="mb-6">
           <CardContent className="py-4">
             <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground flex items-center gap-2 mb-4"><TrendingUp className="h-4 w-4" /> Training Analysis</h2>
 
-            {/* Shared timeframe buttons */}
-            <div className="flex gap-1 mb-4 flex-wrap">
-              {TIME_RANGES.map((r) => (
-                <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label}</Button>
-              ))}
+            {/* Shared timeframe buttons + metric explainer */}
+            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div className="flex gap-1 flex-wrap">
+                {TIME_RANGES.map((r) => (
+                  <Button key={r.days} variant={timeframeDays === r.days ? "default" : "outline"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => setPrefs({ timeframeDays: r.days })}>{r.label}</Button>
+                ))}
+              </div>
+              <button className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-xs" aria-label={t("metricHelp")} onClick={() => setExplainerMetric("tss")}>
+                <Info className="h-3.5 w-3.5" /> <span>{t("metricHelp")}</span>
+              </button>
             </div>
 
             {/* PMC / Fitness Trends */}
@@ -609,14 +621,30 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 <div className="rounded-lg border bg-muted/20 p-3">
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={pmcHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                      <AreaChart data={pmcHistory} margin={{ top: 4, right: pmcMetrics.has("ef") || pmcMetrics.has("decoupling") ? 36 : 8, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                        <YAxis tick={{ fontSize: 10 }} width={30} />
+                        <YAxis yAxisId="main" tick={{ fontSize: 10 }} width={30} />
+                        {pmcMetrics.has("ef") && (
+                          <YAxis yAxisId="ef" orientation="right" tick={{ fontSize: 10 }} width={30} tickFormatter={(v: number) => v.toFixed(1)} domain={["auto", "auto"]} />
+                        )}
+                        {pmcMetrics.has("decoupling") && (
+                          <YAxis yAxisId="decoupling" orientation="right" tick={{ fontSize: 10 }} width={30} tickFormatter={(v: number) => `${v.toFixed(0)}%`} domain={["auto", "auto"]} />
+                        )}
                         <Tooltip labelFormatter={(v: string) => v} formatter={(v: number, name: string) => { const m = PMC_METRICS.find((mm) => mm.key === name); return m ? [m.format(v), m.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
-                        {PMC_METRICS.filter((m) => pmcMetrics.has(m.key)).map((m) => (
-                          <Area key={m.key} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />
-                        ))}
+                        {PMC_METRICS.filter((m) => pmcMetrics.has(m.key)).map((m) => {
+                          // Only sparse metrics (EF, decoupling) carry a measured* flag;
+                          // it's optional on the typed config, so it's undefined elsewhere.
+                          const measuredField = m.measuredField;
+                          return (
+                            <Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={measuredField ? "none" : m.color} fillOpacity={measuredField ? 0 : 0.12} strokeWidth={2}
+                              dot={measuredField
+                                ? (props: any) => props.payload?.[measuredField]
+                                  ? <circle key={props.key} cx={props.cx} cy={props.cy} r={2.5} fill={m.color} stroke="none" />
+                                  : <circle key={props.key} cx={props.cx} cy={props.cy} r={0} />
+                                : false} />
+                          );
+                        })}
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -643,57 +671,6 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               </div>
             )}
 
-            {/* Historical Trends */}
-            {trends.length >= 2 && (
-              <div className="mb-6 last:mb-0">
-                <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                  {TREND_METRICS.map((m) => (
-                    <button key={m.key} onClick={() => {
-                      const current = new Set(prefs.trendMetrics);
-                      if (current.has(m.key)) { if (current.size > 1) current.delete(m.key); }
-                      else current.add(m.key);
-                      setPrefs({ trendMetrics: Array.from(current) });
-                    }}
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${trendMetrics.has(m.key) ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
-                      style={trendMetrics.has(m.key) ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}>
-                      <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} /> {m.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="rounded-lg border bg-muted/20 p-3">
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      {(() => {
-                        const vis = TREND_METRICS.filter((m) => trendMetrics.has(m.key));
-                        const leftN = vis.filter((m) => m.orientation === "left").length;
-                        const rightN = vis.filter((m) => m.orientation === "right").length;
-                        const margin = { top: 4, right: rightN > 1 ? 20 + rightN * 32 : rightN > 0 ? 20 : 8, left: leftN > 1 ? 20 + leftN * 32 : leftN > 0 ? 20 : 8, bottom: 0 };
-                        return (
-                          <AreaChart data={trends} margin={margin} onClick={(data) => {
-                            if (!data?.activeLabel) return;
-                            const label = data.activeLabel;
-                            const g = timeframeDays > 90 ? "month" : "week";
-                            if (g === "month" && label.length === 7) router.push(`/activities?from=${label}-01&to=${label}-31`);
-                            else if (label.length === 10) { const d = new Date(label); const e = new Date(d); e.setDate(e.getDate() + 6); router.push(`/activities?from=${label}&to=${e.toISOString().split("T")[0]}`); }
-                          }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                            <XAxis dataKey="weekStartDate" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.length > 7 ? v.slice(5) : v} interval="preserveStartEnd" />
-                            {vis.map((m) => (
-                              <YAxis key={m.yAxisId} yAxisId={m.yAxisId} orientation={m.orientation} stroke={m.color} tick={{ fontSize: 10, fill: m.color }}
-                                width={m.orientation === "left" ? (leftN === 0 ? 30 : 44) : (rightN === 0 ? 30 : 44)} tickFormatter={m.tickFormatter}
-                                domain={m.key === "readinessScore" ? [0, 100] : ["auto", "auto"]} />
-                            ))}
-                            <Tooltip labelFormatter={(v: string) => v.length > 7 ? `Week of ${v}` : v} formatter={(v: number, name: string) => { const mt = TREND_METRICS.find((mm) => mm.key === name); return mt ? [mt.format(v), mt.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
-                            {vis.map((m) => (<Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={m.color} fillOpacity={0.12} strokeWidth={2} dot={false} />))}
-                          </AreaChart>
-                        );
-                      })()}
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-1 text-center">Click a data point to view training logs for that period</div>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
@@ -706,7 +683,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
             {stats.latestWeight && (
               <Card><CardContent className="py-4">
                 <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1"><Activity className="h-3.5 w-3.5" /> Weight</span>
-                <div className="flex items-baseline gap-1"><span className="text-2xl font-bold">{stats.latestWeight}</span><span className="text-sm text-muted-foreground">kg</span></div>
+                <div className="flex items-baseline gap-1"><span className="text-2xl font-bold">{formatWeight(stats.latestWeight)}</span></div>
                 <div className="mt-3 pt-3 border-t space-y-1">
                   {stats.activeGoals > 0 && <div className="flex items-center gap-2 text-[11px]"><Target className="h-3 w-3 text-muted-foreground shrink-0" /><span className="text-muted-foreground">{stats.activeGoals} active goal{stats.activeGoals !== 1 ? "s" : ""}</span></div>}
                   {stats.weeklyCount > 0 && <div className="flex items-center gap-2 text-[11px]"><Activity className="h-3 w-3 text-muted-foreground shrink-0" /><span className="text-muted-foreground">{stats.weeklyCount} activit{stats.weeklyCount !== 1 ? "ies" : "y"} this week</span></div>}
@@ -813,7 +790,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                     <span className={`w-14 shrink-0 text-xs font-medium
                       ${day.isPast ? "text-muted-foreground" : "text-muted-foreground"}
                     `}>
-                      {day.dayLabel} {new Date(day.date).getDate()}
+                      {day.dayLabel} {parseLocalDate(day.date).getDate()}
                     </span>
 
                     {/* Main column: planned workout + actual activity stacked */}
@@ -899,25 +876,9 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
             <Card><CardContent className="py-4">
               <div className="flex items-start justify-between mb-3">
                 <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Heart className="h-3.5 w-3.5 text-red-500 inline" /> {t("hrDecoupling")}</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label={t("hrDecouplingInfo")}>
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t("hrDecouplingDialogTitle")}</DialogTitle>
-                      <DialogDescription className="space-y-2 pt-2">
-                        <p>{t("hrDecouplingDialogP1")}</p>
-                        <p>{t.rich("hrDecouplingDialogP2", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                        <p>{t.rich("hrDecouplingDialogP3", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                        <p>{t.rich("hrDecouplingDialogP4", { strong: (chunks) => <strong>{chunks}</strong> })}</p>
-                        <p className="text-xs text-muted-foreground pt-1">{t("hrDecouplingDialogP5")}</p>
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
+                <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label={t("hrDecouplingInfo")} onClick={() => setExplainerMetric("decoupling")}>
+                  <Info className="h-3.5 w-3.5" />
+                </button>
               </div>
               <div className="text-center py-2">
                 <div className={`text-3xl font-bold ${trackpointInsights.decoupling.status === "excellent" ? "text-green-600" : trackpointInsights.decoupling.status === "good" ? "text-amber-600" : "text-red-600"}`}>{trackpointInsights.decoupling.avgDecouplingPct}%</div>
@@ -925,50 +886,64 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               </div>
             </CardContent></Card>
           )}
-          {trackpointInsights.efTrend && trackpointInsights.efTrend.length >= 2 && (
+          {trackpointInsights.estimatedFtp && (
             <Card><CardContent className="py-4">
-              <div className="flex items-start justify-between mb-3">
-                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">{t("efficiencyFactor")}</h2>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label={t("efInfo")}>
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{t("efDialogTitle")}</DialogTitle>
-                      <DialogDescription className="space-y-2 pt-2">
-                        <p>{t("efDialogP1")}</p>
-                        <p>{t("efDialogP2")}</p>
-                        <p>{t("efDialogP3")}</p>
-                        <p className="text-xs text-muted-foreground pt-1">{t("efDialogP4")}</p>
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <div className="h-32"><ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trackpointInsights.efTrend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <YAxis tick={{ fontSize: 10 }} width={30} domain={["dataMin - 0.1", "dataMax + 0.1"]} />
-                  <Tooltip labelFormatter={(v: string) => `Week of ${v}`} formatter={(v: number) => [v.toFixed(2), "EF"]} contentStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="ef" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.12} strokeWidth={2} dot />
-                </AreaChart>
-              </ResponsiveContainer></div>
-              {(() => { const t = trackpointInsights.efTrend!; if (t.length < 2) return null; const ch = ((t[t.length-1].ef - t[0].ef) / t[0].ef) * 100; return <Badge variant={ch >= 0 ? "success" : "destructive"} className="mt-2">{ch >= 0 ? "+" : ""}{Math.round(ch)}%</Badge>; })()}
-              {trackpointInsights.estimatedFtp && <p className="text-xs text-muted-foreground mt-2">Est. FTP: {trackpointInsights.estimatedFtp}W{trackpointInsights.estimatedFtpWkg ? ` · ${trackpointInsights.estimatedFtpWkg} w/kg` : ""}</p>}
+              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Target className="h-3.5 w-3.5 text-blue-500 inline" /> Est. FTP</h2>
+              <div className="text-3xl font-bold mt-2">{trackpointInsights.estimatedFtp}W</div>
+              {trackpointInsights.estimatedFtpWkg && <p className="text-xs text-muted-foreground mt-1">{trackpointInsights.estimatedFtpWkg} w/kg</p>}
             </CardContent></Card>
           )}
         </div>
       )}
+
+      {/* Unified metric explainer — every info button on the dashboard opens this
+          with its metric preselected; chips switch metrics while it's open. */}
+      <Dialog open={explainerMetric !== null} onOpenChange={(open) => { if (!open) setExplainerMetric(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("metricHelpTitle")}</DialogTitle>
+            <DialogDescription asChild>
+              <div className="pt-2">
+                <div className="flex flex-wrap gap-1 mb-3" aria-label={t("metricHelp")}>
+                  {METRIC_EXPLAINERS.map((m) => {
+                    const active = m.key === explainerMetric;
+                    return (
+                      <button key={m.key} onClick={() => setExplainerMetric(m.key)}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all ${active ? "text-foreground border" : "text-muted-foreground border border-dashed opacity-60 hover:opacity-100"}`}
+                        style={active ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}>
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} /> {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const active = METRIC_EXPLAINERS.find((m) => m.key === explainerMetric) ?? METRIC_EXPLAINERS[0];
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: active.color }} /> {active.label}
+                      </div>
+                      {active.paragraphs.map((p) => (
+                        <p key={p.k} className={p.note ? "text-xs text-muted-foreground pt-1" : ""}>
+                          {p.strong ? t.rich(p.k, { strong: (chunks) => <strong>{chunks}</strong> }) : t(p.k)}
+                        </p>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
 }
 
 function formatWeekLabel(weekStart: string, weekEnd: string): string {
-  const start = new Date(weekStart);
-  const end = new Date(weekEnd);
+  const start = parseLocalDate(weekStart);
+  const end = parseLocalDate(weekEnd);
   const fmt: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
   if (start.getMonth() === end.getMonth()) {
     return `${start.toLocaleDateString("en-US", { month: "short" })} ${start.getDate()}–${end.getDate()}`;

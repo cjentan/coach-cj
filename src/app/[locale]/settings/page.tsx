@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { useTheme } from "next-themes";
 import { useAccessibility, type TextSize } from "@/hooks/use-accessibility";
-import { User, Sun, Moon, Monitor, AlertCircle, Check, KeyRound, Languages, Accessibility } from "lucide-react";
+import { useUnits } from "@/hooks/use-units";
+import { User, Sun, Moon, Monitor, AlertCircle, Check, KeyRound, Languages, Accessibility, Ruler } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogClose,
 } from "@/components/ui/dialog";
@@ -20,6 +21,7 @@ export default function SettingsProfilePage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { textSize, setTextSize } = useAccessibility();
+  const { units, setUnits } = useUnits();
   const [mounted, setMounted] = useState(false);
 
   // Password change state
@@ -219,6 +221,34 @@ export default function SettingsProfilePage() {
                 onClick={() => handleLocaleChange(value)}
                 className={`flex-1 min-w-[120px] rounded-lg border-2 p-4 text-center transition-all ${
                   currentLocale === value
+                    ? "border-primary bg-primary/5 text-primary font-medium"
+                    : "border-muted hover:border-muted-foreground/30 text-muted-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Units */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Ruler className="h-5 w-5" /> {t("unitsTitle")}</CardTitle>
+          <CardDescription>{t("unitsDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-3 flex-wrap">
+            {[
+              { value: "metric" as const, label: t("unitsMetric") },
+              { value: "imperial" as const, label: t("unitsImperial") },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setUnits(value)}
+                className={`flex-1 min-w-[120px] rounded-lg border-2 p-4 text-center transition-all ${
+                  mounted && units === value
                     ? "border-primary bg-primary/5 text-primary font-medium"
                     : "border-muted hover:border-muted-foreground/30 text-muted-foreground"
                 }`}

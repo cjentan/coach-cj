@@ -3,8 +3,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateWeeklyPlan } from "@/lib/plan-generator";
 import type { PlannedSession } from "@/lib/plan-generator";
-import { getWeekStart } from "@/lib/utils";
+import { getWeekStart, localDateStr } from "@/lib/utils";
 import { SHORT_DAY_NAMES } from "@/lib/constants";
+
+/** Day of week (0=Sun..6=Sat) of a "YYYY-MM-DD" local date string. */
+function dayOfWeekFromDateStr(dateStr: string): number {
+  return new Date(dateStr + "T00:00:00Z").getUTCDay();
+}
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -12,33 +17,35 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const weekOffset = parseInt(searchParams.get("weekOffset") || "0", 10);
+  const tzOffset = parseInt(searchParams.get("tzOffset") || "0", 10) || 0;
 
   const now = new Date();
-  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // "Today" from the user's perspective — compare as YYYY-MM-DD strings so the
+  // UTC server clock can't highlight the wrong day.
+  const todayStr = localDateStr(now, tzOffset);
 
-  // Compute Monday of the target week (getWeekStart returns UTC Monday 00:00)
+  // Compute Monday of the target week. getWeekStart returns the canonical UTC
+  // Monday the weekly plan record is stored under; display dates below are
+  // shifted into the user's local timezone.
   const weekStart = getWeekStart(now);
   weekStart.setUTCDate(weekStart.getUTCDate() + weekOffset * 7);
 
-  // Sunday of the target week
+  // Sunday of the target week (UTC key)
   const weekEnd = new Date(weekStart);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
 
-  // Build week dates
-  const weekDates: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(weekStart);
-    d.setUTCDate(d.getUTCDate() + i);
-    weekDates.push(d);
-  }
-
-  // ALWAYS query training logs for this week (for actual activity on past days)
-  const weekEndExclusive = new Date(weekEnd);
-  weekEndExclusive.setUTCDate(weekEndExclusive.getUTCDate() + 1);
+  // Query a widened window (±1 day) around the UTC week so activities on the
+  // user's local weekdays are captured regardless of timezone offset, then
+  // bucket them by the user's LOCAL date below.
+  const weekEndExclusive = new Date(weekStart);
+  weekEndExclusive.setUTCDate(weekEndExclusive.getUTCDate() + 7);
   const actualLogs = await prisma.trainingLog.findMany({
     where: {
       userId: session.user.id,
-      startDate: { gte: weekStart, lt: weekEndExclusive },
+      startDate: {
+        gte: new Date(weekStart.getTime() - 86400000),
+        lt: new Date(weekEndExclusive.getTime() + 86400000),
+      },
       mergedIntoId: null,
     },
     orderBy: { startDate: "desc" },
@@ -54,10 +61,12 @@ export async function GET(request: Request) {
     },
   });
 
-  // Group logs by date string
+  // Group logs by the user's LOCAL date string. startDate is a UTC timestamp,
+  // so shift by the browser's tzOffset before formatting — otherwise a 6am
+  // UTC+8 run (10pm UTC the previous day) would land on the wrong calendar day.
   const logsByDate = new Map<string, typeof actualLogs>();
   for (const log of actualLogs) {
-    const dateKey = log.startDate.toISOString().split("T")[0];
+    const dateKey = localDateStr(log.startDate, tzOffset);
     if (!logsByDate.has(dateKey)) logsByDate.set(dateKey, []);
     logsByDate.get(dateKey)!.push(log);
   }
@@ -135,11 +144,12 @@ export async function GET(request: Request) {
   }> = [];
 
   for (let i = 0; i < 7; i++) {
-    const d = weekDates[i];
-    const dateStr = d.toISOString().split("T")[0];
-    const dow = d.getUTCDay();
-    const isPast = d < todayStart;
-    const isToday = d.getTime() === todayStart.getTime();
+    const d = new Date(weekStart);
+    d.setUTCDate(d.getUTCDate() + i);
+    const dateStr = localDateStr(d, tzOffset);
+    const dow = dayOfWeekFromDateStr(dateStr);
+    const isPast = dateStr < todayStr;
+    const isToday = dateStr === todayStr;
 
     // Planned session from plan (if any)
     const session = sessions.find((s) => s.dayOfWeek === dow);
@@ -184,8 +194,8 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    weekStart: weekStart.toISOString().split("T")[0],
-    weekEnd: weekEnd.toISOString().split("T")[0],
+    weekStart: localDateStr(weekStart, tzOffset),
+    weekEnd: localDateStr(weekEnd, tzOffset),
     days,
     targetVolumeMeters: plan?.targetVolumeMeters ?? undefined,
     targetElevationMeters: plan?.targetElevationMeters ?? undefined,

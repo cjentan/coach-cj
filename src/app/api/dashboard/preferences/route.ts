@@ -2,19 +2,20 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import type { Units } from "@/lib/utils";
 
 export interface DashboardPrefs {
   timeframeDays: number;
   pmcMetrics: string[];
-  trendMetrics: string[];
   volumePeriod: "week" | "month";
+  units: Units;
 }
 
 const DEFAULTS: DashboardPrefs = {
   timeframeDays: 30,
   pmcMetrics: ["ctl", "tsb"],
-  trendMetrics: ["readinessScore", "weeklyVolumeMeters"],
   volumePeriod: "week",
+  units: "metric",
 };
 
 export async function GET() {
@@ -44,8 +45,8 @@ export async function PUT(req: Request) {
   const allowedKeys: (keyof DashboardPrefs)[] = [
     "timeframeDays",
     "pmcMetrics",
-    "trendMetrics",
     "volumePeriod",
+    "units",
   ];
   for (const key of Object.keys(body)) {
     if (!allowedKeys.includes(key as keyof DashboardPrefs)) {
@@ -63,8 +64,8 @@ export async function PUT(req: Request) {
   if (body.pmcMetrics !== undefined && !Array.isArray(body.pmcMetrics)) {
     return NextResponse.json({ error: "pmcMetrics must be an array" }, { status: 400 });
   }
-  if (body.trendMetrics !== undefined && !Array.isArray(body.trendMetrics)) {
-    return NextResponse.json({ error: "trendMetrics must be an array" }, { status: 400 });
+  if (body.units !== undefined && !["metric", "imperial"].includes(body.units)) {
+    return NextResponse.json({ error: "Invalid units" }, { status: 400 });
   }
 
   // Merge with existing prefs so we never lose fields the client didn't send
