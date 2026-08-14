@@ -343,83 +343,127 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
           ? t("maxHrSourceUserSet")
           : t("maxHrSourceDefault");
     return (
-      <Card><CardContent className="py-4">
+      <div className="rounded-lg border bg-muted/20 p-4">
         <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-2"><Heart className="h-3.5 w-3.5 text-red-500" /> {t("hr")}</span>
-        <div className="flex items-baseline gap-3 mb-3 pb-3 border-b">
-          {restHr ? <><div><span className="text-2xl font-bold">{restHr}</span><span className="text-sm text-muted-foreground ml-1">bpm</span><div className="text-[10px] text-muted-foreground">{t("restingHr")}</div></div></>
-            : <div className="text-xs text-muted-foreground italic">{t("noRestingHr")}</div>}
-          <div className="border-l pl-3"><span className="text-lg font-semibold">{maxHr}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{maxHrLabel}</div></div>
-          {stats.avgHr && <div className="border-l pl-3"><span className="text-lg font-semibold">{Math.round(stats.avgHr)}</span><span className="text-xs text-muted-foreground ml-0.5">bpm</span><div className="text-[10px] text-muted-foreground">{t("avgExerciseHr")}</div></div>}
+        <div className="flex flex-wrap items-stretch gap-2">
+          {/* Rest / Max / Avg grouped as one unit */}
+          <div className="flex items-center divide-x divide-border rounded-md border shrink-0 w-full sm:w-auto">
+            <div className="px-3 py-1.5 text-center flex-1 sm:flex-none">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("restingHr")}</div>
+              <div className="text-[11px] font-medium tabular-nums mt-0.5">{restHr ? `${restHr} bpm` : "—"}</div>
+            </div>
+            <div className="px-3 py-1.5 text-center flex-1 sm:flex-none">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{maxHrLabel}</div>
+              <div className="text-[11px] font-medium tabular-nums mt-0.5">{maxHr} bpm</div>
+            </div>
+            <div className="px-3 py-1.5 text-center flex-1 sm:flex-none">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("avgExerciseHr")}</div>
+              <div className="text-[11px] font-medium tabular-nums mt-0.5">{stats.avgHr ? `${Math.round(stats.avgHr)} bpm` : "—"}</div>
+            </div>
+          </div>
+          {(() => {
+            const thresholds = [0.60, 0.70, 0.80, 0.90];
+            const labels = t.raw("hrZones") as unknown as string[];
+            const textColors = ["text-blue-500", "text-green-500", "text-amber-500", "text-orange-600", "text-red-500"];
+            // Karvonen (heart-rate reserve) when a resting HR is recorded, else the
+            // same bands as % of max HR — matching computeIntensityDistribution.
+            // The last zone (Z5) is bounded by max HR itself, so an out-of-range
+            // index (which previously produced NaN) is impossible.
+            const zoneToBpm = (pct: number) =>
+              restHr && restHr > 0 && restHr < maxHr
+                ? Math.round(restHr + (maxHr - restHr) * pct)
+                : Math.round(maxHr * pct);
+            return (
+              // Zones never wrap — they always stay on one row. On mobile
+              // (w-full, no flex-basis) they take a full row of their own below
+              // the rest/max/avg group; at sm+ they sit beside it (sm:flex-1),
+              // sharing the width.
+              <div className="flex gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
+                {labels.map((label, i) => {
+                  const lower = i === 0 ? 0 : zoneToBpm(thresholds[i - 1]);
+                  const upper = i < thresholds.length ? zoneToBpm(thresholds[i]) : maxHr;
+                  return (
+                    <div key={label} className="flex-1 min-w-0 rounded-md border p-1 text-center">
+                      <div className={`text-[10px] font-semibold uppercase tracking-wide truncate ${textColors[i]}`}>{label}</div>
+                      <div className="text-[10px] sm:text-[11px] font-medium tabular-nums mt-0.5 truncate">{lower === 0 ? `<${upper}` : `${lower}–${upper}`} bpm</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
-        {(() => {
-          const thresholds = [0.60, 0.70, 0.80, 0.90];
-          const labels = t.raw("hrZones") as unknown as string[];
-          const colors = ["bg-blue-400", "bg-green-400", "bg-amber-400", "bg-orange-500", "bg-red-500"];
-          const textColors = ["text-blue-500", "text-green-500", "text-amber-500", "text-orange-600", "text-red-500"];
-          // Karvonen (heart-rate reserve) when a resting HR is recorded, else the
-          // same bands as % of max HR — matching computeIntensityDistribution.
-          // The last zone (Z5) is bounded by max HR itself, so an out-of-range
-          // index (which previously produced NaN) is impossible.
-          const zoneToBpm = (pct: number) =>
-            restHr && restHr > 0 && restHr < maxHr
-              ? Math.round(restHr + (maxHr - restHr) * pct)
-              : Math.round(maxHr * pct);
-          return <div className="space-y-1">{labels.map((label, i) => {
-            const lower = i === 0 ? 0 : zoneToBpm(thresholds[i - 1]);
-            const upper = i < thresholds.length ? zoneToBpm(thresholds[i]) : maxHr;
-            return <div key={label} className="flex items-center gap-2 text-[11px]">
-              <span className="w-auto min-w-[3rem] text-muted-foreground shrink-0">{label}</span>
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden"><div className={`${colors[i]} h-full rounded-full`} style={{ width: "20%", marginLeft: `${(lower / maxHr) * 100}%` }} /></div>
-              <span className={`w-auto min-w-[4rem] text-right font-medium tabular-nums ${textColors[i]}`}>{lower === 0 ? `<${upper}` : `${lower}–${upper}`} bpm</span>
-            </div>;
-          })}</div>;
-        })()}
-      </CardContent></Card>
+      </div>
     );
   }
 
   function HealthMetricsCard({ data }: { data: DailyHealthItem[] }) {
+    // No health sync at all (e.g. Coros-only users) → the recovery tiles are
+    // hidden entirely; the caller renders the HR zone card full-width instead.
     if (data.length === 0) return null;
     const latestDate = data[0]?.date;
+    // Each metric falls back to the most recent day that has a value, so a
+    // single sleep-less (or unsynced) night doesn't blank the tile.
+    const latestValue = <T,>(pick: (d: DailyHealthItem) => T | null | undefined): T | null => {
+      for (const d of data) {
+        const v = pick(d);
+        if (v != null) return v;
+      }
+      return null;
+    };
+    const sleepSeconds = latestValue((d) => (d.sleepSeconds ? d.sleepSeconds : null));
+    const sleepScore = latestValue((d) => d.sleepScore);
+    const overnightHrv = latestValue((d) => (d.overnightHrv ? d.overnightHrv : null));
+    const hrvStatus = latestValue((d) => d.hrvStatus);
+
+    // Relative date shared by both tiles — labels which night the data is from
+    // (sleep/HRV are per-night, unlike the rolling PMC numbers).
+    const relativeDate = latestDate
+      ? (() => {
+          const d = parseLocalDate(latestDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
+          if (diff === 0) return common("today");
+          if (diff === 1) return common("yesterday");
+          return d.toLocaleDateString(locale, { month: "short", day: "numeric" });
+        })()
+      : null;
+
+    const tiles = [
+      {
+        key: "sleep",
+        label: t("sleep"),
+        date: relativeDate,
+        value: sleepSeconds ? formatDuration(sleepSeconds) : "—",
+        sub: sleepScore != null ? `${t("score")}: ${sleepScore}` : null,
+      },
+      {
+        key: "hrv",
+        label: t("hrv"),
+        date: relativeDate,
+        value: overnightHrv ? `${overnightHrv}ms` : "—",
+        sub: hrvStatus ? <span className="capitalize">{hrvStatus}</span> : null,
+      },
+    ];
+
+    // Rendered inside the top readiness card — same tile styling as the
+    // CTL/ATL/TSB/decoupling tiles so the health metrics read as part of it.
+    // Grid placement: full-width row below the readiness row below sm, but
+    // packs onto the same row as readiness+PMC at xl.
     return (
-      <Card><CardContent className="py-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1"><Activity className="h-3.5 w-3.5" /> {t("recovery")}</span>
-          {latestDate && (
-            <span className="text-[10px] text-muted-foreground">
-              {(() => {
-                const d = parseLocalDate(latestDate);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
-                if (diff === 0) return common("today");
-                if (diff === 1) return common("yesterday");
-                return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-              })()}
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">{t("sleep")}</div>
-            <div className="font-semibold">{data[0]?.sleepSeconds ? formatDuration(data[0].sleepSeconds) : "—"}</div>
-            {data[0]?.sleepScore != null && <div className="text-xs text-muted-foreground">{t("score")}: {data[0].sleepScore}</div>}
+      <div className="sm:col-span-4 xl:col-span-2 grid grid-cols-2 gap-3">
+        {tiles.map((tile) => (
+          <div key={tile.key} className="rounded-lg border bg-muted/20 p-2.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{tile.label}</span>
+              {tile.date && <span className="text-[10px] text-muted-foreground">{tile.date}</span>}
+            </div>
+            <div className="text-xl font-bold tabular-nums">{tile.value}</div>
+            {tile.sub && <div className="text-[10px] text-muted-foreground">{tile.sub}</div>}
           </div>
-          <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">{t("bodyBattery")}</div>
-            <div className="font-semibold">{data[0]?.bodyBatteryMin != null && data[0]?.bodyBatteryMax != null ? `${data[0].bodyBatteryMin}–${data[0].bodyBatteryMax}` : "—"}</div>
-          </div>
-          <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">{t("hrv")}</div>
-            <div className="font-semibold">{data[0]?.overnightHrv ? `${data[0].overnightHrv}ms` : "—"}</div>
-            {data[0]?.hrvStatus && <div className="text-xs text-muted-foreground capitalize">{data[0].hrvStatus}</div>}
-          </div>
-          <div className="p-2 rounded bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase">{t("stress")}</div>
-            <div className="font-semibold">{data[0]?.avgStress != null ? `${data[0].avgStress}` : "—"}</div>
-          </div>
-        </div>
-      </CardContent></Card>
+        ))}
+      </div>
     );
   }
 
@@ -497,8 +541,10 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
       {readiness && pmc && (
         <Card className="mb-6">
           <CardContent className="py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="sm:col-span-1 flex items-center gap-3 p-3 rounded-lg bg-muted/20">
+            {/* All seven metrics pack into one row at xl; without health data
+                the grid stays at 5 columns so no empty cells appear. */}
+            <div className={dailyHealth.length > 0 ? "grid grid-cols-1 sm:grid-cols-4 xl:grid-cols-7 gap-4" : "grid grid-cols-1 sm:grid-cols-4 gap-4"}>
+              <div className="sm:col-span-1 xl:col-span-1 flex items-center gap-3 xl:flex-col p-3 rounded-lg bg-muted/20">
                 <div className={`text-4xl font-bold ${readiness.score >= 70 ? "text-green-600" : readiness.score >= 50 ? "text-amber-600" : "text-red-600"}`}>
                   {readiness.score}
                 </div>
@@ -514,7 +560,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   <div className="w-full bg-muted rounded-full h-1 mt-1"><div className="bg-blue-500 h-1 rounded-full" style={{ width: `${readiness.volumeAdherence}%` }} /></div>
                 </div>
               </div>
-              <div className="sm:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="sm:col-span-3 xl:col-span-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-lg border bg-muted/20 p-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("ctlFitness")}
                     <button className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer" aria-label={t("ctlInfo")} onClick={() => setExplainerMetric("ctl")}>
@@ -565,6 +611,16 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                   )}
                 </div>
               </div>
+
+              {/* Sleep + HRV tile inside the same top grid — packs onto the
+                  readiness row at xl, full-width row below it otherwise.
+                  Hidden for users without health data. */}
+              {dailyHealth.length > 0 && <HealthMetricsCard data={dailyHealth} />}
+            </div>
+
+            {/* HR zone card — full-width row below the readiness section. */}
+            <div className="mt-4 space-y-3">
+              {stats && <HrZoneCard stats={stats} />}
             </div>
           </CardContent>
         </Card>
@@ -780,16 +836,6 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
 
           </CardContent>
         </Card>
-      )}
-
-      {/* ═══ 5. HEALTH & BODY ROW ═══ */}
-      {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-          <HrZoneCard stats={stats} />
-          <div className="space-y-3">
-            <HealthMetricsCard data={dailyHealth} />
-          </div>
-        </div>
       )}
 
       {/* ═══ No trackpoint data notice ═══ */}
