@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ interface PmcData {
   tsbTrend: "up" | "down" | "stable";
 }
 
-interface PmcHistoryPoint { date: string; tss: number; ctl: number; atl: number; tsb: number; ef: number | null; measuredEf: boolean; decoupling: number | null; measuredDecoupling: boolean; }
+interface PmcHistoryPoint { date: string; tss: number; ctl: number; atl: number; tsb: number; ef: number | null; measuredEf: boolean; decoupling: number | null; measuredDecoupling: boolean; ftp: number | null; }
 
 interface TrackpointInsights {
   available: boolean; message?: string; activityCount?: number;
@@ -93,6 +93,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const t = useTranslations("dashboard");
   const common = useTranslations("common");
+  const locale = useLocale();
   const { prefs, setPrefs } = useDashboardPrefs();
   // Browser's UTC offset in minutes (negative for UTC+); all dashboard dates
   // are bucketed/labeled in the user's local timezone.
@@ -130,6 +131,8 @@ export default function DashboardPage() {
     format: (v: number) => string;
     yAxisId: string;
     measuredField?: string;
+    /** Render as a stroke-only line (no area fill) — e.g. FTP, a level not a load curve. */
+    lineOnly?: boolean;
     paragraphs: readonly ExplainerParagraph[];
   }
 
@@ -161,10 +164,12 @@ export default function DashboardPage() {
         { k: "tsbDialogP3", strong: true },
         { k: "tsbDialogP4", note: true },
       ] },
-    // EF and HR decoupling are on completely different scales (EF ≈0.5–3, drift
-    // 0–15%) than the PMC curves, so they get their own right-side axes instead
-    // of sharing the left one. Both are sparse — only measured on some days — so
-    // measuredField marks the real measurements for the dot rendering.
+    // EF, HR decoupling and FTP are on completely different scales (EF ≈0.5–3,
+    // drift 0–15%, FTP 100–400W) than the PMC curves, so they get their own
+    // right-side axes instead of sharing the left one. EF and decoupling are
+    // sparse — only measured on some days — so measuredField marks the real
+    // measurements for the dot rendering. FTP is a stroke-only level (lineOnly),
+    // not an area load curve.
     { key: "ef", label: "EF · Efficiency", color: "#06b6d4", format: (v: number) => v == null ? "—" : v.toFixed(2), yAxisId: "ef", measuredField: "measuredEf",
       paragraphs: [
         { k: "metricEfP1" },
@@ -180,6 +185,14 @@ export default function DashboardPage() {
         { k: "hrDecouplingDialogP3", strong: true },
         { k: "hrDecouplingDialogP4", strong: true },
         { k: "hrDecouplingDialogP5", note: true },
+      ] },
+    { key: "ftp", label: "FTP · Threshold", color: "#ef4444", format: (v: number) => v == null ? "—" : `${v.toFixed(0)}W`, yAxisId: "ftp", lineOnly: true,
+      paragraphs: [
+        { k: "metricFtpP1" },
+        { k: "metricFtpP2", strong: true },
+        { k: "metricFtpP3", strong: true },
+        { k: "metricFtpP4" },
+        { k: "metricFtpNote", note: true },
       ] },
   ];
 
@@ -398,6 +411,23 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
   if (status === "loading" || loading) {
     return <div className="max-w-5xl mx-auto px-4 py-8">{common("loading")}</div>;
   }
+
+  // Single-tick left axis: round the peak of the currently-selected main PMC
+  // curves (TSS/CTL/ATL/TSB) up to a nice number and label only that top tick, so
+  // the chart rescales when the user toggles metrics. The lower bound stays at 0
+  // unless the selected values dip below it (e.g. negative TSB).
+  const mainValues = pmcHistory.flatMap((p) => {
+    const vals: number[] = [];
+    if (pmcMetrics.has("tss")) vals.push(p.tss);
+    if (pmcMetrics.has("ctl")) vals.push(p.ctl);
+    if (pmcMetrics.has("atl")) vals.push(p.atl);
+    if (pmcMetrics.has("tsb")) vals.push(p.tsb);
+    return vals;
+  });
+  const mainLow = mainValues.length ? Math.min(0, ...mainValues) : 0;
+  const mainHigh = mainValues.length ? Math.max(...mainValues) : 0;
+  const mainTick = Math.max(10, Math.ceil(mainHigh / 10) * 10);
+  const mainDomain: [number, number] = [mainLow, mainTick];
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -621,23 +651,60 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 <div className="rounded-lg border bg-muted/20 p-3">
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={pmcHistory} margin={{ top: 4, right: pmcMetrics.has("ef") || pmcMetrics.has("decoupling") ? 36 : 8, left: -20, bottom: 0 }}>
+                      <AreaChart data={pmcHistory} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-                        <YAxis yAxisId="main" tick={{ fontSize: 10 }} width={30} />
+                        {/* Left axis shows a single line + one tick at the rounded peak
+                            (mainTick). The right-side axes are hidden — they must stay
+                            mounted (with their domains) because the EF/decoupling/FTP
+                            Areas bind to them by yAxisId. hide skips both rendering and
+                            the reserved width. */}
+                        <YAxis yAxisId="main" tick={{ fontSize: 10 }} width={30} domain={mainDomain} ticks={[mainTick]} />
                         {pmcMetrics.has("ef") && (
-                          <YAxis yAxisId="ef" orientation="right" tick={{ fontSize: 10 }} width={30} tickFormatter={(v: number) => v.toFixed(1)} domain={["auto", "auto"]} />
+                          <YAxis yAxisId="ef" orientation="right" domain={["auto", "auto"]} hide />
                         )}
                         {pmcMetrics.has("decoupling") && (
-                          <YAxis yAxisId="decoupling" orientation="right" tick={{ fontSize: 10 }} width={30} tickFormatter={(v: number) => `${v.toFixed(0)}%`} domain={["auto", "auto"]} />
+                          <YAxis yAxisId="decoupling" orientation="right" domain={["auto", "auto"]} hide />
                         )}
-                        <Tooltip labelFormatter={(v: string) => v} formatter={(v: number, name: string) => { const m = PMC_METRICS.find((mm) => mm.key === name); return m ? [m.format(v), m.label] : [v, name]; }} contentStyle={{ fontSize: 12 }} />
+                        {pmcMetrics.has("ftp") && (
+                          <YAxis yAxisId="ftp" orientation="right" domain={["auto", "auto"]} hide />
+                        )}
+                        <Tooltip
+                          content={({ active, payload, label }: any) => {
+                            if (!active || !payload || payload.length === 0) return null;
+                            // label is the X-axis value (the local date string); fall back to
+                            // the hovered point's date field if recharts omits it.
+                            const date = label ?? payload[0]?.payload?.date;
+                            return (
+                              <div className="rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
+                                {date && (
+                                  <div className="font-medium mb-1.5">
+                                    {parseLocalDate(date).toLocaleDateString(locale, { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+                                  </div>
+                                )}
+                                <div className="space-y-1">
+                                  {payload.map((entry: any) => {
+                                    const m = PMC_METRICS.find((mm) => mm.key === entry.name);
+                                    return (
+                                      <div key={entry.name} className="flex items-center gap-2">
+                                        <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: m?.color ?? entry.color }} />
+                                        <span className="text-muted-foreground">{m?.label ?? entry.name}</span>
+                                        <span className="ml-auto font-medium tabular-nums">{m ? m.format(entry.value) : String(entry.value)}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
                         {PMC_METRICS.filter((m) => pmcMetrics.has(m.key)).map((m) => {
                           // Only sparse metrics (EF, decoupling) carry a measured* flag;
                           // it's optional on the typed config, so it's undefined elsewhere.
                           const measuredField = m.measuredField;
+                          const strokeOnly = measuredField || m.lineOnly;
                           return (
-                            <Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={measuredField ? "none" : m.color} fillOpacity={measuredField ? 0 : 0.12} strokeWidth={2}
+                            <Area key={m.key} yAxisId={m.yAxisId} type="monotone" dataKey={m.key} stroke={m.color} fill={strokeOnly ? "none" : m.color} fillOpacity={strokeOnly ? 0 : 0.12} strokeWidth={2}
                               dot={measuredField
                                 ? (props: any) => props.payload?.[measuredField]
                                   ? <circle key={props.key} cx={props.cx} cy={props.cy} r={2.5} fill={m.color} stroke="none" />
@@ -703,7 +770,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
               <Database className="h-5 w-5 text-primary mt-0.5 shrink-0" />
               <div>
                 <h3 className="font-medium text-sm">{t("enableDetailedMetrics")}</h3>
-                <p className="text-sm text-muted-foreground mt-1">Upload a Strava export ZIP or individual GPX/TCX/FIT files to unlock intensity distribution, HR decoupling analysis, and efficiency factor tracking.{" "}<Link href="/ingestion" className="text-primary underline">Go to Data Import →</Link></p>
+                <p className="text-sm text-muted-foreground mt-1">Upload a Strava export ZIP or individual GPX/TCX/FIT files to unlock intensity distribution, HR decoupling, efficiency factor, and FTP tracking.{" "}<Link href="/ingestion" className="text-primary underline">Go to Data Import →</Link></p>
               </div>
             </div>
           </CardContent>
@@ -867,33 +934,6 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
             )}
           </CardContent>
         </Card>
-      )}
-
-      {/* ═══ 8. TRACKPOINT INSIGHTS ═══ */}
-      {trackpointInsights?.available && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-          {trackpointInsights.decoupling && (
-            <Card><CardContent className="py-4">
-              <div className="flex items-start justify-between mb-3">
-                <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Heart className="h-3.5 w-3.5 text-red-500 inline" /> {t("hrDecoupling")}</h2>
-                <button className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer" aria-label={t("hrDecouplingInfo")} onClick={() => setExplainerMetric("decoupling")}>
-                  <Info className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="text-center py-2">
-                <div className={`text-3xl font-bold ${trackpointInsights.decoupling.status === "excellent" ? "text-green-600" : trackpointInsights.decoupling.status === "good" ? "text-amber-600" : "text-red-600"}`}>{trackpointInsights.decoupling.avgDecouplingPct}%</div>
-                <Badge variant={trackpointInsights.decoupling.status === "excellent" ? "success" : trackpointInsights.decoupling.status === "good" ? "warning" : "destructive"} className="mt-1">{trackpointInsights.decoupling.status.toUpperCase()}</Badge>
-              </div>
-            </CardContent></Card>
-          )}
-          {trackpointInsights.estimatedFtp && (
-            <Card><CardContent className="py-4">
-              <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground"><Target className="h-3.5 w-3.5 text-blue-500 inline" /> Est. FTP</h2>
-              <div className="text-3xl font-bold mt-2">{trackpointInsights.estimatedFtp}W</div>
-              {trackpointInsights.estimatedFtpWkg && <p className="text-xs text-muted-foreground mt-1">{trackpointInsights.estimatedFtpWkg} w/kg</p>}
-            </CardContent></Card>
-          )}
-        </div>
       )}
 
       {/* Unified metric explainer — every info button on the dashboard opens this

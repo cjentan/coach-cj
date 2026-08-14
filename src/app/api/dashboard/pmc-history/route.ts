@@ -8,6 +8,19 @@ import { cache } from "react";
 const cachedComputePMC = cache(computePMC);
 
 /**
+ * Shift a "YYYY-MM-DD" local date string by N days. Used to compute the trailing
+ * 28-day window for the FTP estimate. Dates are ISO local strings, so comparing
+ * them lexicographically is equivalent to chronological ordering.
+ */
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d + days);
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${mm}-${dd}`;
+}
+
+/**
  * Fill gaps in a sparse daily metric with monotone cubic Hermite interpolation
  * so the chart draws a continuous line instead of disjointed segments. Sparse
  * metrics like EF and HR decoupling are only measured on activity days with
@@ -85,6 +98,7 @@ export async function GET(request: Request) {
       durationSeconds: true,
       efficiencyFactor: true,
       decouplingPct: true,
+      trackpointNormalizedPower: true,
     },
   });
 
@@ -97,6 +111,9 @@ export async function GET(request: Request) {
   const efCountByDate: Record<string, number> = {};
   const decSumByDate: Record<string, number> = {};
   const decCountByDate: Record<string, number> = {};
+  // FTP is estimated from the best normalized power, so keep the max NP per
+  // local date (not a sum) for the trailing-window computation below.
+  const npMaxByDate: Record<string, number> = {};
   for (const log of logs) {
     const dateKey = localDateStr(log.startDate, tzOffset);
     const tss = log.tss || Math.round(log.durationSeconds / 3600 * 50);
@@ -108,6 +125,9 @@ export async function GET(request: Request) {
     if (log.decouplingPct != null) {
       decSumByDate[dateKey] = (decSumByDate[dateKey] || 0) + log.decouplingPct;
       decCountByDate[dateKey] = (decCountByDate[dateKey] || 0) + 1;
+    }
+    if (log.trackpointNormalizedPower != null) {
+      npMaxByDate[dateKey] = Math.max(npMaxByDate[dateKey] || 0, log.trackpointNormalizedPower);
     }
   }
 
@@ -140,6 +160,18 @@ export async function GET(request: Request) {
       ? Math.round((decSumByDate[r.date] / decCountByDate[r.date]) * 10) / 10
       : null,
     measuredDecoupling: decCountByDate[r.date] > 0,
+    // FTP = 95% of the best normalized power in the trailing 28 days, matching
+    // the standalone Est. FTP card (best recent NP × 0.95). The sliding window
+    // lets the estimate rise and fall with fitness; null when no power activity
+    // has occurred in the window (no interpolation — a gap means "no data").
+    ftp: (() => {
+      let best = 0;
+      for (let d = addDays(r.date, -27); d <= r.date; d = addDays(d, 1)) {
+        const np = npMaxByDate[d];
+        if (np != null && np > best) best = np;
+      }
+      return best > 0 ? Math.round(best * 0.95) : null;
+    })(),
   }));
 
   // Fill sparse-metric gaps with smooth interpolation so lines are continuous.
