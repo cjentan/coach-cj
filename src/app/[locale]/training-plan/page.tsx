@@ -15,8 +15,7 @@ import { Button } from "@/components/ui/button";
 import type { TrainingPlanResponse } from "@/lib/training-plan-types";
 import { CalendarView } from "@/components/training-plan/calendar-view";
 import { PhaseBar } from "@/components/training-plan/phase-bar";
-import { MonthlySummary } from "@/components/training-plan/monthly-summary";
-import { WeeklySummary } from "@/components/training-plan/weekly-summary";
+import { PeriodSummary } from "@/components/training-plan/period-summary";
 import { openCoachChat, COACH_CHAT_EVENTS } from "@/lib/coach-chat-events";
 
 export default function TrainingPlanPage() {
@@ -240,11 +239,12 @@ export default function TrainingPlanPage() {
             onPhaseClick={handlePhaseClick}
           />
 
-          {/* ═══ Weekly Summary (most actionable first) ═══ */}
-          {currentWeek && <WeeklySummary week={currentWeek} />}
-
-          {/* ═══ Monthly Summary ═══ */}
-          <MonthlySummary weeks={monthWeeks} monthLabel={monthLabel} />
+          {/* ═══ Period Summary (toggle between current week / visible month) ═══ */}
+          <PeriodSummary
+            week={currentWeek}
+            weeks={monthWeeks}
+            monthLabel={monthLabel}
+          />
 
           {/* ═══ Calendar ═══ */}
           <CalendarView

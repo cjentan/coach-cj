@@ -2,7 +2,7 @@
 
 /**
  * Shared stat row component for planned vs actual metrics.
- * Used by MonthlySummary and WeeklySummary to avoid duplicating
+ * Used by PeriodSummary to avoid duplicating
  * the same render logic and progress bar styling.
  */
 
