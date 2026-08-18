@@ -374,18 +374,18 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
                 ? Math.round(restHr + (maxHr - restHr) * pct)
                 : Math.round(maxHr * pct);
             return (
-              // Zones never wrap — they always stay on one row. On mobile
-              // (w-full, no flex-basis) they take a full row of their own below
-              // the rest/max/avg group; at sm+ they sit beside it (sm:flex-1),
-              // sharing the width.
-              <div className="flex gap-2 min-w-0 w-full sm:w-auto sm:flex-1">
+              // On mobile the zones stack vertically — one full-width row per
+              // zone — so each HR range fits without truncation; at sm+ they
+              // sit in a single horizontal row beside the rest/max/avg group
+              // (sm:flex-1), sharing the width.
+              <div className="flex flex-col gap-2 min-w-0 w-full sm:flex-row sm:w-auto sm:flex-1">
                 {labels.map((label, i) => {
                   const lower = i === 0 ? 0 : zoneToBpm(thresholds[i - 1]);
                   const upper = i < thresholds.length ? zoneToBpm(thresholds[i]) : maxHr;
                   return (
-                    <div key={label} className="flex-1 min-w-0 rounded-md border p-1 text-center">
-                      <div className={`text-[10px] font-semibold uppercase tracking-wide truncate ${textColors[i]}`}>{label}</div>
-                      <div className="text-[10px] sm:text-[11px] font-medium tabular-nums mt-0.5 truncate">{lower === 0 ? `<${upper}` : `${lower}–${upper}`} bpm</div>
+                    <div key={label} className="sm:flex-1 min-w-0 rounded-md border p-2 sm:p-1 text-center">
+                      <div className={`text-[11px] sm:text-[10px] font-semibold uppercase tracking-wide truncate ${textColors[i]}`}>{label}</div>
+                      <div className="text-sm sm:text-[11px] font-medium tabular-nums mt-0.5 truncate">{lower === 0 ? `<${upper}` : `${lower}–${upper}`} bpm</div>
                     </div>
                   );
                 })}
