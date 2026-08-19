@@ -321,6 +321,18 @@ const METRICS: MetricDef[] = [
   { key: "power",label: "Power",     color: "#f59e0b", unit: "W",       yAxisId: "power", orientation: "right" },
 ];
 
+/** Format a metric's value for the tooltip (units-aware). */
+function formatTooltipValue(m: MetricDef, v: number): string {
+  switch (m.key) {
+    case "ele": return formatEleTooltip(v);
+    case "hr": return `${Math.round(v)} bpm`;
+    case "pace":
+    case "gap": return `${formatPaceVal(v)} ${paceUnit()}`;
+    case "power": return `${Math.round(v)} W`;
+    default: return String(v);
+  }
+}
+
 /** Format the x-axis label depending on mode. */
 function formatXAxis(value: number, mode: XAxisMode): string {
   if (mode === "distance") return formatDistAxis(value);
@@ -350,9 +362,12 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
     setVisible((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Determine which side's axes to show
-  const leftMetrics = METRICS.filter((m) => m.orientation === "left" && visible[m.key]);
-  const rightMetrics = METRICS.filter((m) => m.orientation === "right" && visible[m.key]);
+  // Keep at most one visible axis per side, mirroring the dashboard: secondary
+  // axes stay mounted (hidden) so their Areas/Lines still bind to the right
+  // domain, while `hide` skips rendering and frees their reserved width. The
+  // custom tooltip carries the actual values, so axes are orientation refs only.
+  const leftAxisKey: MetricKey | null = visible.hr ? "hr" : visible.ele ? "ele" : null;
+  const rightAxisKey: MetricKey | null = visible.pace ? "pace" : visible.power ? "power" : visible.gap ? "gap" : null;
 
   // Compute Y-axis domains
   function domain(key: MetricKey): [number, number] {
@@ -364,12 +379,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
     return [min - pad, max + pad];
   }
 
-  const chartMargin = {
-    top: 4,
-    right: rightMetrics.length > 1 ? 64 : 8,
-    bottom: 0,
-    left: leftMetrics.length > 1 ? 64 : 8,
-  };
+  const chartMargin = { top: 4, right: 8, bottom: 0, left: 8 };
 
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
@@ -422,9 +432,11 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
               dataKey={xAxisMode === "distance" ? "distance" : "timeSec"}
               tick={{ fontSize: 10 }}
               tickFormatter={(v: number) => formatXAxis(v, xAxisMode)}
+              interval="preserveStartEnd"
             />
 
-            {/* Left Y-axes: Elevation + HR */}
+            {/* Left axes: only the primary one is visible; the other stays
+                mounted (hidden) so its Area still binds to the right domain. */}
             {visible.ele && (
               <YAxis
                 yAxisId="ele"
@@ -434,6 +446,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                 width={36}
                 domain={domain("ele")}
                 tickFormatter={(v: number) => formatEleAxis(v)}
+                hide={leftAxisKey !== "ele"}
               />
             )}
             {visible.hr && (
@@ -445,10 +458,11 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                 width={36}
                 domain={domain("hr")}
                 tickFormatter={(v: number) => `${Math.round(v)}`}
+                hide={leftAxisKey !== "hr"}
               />
             )}
 
-            {/* Right Y-axes: Pace + GAP + Power */}
+            {/* Right axes: same pattern — primary pace visible, others hidden. */}
             {visible.pace && (
               <YAxis
                 yAxisId="pace"
@@ -459,6 +473,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                 reversed
                 domain={domain("pace")}
                 tickFormatter={(v: number) => formatPaceVal(v)}
+                hide={rightAxisKey !== "pace"}
               />
             )}
             {visible.gap && (
@@ -471,6 +486,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                 reversed
                 domain={domain("gap")}
                 tickFormatter={(v: number) => formatPaceVal(v)}
+                hide={rightAxisKey !== "gap"}
               />
             )}
             {visible.power && (
@@ -482,22 +498,40 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                 width={36}
                 domain={domain("power")}
                 tickFormatter={(v: number) => `${Math.round(v)}W`}
+                hide={rightAxisKey !== "power"}
               />
             )}
 
             <Tooltip
-              contentStyle={tooltipStyle}
-              labelFormatter={(v: number) => formatXAxis(v, xAxisMode)}
-              formatter={(v: number, name: string) => {
-                switch (name) {
-                  case "ele":   return [formatEleTooltip(v), t("seriesElevation")];
-                  case "hr":    return [`${Math.round(v)} bpm`, t("seriesHr")];
-                  case "pace":  return [`${formatPaceVal(v)} ${paceUnit()}`, t("seriesPace")];
-                  case "gap":   return [`${formatPaceVal(v)} ${paceUnit()}`, t("seriesGap")];
-                  case "power": return [`${Math.round(v)} W`, t("seriesPower")];
-                  case "smoothedPower": return [`${Math.round(v)} W`, t("seriesPowerSmoothed")];
-                  default:      return [v, name];
-                }
+              content={({ active, payload, label }: any) => {
+                if (!active || !payload || payload.length === 0) return null;
+                return (
+                  <div className="rounded-lg border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
+                    <div className="font-medium mb-1.5">
+                      {formatXAxis(label as number, xAxisMode)}
+                    </div>
+                    <div className="space-y-1">
+                      {payload.map((entry: any) => {
+                        const name = entry.name as string;
+                        const isSmoothed = name === "smoothedPower";
+                        const m = METRICS.find((mm) => mm.key === (isSmoothed ? "power" : name));
+                        return (
+                          <div key={name} className="flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: m?.color ?? entry.color }} />
+                            <span className="text-muted-foreground">
+                              {isSmoothed ? t("seriesPowerSmoothed") : m ? metricLabels[m.key] : name}
+                            </span>
+                            <span className="ml-auto font-medium tabular-nums">
+                              {isSmoothed
+                                ? `${Math.round(entry.value)} W`
+                                : m ? formatTooltipValue(m, entry.value as number) : String(entry.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
               }}
             />
 

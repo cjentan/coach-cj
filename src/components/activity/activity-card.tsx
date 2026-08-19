@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import {
   Activity, Clock, Mountain, Route, Heart, Zap, ArrowLeft, ArrowRight,
   ChevronLeft, ChevronRight, MessageSquare, Trash2, TrendingUp, BarChart3, Flame,
-  Copy, AlertTriangle, Target, Check, Brain, Loader2, AlertCircle, Download,
+  Copy, AlertTriangle, Target, Check, Brain, Loader2, AlertCircle, Download, HeartPulse,
 } from "lucide-react";
 import { TrackPoint } from "@/lib/gpx-parser";
 import {
@@ -50,6 +50,7 @@ export interface TrainingLog {
   startDate: string; durationSeconds: number; distanceMeters: number | null;
   elevationGainMeters: number | null; averageHr: number | null; maxHr: number | null;
   averagePower: number | null; normalizedPower: number | null; calories: number | null; tss: number | null;
+  decouplingPct: number | null;
   rawJson: Record<string, unknown> | null;
   source: string;
   duplicateGroupId: string | null;
@@ -114,16 +115,25 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-function Stat({ icon: Icon, label, value }: {icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+function Stat({ icon: Icon, label, value, valueClassName, title }: {icon: React.ComponentType<{ className?: string }>; label: string; value: string; valueClassName?: string; title?: string }) {
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50" title={title}>
       <Icon className="h-4 w-4 text-primary shrink-0" />
       <div className="min-w-0">
         <div className="text-[10px] text-muted-foreground leading-tight">{label}</div>
-        <div className="text-sm font-semibold truncate">{value}</div>
+        <div className={`text-sm font-semibold truncate ${valueClassName ?? ""}`}>{value}</div>
       </div>
     </div>
   );
+}
+
+// Aerobic decoupling status thresholds — same green/amber/red scale the
+// dashboard uses (see trackpoint-insights route).
+function decouplingColor(pct: number | null | undefined): string {
+  if (pct == null) return "";
+  if (pct < 5) return "text-green-600";
+  if (pct < 10) return "text-amber-600";
+  return "text-red-600";
 }
 
 // ── ActivityCard (extracted from activities/[id]/page.tsx) ─────────────────
@@ -267,6 +277,15 @@ export function ActivityCard({
           {log.calories && <Stat icon={Flame} label={t("card.calories")} value={`${Math.round(log.calories)} kcal`} />}
           {vam && <Stat icon={TrendingUp} label={t("card.vam")} value={`${vam.vamTotal.toLocaleString()} m/h`} />}
           {log.tss && <Stat icon={BarChart3} label={t("card.tss")} value={String(Math.round(log.tss))} />}
+          {log.decouplingPct != null && (
+            <Stat
+              icon={HeartPulse}
+              label={t("card.decoupling")}
+              value={`${log.decouplingPct > 0 ? "+" : ""}${log.decouplingPct.toFixed(1)}%`}
+              valueClassName={decouplingColor(log.decouplingPct)}
+              title={t("card.decouplingTooltip")}
+            />
+          )}
         </div>
 
         {/* Combined Metrics Chart — replaces Elevation, HR, Pace, GAP, Power */}

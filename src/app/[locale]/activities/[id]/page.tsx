@@ -16,7 +16,6 @@ export default function ActivityDetailPage() {
   const [log, setLog] = useState<TrainingLog | null>(null);
   const [neighbors, setNeighbors] = useState<{ prev: TrainingLog | null; next: TrainingLog | null }>({ prev: null, next: null });
   const [loading, setLoading] = useState(true);
-  const [sliding, setSliding] = useState<"left" | "right" | null>(null);
   const [remarksText, setRemarksText] = useState("");
   const [remarksDirty, setRemarksDirty] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -33,8 +32,6 @@ export default function ActivityDetailPage() {
   const [duplicateGroup, setDuplicateGroup] = useState<DuplicateGroupInfo | null>(null);
   const [restingHr, setRestingHr] = useState<number | null>(null);
   const [maxHr, setMaxHr] = useState<number | null>(null);
-  const touchRef = useRef<{ startX: number; startY: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Navigate back to activities list preserving any position params
   function backToActivities() {
@@ -270,42 +267,8 @@ export default function ActivityDetailPage() {
       });
   }, [router]);
 
-  // Touch swipe with smooth carousel animation
+  // Keyboard navigation between activities
   useEffect(() => {
-    function onTouchStart(e: TouchEvent) {
-      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-      const t = e.touches[0];
-      touchRef.current = { startX: t.clientX, startY: t.clientY };
-    }
-
-    function onTouchMove(e: TouchEvent) {
-      if (!touchRef.current) return;
-      // Prevent browser back/forward swipe gesture
-      const t = e.touches[0];
-      const dx = t.clientX - touchRef.current.startX;
-      const dy = t.clientY - touchRef.current.startY;
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
-        e.preventDefault();
-      }
-    }
-
-    function onTouchEnd(e: TouchEvent) {
-      if (!touchRef.current) return;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - touchRef.current.startX;
-      const dy = t.clientY - touchRef.current.startY;
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
-        if (dx < 0 && neighbors.next?.id) {
-          navigateTo(neighbors.next.id, neighbors.next);
-        }
-        if (dx > 0 && neighbors.prev?.id) {
-          navigateTo(neighbors.prev.id, neighbors.prev);
-        }
-      }
-      touchRef.current = null;
-    }
-
-    // Keyboard navigation
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
       if (e.key === "ArrowLeft" && neighbors.prev?.id) navigateTo(neighbors.prev.id, neighbors.prev);
@@ -313,15 +276,7 @@ export default function ActivityDetailPage() {
     }
 
     window.addEventListener("keydown", onKey);
-    window.addEventListener("touchstart", onTouchStart, { passive: false });
-    window.addEventListener("touchmove", onTouchMove, { passive: false });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMove);
-      window.removeEventListener("touchend", onTouchEnd);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [neighbors, navigateTo]);
 
   if (loading) return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
@@ -346,7 +301,6 @@ export default function ActivityDetailPage() {
           >
             <ChevronLeft className="h-5 w-5" /> {t("detail.prev")}
           </Button>
-          <span className="text-xs text-muted-foreground px-1 hidden sm:inline">{t("detail.swipeHint")}</span>
           <Button
             variant="ghost" size="sm"
             disabled={!nextId}
@@ -358,54 +312,28 @@ export default function ActivityDetailPage() {
         </div>
       </div>
 
-      {/* Swipeable card area */}
-      <div ref={containerRef} className="relative overflow-hidden touch-pan-y">
-        <div className="transition-transform duration-200 ease-out">
-          <ActivityCard
-            log={log}
-            restingHr={restingHr}
-            maxHr={maxHr}
-            remarksText={remarksText}
-            remarksDirty={remarksDirty}
-            saved={saved}
-            deleting={deleting}
-            similarRoutes={similarRoutes}
-            duplicateGroup={duplicateGroup}
-            onRemarksChange={handleRemarksChange}
-            onDelete={handleDelete}
-            coachAnalysisText={coachAnalysisText}
-            analyzing={analyzing}
-            analyzeError={analyzeError}
-            analysisStatus={analysisStatus}
-            onAnalyze={handleAnalyze}
-            onClearAnalysis={handleClearAnalysis}
-            isRace={isRace}
-            isRaceDirty={isRaceDirty}
-            onIsRaceChange={handleIsRaceChange}
-          />
-        </div>
-
-        {/* Swipe hints on mobile */}
-        <div className="flex sm:hidden items-center justify-between mt-3 px-1">
-          <Button
-            variant="ghost" size="sm"
-            disabled={!prevId}
-            onClick={() => prevId && navigateTo(prevId, neighbors.prev)}
-          >
-            <ChevronLeft className="h-5 w-5" /> {t("detail.prev")}
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            {t("detail.swipeToNavigate")}
-          </span>
-          <Button
-            variant="ghost" size="sm"
-            disabled={!nextId}
-            onClick={() => nextId && navigateTo(nextId, neighbors.next)}
-          >
-            {t("detail.next")} <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
+      <ActivityCard
+        log={log}
+        restingHr={restingHr}
+        maxHr={maxHr}
+        remarksText={remarksText}
+        remarksDirty={remarksDirty}
+        saved={saved}
+        deleting={deleting}
+        similarRoutes={similarRoutes}
+        duplicateGroup={duplicateGroup}
+        onRemarksChange={handleRemarksChange}
+        onDelete={handleDelete}
+        coachAnalysisText={coachAnalysisText}
+        analyzing={analyzing}
+        analyzeError={analyzeError}
+        analysisStatus={analysisStatus}
+        onAnalyze={handleAnalyze}
+        onClearAnalysis={handleClearAnalysis}
+        isRace={isRace}
+        isRaceDirty={isRaceDirty}
+        onIsRaceChange={handleIsRaceChange}
+      />
 
       {/* Bottom nav — desktop only */}
       <div className="hidden sm:flex items-center justify-between mt-4">
