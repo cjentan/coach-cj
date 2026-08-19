@@ -87,7 +87,12 @@ services:
     hostname: coach
     container_name: coach-tailscale
     env_file:
-      - /docker-data/homelab-tailscale/.env
+      # Host-provided Tailscale auth config (external to this repo — see
+      # docs/deployment.md). Marked optional so a missing file can't hard-fail
+      # the whole `docker compose up`; the node reuses its persisted auth state
+      # in /docker-data/homelab-tailscale/state-coach when it's absent.
+      - path: /docker-data/homelab-tailscale/.env
+        required: false
     environment:
       - TS_SERVE_CONFIG=/config/coach-serve.json
       - TS_STATE_DIR=/var/lib/tailscale
