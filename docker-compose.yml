@@ -82,31 +82,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  tailscale:
-    image: tailscale/tailscale:latest
-    hostname: coach
-    container_name: coach-tailscale
-    env_file:
-      # Host-provided Tailscale auth config (external to this repo — see
-      # docs/deployment.md). Marked optional so a missing file can't hard-fail
-      # the whole `docker compose up`; the node reuses its persisted auth state
-      # in /docker-data/homelab-tailscale/state-coach when it's absent.
-      - path: /docker-data/homelab-tailscale/.env
-        required: false
-    environment:
-      - TS_SERVE_CONFIG=/config/coach-serve.json
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_CERT_DOMAIN=coach.oryx-everest.ts.net
-      - TS_HOSTNAME=coach
-    volumes:
-      - /docker-data/homelab-tailscale/state-coach:/var/lib/tailscale
-      - /docker-data/homelab-tailscale/config:/config
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - net_admin
-      - sys_module
-    restart: unless-stopped
-
 volumes:
   postgres_data:
   redis_data:
