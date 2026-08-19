@@ -48,6 +48,7 @@ services:
         condition: service_healthy
     volumes:
       - ./data/uploads:/app/data/uploads
+    restart: unless-stopped
 
   db:
     image: postgres:16-alpine
@@ -65,6 +66,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -78,6 +80,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   tailscale:
     image: tailscale/tailscale:latest
