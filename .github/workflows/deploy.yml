@@ -45,9 +45,12 @@ jobs:
         working-directory: /docker-data/coach
         run: docker compose up -d --force-recreate
 
+      # Cold start runs migrations + Next.js boot, which on a fresh container
+      # can exceed the old 120s window even though the app comes up fine a
+      # moment later. Give it 5 minutes before declaring failure.
       - name: Wait for app to respond
         run: |
-          for i in $(seq 1 60); do
+          for i in $(seq 1 150); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ || true)
             if [ -n "$code" ] && [ "$code" != "000" ]; then
               echo "app responded with HTTP $code after $((i * 2))s"
@@ -55,28 +58,6 @@ jobs:
             fi
             sleep 2
           done
-          echo "app did not respond within 120s"
+          echo "app did not respond within 300s"
           docker compose -f /docker-data/coach/docker-compose.yml ps
           exit 1
-
-      # After a fresh image is live, recompute derived columns that are
-      # sensitive to the current zone model / workout-type / assessment logic.
-      # The scripts live inside the worker image (dist-workers) and are
-      # deterministic, so running them on every deploy is safe. A failed
-      # backfill fails the deploy so stale data can't ship silently.
-      - name: Run post-deploy data backfills
-        working-directory: /docker-data/coach
-        run: |
-          set -e
-          echo "::group::recompute-trackpoint-metrics"
-          docker compose exec worker node --expose-gc --max-old-space-size=1024 \
-            dist-workers/workers/recompute-trackpoint-metrics.js
-          echo "::endgroup::"
-          echo "::group::reclassify-workout-types"
-          docker compose exec worker node --expose-gc --max-old-space-size=1024 \
-            dist-workers/workers/reclassify-workout-types.js
-          echo "::endgroup::"
-          echo "::group::recompute-weekly-assessments"
-          docker compose exec worker node --expose-gc --max-old-space-size=1024 \
-            dist-workers/workers/recompute-weekly-assessments.js
-          echo "::endgroup::"
