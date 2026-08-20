@@ -17,7 +17,10 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/lib/llm', () => ({
   isLlmConfigured: vi.fn(),
   hasServerDefaultKey: vi.fn(() => false),
-  PROVIDER_BASE_URLS: { deepseek: 'https://api.deepseek.com' },
+  PROVIDER_BASE_URLS: {
+    deepseek: 'https://api.deepseek.com',
+    deepinfra: 'https://api.deepinfra.com/v1/openai',
+  },
 }));
 
 describe('GET /api/settings/llm', () => {
@@ -104,6 +107,17 @@ describe('PUT /api/settings/llm', () => {
     }));
     const updateData = vi.mocked(prisma.user.update).mock.calls[0][0]?.data as any;
     expect(updateData.llmBaseUrl).toBe('https://api.deepseek.com');
+  });
+
+  it('auto-populates DeepInfra base URL from PROVIDER_BASE_URLS when not provided', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
+    vi.mocked(prisma.user.update).mockResolvedValue({} as any);
+
+    await PUT(jsonRequest('/api/settings/llm', {
+      llmProvider: 'deepinfra',
+    }));
+    const updateData = vi.mocked(prisma.user.update).mock.calls[0][0]?.data as any;
+    expect(updateData.llmBaseUrl).toBe('https://api.deepinfra.com/v1/openai');
   });
 
   it('returns 400 for invalid request body', async () => {

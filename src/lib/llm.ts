@@ -1,6 +1,6 @@
 /**
  * Multi-provider LLM abstraction.
- * Supports: Ollama (local), DeepSeek, OpenAI, Anthropic.
+ * Supports: Ollama (local), DeepSeek, DeepInfra, OpenAI, Anthropic.
  * All use OpenAI-compatible chat completions.
  *
  * Users can configure their own API key in Settings → API Credentials,
@@ -88,6 +88,7 @@ export function getDefaultLlmConfig(): { apiKey: string; baseUrl: string; model:
 export const PROVIDER_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   deepseek: "https://api.deepseek.com/v1",
+  deepinfra: "https://api.deepinfra.com/v1/openai",
   anthropic: "https://api.anthropic.com/v1",
   ollama: "http://localhost:11434/v1",
 };
@@ -98,6 +99,7 @@ export const PROVIDER_BASE_URLS: Record<string, string> = {
 export const PROVIDER_MODELS: Record<string, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
   deepseek: ["deepseek-v4-flash"],
+  deepinfra: ["deepseek-ai/DeepSeek-V4-Flash-0731"],
   anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
   ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
 };
@@ -142,10 +144,13 @@ async function sendChatCompletion(
   // DeepSeek thinking-mode control. deepseek-v4-flash defaults to high-effort
   // thinking, which can dominate wall-clock time before any output is produced.
   // "disabled" forces non-thinking mode; "low" keeps thinking on at low effort.
-  // Gated on DeepSeek so OpenAI/Ollama/Anthropic payloads are never touched.
+  // Gated on DeepSeek so OpenAI/Ollama/Anthropic/DeepInfra payloads are never
+  // touched — DeepInfra-hosted deepseek-ai models go through DeepInfra's
+  // OpenAI-compatible API, which doesn't take DeepSeek-native thinking params.
   const isDeepSeek =
     opts.baseUrl.toLowerCase().includes("deepseek.com") ||
-    model.toLowerCase().startsWith("deepseek");
+    (model.toLowerCase().startsWith("deepseek") &&
+      !opts.baseUrl.toLowerCase().includes("deepinfra.com"));
   if (isDeepSeek && opts.thinking) {
     if (opts.thinking === "disabled") {
       // Must NOT pair reasoning_effort with a disabled thinking block.
