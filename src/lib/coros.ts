@@ -164,10 +164,6 @@ export async function syncCorosActivities(
   toDate?: string | null,
   tzOffset?: number,
 ): Promise<{ count: number; newActivityIds: string[] }> {
-  const session = await prisma.corosSession.findUnique({
-    where: { userId },
-  });
-
   // Karvonen zones need the user's resting HR and max HR; fetch once per sync.
   const restHr = await getLatestRestingHr(userId);
   const maxHr = await getEffectiveMaxHr(userId);
@@ -197,13 +193,17 @@ export async function syncCorosActivities(
   let newActivities = activities;
 
   // Date filter on the server side may not work reliably in all cases,
-  // so apply a client-side filter as well when incremental
+  // so apply a client-side filter as well when incremental. Cutoff is the
+  // newest activity already imported for this source — first import pulls
+  // everything, later syncs fetch only what's newer than the newest known
+  // activity (see syncGarminActivities for the same rationale).
   if (!fullSync) {
-    const window = 90;
-    const since =
-      session?.lastSyncAt ||
-      new Date(Date.now() - window * 86_400_000);
-    const cutoff = since.getTime();
+    const latest = await prisma.trainingLog.findFirst({
+      where: { userId, source: "coros" },
+      orderBy: { startDate: "desc" },
+      select: { startDate: true },
+    });
+    const cutoff = latest?.startDate.getTime() ?? -Infinity;
     newActivities = activities.filter((a) => {
       // COROS startTime is in seconds for some endpoints, ms for others
       // Convert to ms if it looks like seconds (< 1e12)

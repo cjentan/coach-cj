@@ -252,9 +252,11 @@ export async function disconnectGarmin(userId: string): Promise<void> {
  *
  * Two modes:
  *  - full sync (fullSync=true): pages through ALL activities from Garmin,
- *    downloading every one that hasn't been imported before. Use for "Sync Now".
- *  - incremental sync (fullSync=false, lookbackDays=N): only looks at activities
- *    since the last sync, up to `lookbackDays` ago as a fallback. Use for the
+ *    downloading every one that hasn't been imported before. Use for the
+ *    Settings page "Sync Now" / date-range backfill.
+ *  - incremental sync (fullSync=false): fetches everything but only imports
+ *    activities newer than the newest one already in the log (a full pull on
+ *    first import when the log is empty). Use for the Sync button and the
  *    background worker.
  *
  * 1. Fetch activity list (paginated)
@@ -267,15 +269,10 @@ export async function syncGarminActivities(
   client: any,
   userId: string,
   fullSync?: boolean,
-  lookbackDays?: number,
   fromDate?: string | null,
   toDate?: string | null,
   tzOffset?: number,
 ): Promise<{ count: number; newActivityIds: string[] }> {
-  const session = await prisma.garminSession.findUnique({
-    where: { userId },
-  });
-
   // Karvonen zones need the user's resting HR and max HR; fetch once per sync.
   const restHr = await getLatestRestingHr(userId);
   const maxHr = await getEffectiveMaxHr(userId);
@@ -310,10 +307,18 @@ export async function syncGarminActivities(
       );
     }
   } else {
-    // Incremental sync: only activities since lastSyncAt (or lookback window)
-    const window = lookbackDays ?? 90;
-    const since = session?.lastSyncAt || new Date(Date.now() - window * 86_400_000);
-    const cutoff = since.getTime();
+    // Incremental sync: cutoff is the start date of the newest activity already
+    // imported for this source. The first import (nothing in the log yet) pulls
+    // everything; later syncs only fetch what's newer than the newest known
+    // activity. Using the data rather than lastSyncAt is more forgiving — an
+    // activity recorded before the last sync run but uploaded afterwards is
+    // still newer than the newest known activity and gets picked up.
+    const latest = await prisma.trainingLog.findFirst({
+      where: { userId, source: "garmin" },
+      orderBy: { startDate: "desc" },
+      select: { startDate: true },
+    });
+    const cutoff = latest?.startDate.getTime() ?? -Infinity;
     newActivities = activities.filter(
       (a) => new Date(a.startTimeGMT).getTime() > cutoff
     );

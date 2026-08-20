@@ -284,7 +284,11 @@ export default function ActivitiesPage() {
 
     for (const provider of connectedProviders) {
       try {
-        const res = await fetch(`/api/integrations/${provider}/sync`, { method: "POST" });
+        const res = await fetch(`/api/integrations/${provider}/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ incremental: true }),
+        });
         const data = await res.json();
         if (res.ok) {
           totalImported += data.activitiesImported || 0;

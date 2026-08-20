@@ -244,7 +244,9 @@ async function handleSync(
   userId: string
 ): Promise<NextResponse> {
   try {
-    const { fromDate, toDate, tzOffset: rawTz } = await req.json().catch(() => ({}));
+    const { fromDate, toDate, tzOffset: rawTz, incremental } = await req
+      .json()
+      .catch(() => ({}));
     const tzOffset = parseInt(String(rawTz || "0"), 10);
 
     if (provider === "garmin") {
@@ -259,12 +261,18 @@ async function handleSync(
         );
       }
 
+      // The activities-page Sync button requests `incremental` sync: only
+      // activities newer than the newest one already imported are fetched,
+      // and the first import (empty log) pulls everything. The Settings page
+      // omits `incremental` to keep its explicit full-sync / date-range
+      // backfill behavior.
+      const fullSync = !incremental;
+
       const [activitiesResult, healthDaysSynced] = await Promise.all([
         syncGarminActivities(
           client,
           userId,
-          true,
-          undefined,
+          fullSync,
           fromDate,
           toDate,
           tzOffset
@@ -301,8 +309,11 @@ async function handleSync(
       );
     }
 
+    // Same incremental semantics as Garmin above.
+    const fullSync = !incremental;
+
     const { count: activitiesImported, newActivityIds } =
-      await syncCorosActivities(client, userId, true, fromDate, toDate, tzOffset);
+      await syncCorosActivities(client, userId, fullSync, fromDate, toDate, tzOffset);
 
     if (newActivityIds.length > 0) {
       scheduleBatchAnalysis(

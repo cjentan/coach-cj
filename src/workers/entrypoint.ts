@@ -289,7 +289,7 @@ const garminWorker = new Worker(
         }
 
         const [a, h] = await Promise.all([
-          syncGarminActivities(client, userId, false, 90).catch((e) => {
+          syncGarminActivities(client, userId, false).catch((e) => {
             console.error(`[garmin-sync] activities error for ${userId}:`, e.message);
             return { count: 0, newActivityIds: [] };
           }),
