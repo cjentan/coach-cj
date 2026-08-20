@@ -45,13 +45,18 @@ jobs:
         working-directory: /docker-data/coach
         run: docker compose up -d --force-recreate
 
-      # Cold start runs migrations + Next.js boot, which on a fresh container
-      # can exceed the old 120s window even though the app comes up fine a
-      # moment later. Give it 5 minutes before declaring failure.
+      # Probe the app from inside its own container rather than curling host
+      # localhost. A self-hosted runner can live in its own network namespace
+      # (e.g. a containerized runner) where the host's published port 3000 is
+      # unreachable even though the app is up and serving — the previous
+      # check failed here twice while the app was healthy. docker exec reaches
+      # the app via the docker socket the runner already uses for compose, so
+      # it works regardless of how the runner is networked. Allow 5 minutes
+      # for cold start (migrations + Next.js boot).
       - name: Wait for app to respond
         run: |
           for i in $(seq 1 150); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ || true)
+            code=$(docker exec coach-app node -e "fetch('http://localhost:3000/',{redirect:'manual'}).then(r=>{console.log(r.status);process.exit(0)}).catch(()=>process.exit(1))" 2>/dev/null || echo 000)
             if [ -n "$code" ] && [ "$code" != "000" ]; then
               echo "app responded with HTTP $code after $((i * 2))s"
               exit 0
