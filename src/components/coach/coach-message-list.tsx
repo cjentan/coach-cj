@@ -196,8 +196,8 @@ const CoachMessageList = memo(function CoachMessageList({
             </div>
           )}
 
-          {/* Plan proposal card (shown once after interview) */}
-          {currentProposal && !loading && (
+          {/* Plan proposal card (shown once after interview — only before a plan is built) */}
+          {!hasExistingPlan && currentProposal && !loading && (
             <div className={`flex justify-start${isFloating ? "" : " mb-3"}`}>
               <PlanProposalCard
                 proposal={currentProposal}
