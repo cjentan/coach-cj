@@ -70,25 +70,3 @@ export async function scheduleBatchAnalysis(
   }
 }
 
-/**
- * Enqueue a single activity for analysis (used for manual triggers).
- */
-export async function scheduleActivityAnalysis(
-  activityId: string,
-  userId: string
-): Promise<void> {
-  const { prisma } = await import("./prisma");
-
-  const existing = await prisma.trainingLog.findUnique({
-    where: { id: activityId },
-    select: { analysisStatus: true },
-  });
-  if (!existing || existing.analysisStatus === "completed") return;
-
-  await prisma.trainingLog.update({
-    where: { id: activityId },
-    data: { analysisStatus: "pending" },
-  });
-
-  await analysisQueue.add("analyze", { activityId, userId });
-}

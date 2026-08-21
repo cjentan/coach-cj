@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Brain, Sparkles, Wand2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { type PageContext } from "@/lib/page-context";
 import type { PlanProposal, PlanWeekData } from "@/lib/training-plan-types";
 import { notifyPlanUpdated, notifyActivityAnalysisSaved } from "@/lib/coach-chat-events";
@@ -14,100 +14,8 @@ import CoachMessageList from "@/components/coach/coach-message-list";
 import type { CoachMessage, CoachSuggestion, PhaseProgress, StatusEntry, SaveProgressInfo, SaveAnalysisPrompt } from "@/components/coach/coach-message-list";
 import type { PhaseSummary } from "@/components/coach/training-plan-summary-card";
 import CoachInputBar from "@/components/coach/coach-input-bar";
-
-// ── API helper ─────────────────────────────────────────
-
-type CoachT = (key: string, values?: Record<string, string | number | boolean | Date | null | undefined>) => string;
-
-async function coachApi(action: string, body: Record<string, unknown> | undefined, t: CoachT) {
-  const res = await fetch("/api/dashboard/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...body }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || t("requestFailed", { status: res.status }));
-  return data;
-}
-
-/**
- * SSE streaming variant of coachApi.
- * Calls the given action, delivers progress events to onProgress,
- * and resolves with the complete payload on the "complete" event.
- * Rejects on HTTP error or "error" SSE event.
- */
-async function coachApiStream(
-  action: string,
-  body: Record<string, unknown>,
-  onProgress: (data: unknown) => void,
-  t: CoachT,
-  signal?: AbortSignal
-): Promise<Record<string, unknown>> {
-  const res = await fetch("/api/dashboard/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...body }),
-    signal,
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || t("requestFailed", { status: res.status }));
-  }
-
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error(t("responseNotReadable"));
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  return new Promise<Record<string, unknown>>((resolve, reject) => {
-    async function read() {
-      try {
-        let currentEvent = "";
-        let currentData = "";
-
-        while (true) {
-          const { done, value } = await reader!.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split("\n");
-          buffer = parts.pop() || "";
-
-          for (const line of parts) {
-            if (line.startsWith("event: ")) {
-              currentEvent = line.slice(7).trim();
-            } else if (line.startsWith("data: ")) {
-              currentData = line.slice(6);
-            } else if (line === "" && currentEvent && currentData) {
-              // Empty line delimits an SSE event
-              try {
-                const parsed = JSON.parse(currentData);
-                if (currentEvent === "complete") {
-                  resolve(parsed);
-                  return;
-                } else if (currentEvent === "error") {
-                  reject(new Error((parsed as { error?: string }).error || t("unknownError")));
-                  return;
-                } else {
-                  onProgress(parsed);
-                }
-              } catch {
-                // Skip malformed events
-              }
-              currentEvent = "";
-              currentData = "";
-            }
-          }
-        }
-      } catch (err) {
-        reject(err);
-      }
-    }
-    read();
-  });
-}
+import CoachChatHeader from "@/components/coach/coach-chat-header";
+import { coachApi, coachApiStream, type CoachT } from "@/components/coach/coach-api";
 
 // ── Component ──────────────────────────────────────────
 
@@ -205,10 +113,27 @@ export default function CoachChat({
     notifyPlanUpdated();
   }, [onPlanApplied, isFloating, plan, fetchInternalPlan]);
 
+  const loadActiveConversation = useCallback(async () => {
+    try {
+      const data = await coachApi("list-conversations", undefined, t);
+      const active = data.conversations?.find((c: { status: string }) => c.status === "active");
+
+      if (active) {
+        setConversationId(active.id);
+        const convData = await coachApi("get-conversation", { conversationId: active.id }, t);
+        if (convData.conversation) {
+          setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
+          setSuggestions(convData.conversation.suggestions.filter((s: CoachSuggestion) => s.status === "pending"));
+        }
+      }
+    } catch { /* No conversation yet — that's fine */ }
+    setInitialized(true);
+  }, [t]);
+
   // Load active conversation on mount
   useEffect(() => {
     loadActiveConversation();
-  }, []);
+  }, [loadActiveConversation]);
 
   // Abort in-flight SSE request on unmount
   useEffect(() => {
@@ -231,63 +156,7 @@ export default function CoachChat({
     }
   }, [hasExistingPlan, suggestions]);
 
-  // Auto-start interview when the parent requests it (e.g. from the training plan page).
-  // NOTE: we intentionally do NOT check hasExistingPlan here — internalPlan may be stale
-  // (the component stays mounted across panel open/close via CSS translate), so a plan
-  // that was reset on another page still lingers in internalPlan. The caller
-  // (openCoachChat(true)) is only invoked when the server-side plan is confirmed empty.
-  useEffect(() => {
-    if (pendingAction !== "start-interview") return;
-    if (interviewStarting) return;
-
-    // Clear stale state before starting
-    if (isFloating && plan === undefined) {
-      setInternalPlan(null);
-    }
-
-    startPlanInterview();
-    // Clear the pending action so the effect doesn't re-trigger (interviewStarting
-    // will be set synchronously inside startPlanInterview).
-    onPendingActionHandled?.();
-  }, [pendingAction, interviewStarting, onPendingActionHandled, isFloating, plan]);
-
-  async function loadActiveConversation() {
-    try {
-      const data = await coachApi("list-conversations", undefined, t);
-      const active = data.conversations?.find((c: { status: string }) => c.status === "active");
-
-      if (active) {
-        setConversationId(active.id);
-        const convData = await coachApi("get-conversation", { conversationId: active.id }, t);
-        if (convData.conversation) {
-          setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
-          setSuggestions(convData.conversation.suggestions.filter((s: CoachSuggestion) => s.status === "pending"));
-        }
-      }
-    } catch { /* No conversation yet — that's fine */ }
-    setInitialized(true);
-  }
-
-  const analyze = useCallback(async () => {
-    setAnalyzing(true);
-    setError(null);
-    try {
-      const data = await coachApi("analyze", { conversationId, pageContext, locale }, t);
-      setConversationId(data.conversationId);
-      setMessages([{ id: "analysis", role: "assistant", content: data.analysis, createdAt: new Date().toISOString() }]);
-      if (data.suggestions) setSuggestions(data.suggestions);
-      if (data.guardrailViolations?.length > 0) {
-        setError(`⚠️ ${data.guardrailViolations.join("; ")}`);
-      }
-      // Refresh dashboard — coach notes and suggestions updated
-      handlePlanApplied();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("analysisFailed"));
-    }
-    setAnalyzing(false);
-  }, [conversationId, pageContext, handlePlanApplied, t]);
-
-  async function startPlanInterview() {
+  const startPlanInterview = useCallback(async () => {
     setInterviewStarting(true);
     setError(null);
     setPhaseProgress([]);
@@ -359,7 +228,46 @@ export default function CoachChat({
     } finally {
       setInterviewStarting(false);
     }
-  }
+  }, [locale, pageContext, t]);
+
+  // Auto-start interview when the parent requests it (e.g. from the training plan page).
+  // NOTE: we intentionally do NOT check hasExistingPlan here — internalPlan may be stale
+  // (the component stays mounted across panel open/close via CSS translate), so a plan
+  // that was reset on another page still lingers in internalPlan. The caller
+  // (openCoachChat(true)) is only invoked when the server-side plan is confirmed empty.
+  useEffect(() => {
+    if (pendingAction !== "start-interview") return;
+    if (interviewStarting) return;
+
+    // Clear stale state before starting
+    if (isFloating && plan === undefined) {
+      setInternalPlan(null);
+    }
+
+    startPlanInterview();
+    // Clear the pending action so the effect doesn't re-trigger (interviewStarting
+    // will be set synchronously inside startPlanInterview).
+    onPendingActionHandled?.();
+  }, [pendingAction, interviewStarting, onPendingActionHandled, isFloating, plan, startPlanInterview]);
+
+  const analyze = useCallback(async () => {
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const data = await coachApi("analyze", { conversationId, pageContext, locale }, t);
+      setConversationId(data.conversationId);
+      setMessages([{ id: "analysis", role: "assistant", content: data.analysis, createdAt: new Date().toISOString() }]);
+      if (data.suggestions) setSuggestions(data.suggestions);
+      if (data.guardrailViolations?.length > 0) {
+        setError(`⚠️ ${data.guardrailViolations.join("; ")}`);
+      }
+      // Refresh dashboard — coach notes and suggestions updated
+      handlePlanApplied();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("analysisFailed"));
+    }
+    setAnalyzing(false);
+  }, [conversationId, pageContext, handlePlanApplied, t, locale]);
 
   const sendMessage = useCallback(async () => {
     // Check for programmatic message (from Approve button) first
@@ -702,7 +610,7 @@ export default function CoachChat({
       setError(err instanceof Error ? err.message : t("summarizeFailed"));
     }
     setSummarizing(false);
-  }, [conversationId, messages.length, t]);
+  }, [conversationId, messages.length, t, locale]);
 
   const clearAll = useCallback(async () => {
     try {
@@ -777,34 +685,19 @@ export default function CoachChat({
     return (
       <div className="flex flex-col h-full">
         {/* Header — pinned, stays visible while scrolling the chat */}
-        <div className="flex items-center justify-between px-4 py-2 border-b shrink-0">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
-              {t("title")}
-            </h2>
-            {initialNotesAt && !hasMessages && (
-              <span className="text-[0.625rem] text-muted-foreground">
-                {new Date(initialNotesAt).toLocaleDateString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            {hasMessages && messages.length >= 2 && (
-              <Button size="sm" variant="ghost" onClick={summarize} disabled={summarizing} title={t("summarizeTitle")}>
-                {summarizing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                {t("summarize")}
-              </Button>
-            )}
-            <Button size="sm" onClick={analyze} disabled={analyzing} title={t("analyzeTitle")}>
-              {analyzing ? (
-                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("analyzing")}</>
-              ) : (
-                <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
-              )}
-            </Button>
-          </div>
-        </div>
+        <CoachChatHeader
+          t={t}
+          locale={locale}
+          variant="floating"
+          className="flex items-center justify-between px-4 py-2 border-b shrink-0"
+          initialNotesAt={initialNotesAt}
+          hasMessages={hasMessages}
+          messageCount={messages.length}
+          summarizing={summarizing}
+          analyzing={analyzing}
+          onSummarize={summarize}
+          onAnalyze={analyze}
+        />
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -876,36 +769,19 @@ export default function CoachChat({
     <Card className="mb-6">
       <CardContent className="py-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
-              {t("title")}
-            </h2>
-            {initialNotesAt && !hasMessages && (
-              <span className="text-[0.625rem] text-muted-foreground">
-                {new Date(initialNotesAt).toLocaleDateString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="flex items-center gap-2">
-              {hasMessages && messages.length >= 2 && (
-                <Button size="sm" variant="ghost" onClick={summarize} disabled={summarizing}>
-                  {summarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  <span className="ml-1 hidden sm:inline">{t("summarize")}</span>
-                </Button>
-              )}
-              <Button size="sm" onClick={analyze} disabled={analyzing}>
-                {analyzing ? (
-                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("analyzing")}</>
-                ) : (
-                  <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <CoachChatHeader
+          t={t}
+          locale={locale}
+          variant="default"
+          className="flex items-center justify-between mb-4"
+          initialNotesAt={initialNotesAt}
+          hasMessages={hasMessages}
+          messageCount={messages.length}
+          summarizing={summarizing}
+          analyzing={analyzing}
+          onSummarize={summarize}
+          onAnalyze={analyze}
+        />
 
         {/* Initial state — page-aware greeting + quick actions */}
         <CoachInitialState
