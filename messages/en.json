@@ -166,13 +166,7 @@
     "maxHrSourceDefault": "Default",
     "avgExerciseHr": "Avg ex.",
     "hrZonesHint": "Log activities with HR data to calculate zones.",
-    "hrZones": [
-      "Z1 Recov",
-      "Z2 Endur",
-      "Z3 Tempo",
-      "Z4 Thresh",
-      "Z5 Anaer"
-    ],
+    "hrZones": ["Z1 Recov", "Z2 Endur", "Z3 Tempo", "Z4 Thresh", "Z5 Anaer"],
     "score": "Score:",
     "recVolumeLow": "Weekly volume well below target. Consider adding sessions.",
     "recBuildVolume": "Build toward {target}km/week.",
@@ -1249,6 +1243,10 @@
         "apiKeys": {
           "label": "API Keys",
           "desc": "Programmatic access keys for external tools"
+        },
+        "integrations": {
+          "label": "Integrations",
+          "desc": "Garmin and COROS connection credentials. Imported activities are kept."
         }
       }
     },

@@ -208,6 +208,7 @@ function DangerZoneSection({ t, common }: { t: ReturnType<typeof useTranslations
     { key: "analysisReports" },
     { key: "coachData" },
     { key: "apiKeys" },
+    { key: "integrations" },
   ] as const;
 
   const toggleType = (key: string) => {

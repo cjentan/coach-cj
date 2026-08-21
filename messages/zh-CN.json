@@ -166,13 +166,7 @@
     "maxHrSourceDefault": "默认",
     "avgExerciseHr": "平均运动",
     "hrZonesHint": "记录含心率数据的活动以计算心率区间。",
-    "hrZones": [
-      "Z1 恢复",
-      "Z2 耐力",
-      "Z3 节奏",
-      "Z4 阈值",
-      "Z5 无氧"
-    ],
+    "hrZones": ["Z1 恢复", "Z2 耐力", "Z3 节奏", "Z4 阈值", "Z5 无氧"],
     "score": "得分：",
     "recVolumeLow": "每周训练量远低于目标，建议增加训练次数。",
     "recBuildVolume": "逐步提升至每周 {target} 公里。",
@@ -192,13 +186,7 @@
     "vsLastMonth": "对比上月同日",
     "trainingAnalysis": "训练分析",
     "intensityDistribution": "强度分布",
-    "intensityZones": [
-      "Z1 · 恢复",
-      "Z2 · 耐力",
-      "Z3 · 节奏",
-      "Z4 · 阈值",
-      "Z5 · 最大摄氧量"
-    ],
+    "intensityZones": ["Z1 · 恢复", "Z2 · 耐力", "Z3 · 节奏", "Z4 · 阈值", "Z5 · 最大摄氧量"],
     "distPolarized": "极化训练",
     "distPyramidal": "金字塔训练",
     "distThresholdHeavy": "阈值偏重",
@@ -1249,6 +1237,10 @@
         "apiKeys": {
           "label": "API 密钥",
           "desc": "供外部工具使用的程序化访问密钥"
+        },
+        "integrations": {
+          "label": "集成",
+          "desc": "Garmin 和 COROS 的连接凭据。已导入的活动将被保留。"
         }
       }
     },

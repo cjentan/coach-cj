@@ -14,6 +14,7 @@ const ALL_TYPES = [
   "analysisReports",
   "apiKeys",
   "duplicateGroups",
+  "integrations",
   "coachData",
 ] as const;
 
@@ -44,37 +45,45 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Build operations array from the requested types.
+  // A type can map to more than one table (e.g. integrations), so each
+  // operation is paired with the type it belongs to for accurate counting.
   // Order matters for referential integrity (child tables first).
-  const operations: Prisma.PrismaPromise<any>[] = [];
+  const operations: { type: string; promise: Prisma.PrismaPromise<any> }[] = [];
+  const add = (type: string, promise: Prisma.PrismaPromise<any>) =>
+    operations.push({ type, promise });
 
   if (types.includes("trainingLogs"))
-    operations.push(prisma.trainingLog.deleteMany({ where: { userId } }));
+    add("trainingLogs", prisma.trainingLog.deleteMany({ where: { userId } }));
   if (types.includes("duplicateGroups"))
-    operations.push(prisma.duplicateGroup.deleteMany({ where: { userId } }));
+    add("duplicateGroups", prisma.duplicateGroup.deleteMany({ where: { userId } }));
   if (types.includes("raceGoals"))
-    operations.push(prisma.raceGoal.deleteMany({ where: { userId } }));
+    add("raceGoals", prisma.raceGoal.deleteMany({ where: { userId } }));
   if (types.includes("bodyMetrics"))
-    operations.push(prisma.bodyMetric.deleteMany({ where: { userId } }));
+    add("bodyMetrics", prisma.bodyMetric.deleteMany({ where: { userId } }));
   if (types.includes("dailyHealth"))
-    operations.push(prisma.dailyHealth.deleteMany({ where: { userId } }));
+    add("dailyHealth", prisma.dailyHealth.deleteMany({ where: { userId } }));
   if (types.includes("weeklyAssessments"))
-    operations.push(prisma.weeklyAssessment.deleteMany({ where: { userId } }));
+    add("weeklyAssessments", prisma.weeklyAssessment.deleteMany({ where: { userId } }));
   if (types.includes("weeklyPlans"))
-    operations.push(prisma.weeklyPlan.deleteMany({ where: { userId } }));
+    add("weeklyPlans", prisma.weeklyPlan.deleteMany({ where: { userId } }));
   if (types.includes("fatigueAlerts"))
-    operations.push(prisma.fatigueAlert.deleteMany({ where: { userId } }));
+    add("fatigueAlerts", prisma.fatigueAlert.deleteMany({ where: { userId } }));
   if (types.includes("analysisReports"))
-    operations.push(prisma.analysisReport.deleteMany({ where: { userId } }));
-  if (types.includes("apiKeys")) operations.push(prisma.apiKey.deleteMany({ where: { userId } }));
+    add("analysisReports", prisma.analysisReport.deleteMany({ where: { userId } }));
+  if (types.includes("apiKeys")) add("apiKeys", prisma.apiKey.deleteMany({ where: { userId } }));
   if (types.includes("coachData"))
-    operations.push(prisma.coachConversation.deleteMany({ where: { userId } }));
+    add("coachData", prisma.coachConversation.deleteMany({ where: { userId } }));
+  if (types.includes("integrations")) {
+    add("integrations", prisma.garminSession.deleteMany({ where: { userId } }));
+    add("integrations", prisma.corosSession.deleteMany({ where: { userId } }));
+  }
 
-  const results = await prisma.$transaction(operations);
+  const results = await prisma.$transaction(operations.map((o) => o.promise));
 
-  // Build a per-type count summary
+  // Build a per-type count summary (a type's ops are summed across tables).
   const counts: Record<string, number> = {};
-  types.forEach((t, i) => {
-    counts[t] = results[i]?.count ?? 0;
+  operations.forEach((o, i) => {
+    counts[o.type] = (counts[o.type] ?? 0) + (results[i]?.count ?? 0);
   });
 
   return NextResponse.json({ success: true, counts });
