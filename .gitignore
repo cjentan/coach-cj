@@ -18,6 +18,9 @@ garmin_fit/
 strava_export/
 activities.csv
 
+# scratch / throwaway investigation scripts & captured payloads
+.dsh/
+
 # TypeScript build info
 *.tsbuildinfo
 

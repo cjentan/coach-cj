@@ -162,42 +162,52 @@ export async function syncCorosActivities(
   const restHr = await getLatestRestingHr(userId);
   const maxHr = await getEffectiveMaxHr(userId);
 
-  // ── Fetch ALL activities (paginated) ────────────────────
-  const activities: Activity[] = [];
-  let page = 1;
-  const size = 50;
+  // ── Fetch activities (paginated) ────────────────────────
+  // Incremental syncs pass a server-side `from` window (cutoff minus a day) so
+  // we don't page through the user's entire activity history on every run. The
+  // COROS date filter is not guaranteed to be fully reliable, so the exact
+  // `> cutoff` client-side filter below is always retained as the safety net.
+  const latest = !fullSync
+    ? await prisma.trainingLog.findFirst({
+        where: { userId, source: "coros" },
+        orderBy: { startDate: "desc" },
+        select: { startDate: true },
+      })
+    : null;
+  const incrementalFrom = latest ? new Date(latest.startDate.getTime() - 86400000) : undefined;
 
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const batch = await client.getActivitiesList({
-      page,
-      size,
-      ...(fromDate ? { from: parseClientDate(fromDate, tzOffset) } : {}),
-      ...(toDate ? { to: parseClientDate(toDate, tzOffset) } : {}),
-    });
-    const dataList = batch.dataList || [];
-    activities.push(...dataList);
-    const totalPage = batch.totalPage || 1;
-    if (page >= totalPage || dataList.length < size) break;
-    page++;
+  const activities: Activity[] = [];
+  {
+    let page = 1;
+    const size = 50;
+
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const batch = await client.getActivitiesList({
+        page,
+        size,
+        ...(fromDate ? { from: parseClientDate(fromDate, tzOffset) } : {}),
+        ...(toDate ? { to: parseClientDate(toDate, tzOffset) } : {}),
+        ...(incrementalFrom && !fromDate ? { from: incrementalFrom } : {}),
+      });
+      const dataList = batch.dataList || [];
+      activities.push(...dataList);
+      const totalPage = batch.totalPage || 1;
+      if (page >= totalPage || dataList.length < size) break;
+      page++;
+    }
   }
 
   if (activities.length === 0) return { count: 0, newActivityIds: [] };
 
   // ── Filter to new activities ────────────────────────────
+  // Cutoff is the newest activity already imported for this source — first
+  // import pulls everything, later syncs fetch only what's newer than the
+  // newest known activity (see syncGarminActivities for the same rationale).
+  // Client-side filtering remains as the precise gate on top of the server-side
+  // `from` window above.
   let newActivities = activities;
-
-  // Date filter on the server side may not work reliably in all cases,
-  // so apply a client-side filter as well when incremental. Cutoff is the
-  // newest activity already imported for this source — first import pulls
-  // everything, later syncs fetch only what's newer than the newest known
-  // activity (see syncGarminActivities for the same rationale).
-  if (!fullSync) {
-    const latest = await prisma.trainingLog.findFirst({
-      where: { userId, source: "coros" },
-      orderBy: { startDate: "desc" },
-      select: { startDate: true },
-    });
-    const cutoff = latest?.startDate.getTime() ?? -Infinity;
+  if (!fullSync && latest) {
+    const cutoff = latest.startDate.getTime();
     newActivities = activities.filter((a) => {
       // COROS startTime is in seconds for some endpoints, ms for others
       // Convert to ms if it looks like seconds (< 1e12)

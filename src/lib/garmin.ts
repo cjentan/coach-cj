@@ -246,16 +246,52 @@ export async function disconnectGarmin(userId: string): Promise<void> {
 // ─── Activity Sync ───────────────────────────────────────
 
 /**
+ * Date-only string (yyyy-MM-dd) in UTC, matching Garmin's startTimeGMT so the
+ * server-side `startDate` filter aligns with the local `> cutoff` comparison.
+ */
+function toGarminDateString(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Page through Garmin's activity list. Passing `startDate` restricts the fetch
+ * server-side — used by incremental syncs to avoid pulling the user's entire
+ * activity history on every run. Returns the complete (paginated) result set.
+ */
+async function fetchGarminActivities(client: any, startDate?: string): Promise<GCActivity[]> {
+  const activities: GCActivity[] = [];
+  let start = 0;
+  const limit = 50;
+
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const batch = await client.getActivities(
+      start,
+      limit,
+      undefined, // activityType
+      undefined, // subActivityType
+      undefined, // minDistance
+      undefined, // maxDistance
+      undefined, // excludeChildren
+      startDate
+    );
+    activities.push(...batch);
+    if (batch.length < limit) break;
+    start += limit;
+  }
+  return activities;
+}
+
+/**
  * Sync activities from Garmin Connect.
  *
  * Two modes:
  *  - full sync (fullSync=true): pages through ALL activities from Garmin,
  *    downloading every one that hasn't been imported before. Use for the
  *    Settings page "Sync Now" / date-range backfill.
- *  - incremental sync (fullSync=false): fetches everything but only imports
- *    activities newer than the newest one already in the log (a full pull on
- *    first import when the log is empty). Use for the Sync button and the
- *    background worker.
+ *  - incremental sync (fullSync=false): uses Garmin's server-side `startDate`
+ *    filter to fetch only activities newer than the newest one already in the
+ *    log (a full pull on first import when the log is empty). Use for the Sync
+ *    button and the background worker.
  *
  * 1. Fetch activity list (paginated)
  * 2. For each new activity, download the original FIT ZIP
@@ -275,31 +311,17 @@ export async function syncGarminActivities(
   const restHr = await getLatestRestingHr(userId);
   const maxHr = await getEffectiveMaxHr(userId);
 
-  // ── Fetch ALL activities (no upper limit on pages) ─────────
-  const activities: GCActivity[] = [];
-  let start = 0;
-  const limit = 50;
-
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const batch = await client.getActivities(start, limit);
-    activities.push(...batch);
-    if (batch.length < limit) break;
-    start += limit;
-  }
-
-  // ── Filter to relevant activities ───────────────────────────
+  // ── Fetch activity list ─────────────────────────────────────
+  // Incremental syncs only pull activities newer than the newest one already
+  // imported, using Garmin's server-side `startDate` filter instead of paging
+  // through the user's entire history on every run. The cutoff is rounded back
+  // to the previous day (UTC) so a record on the boundary is never missed, then
+  // the precise `> cutoff` filter below trims any overlap. Full syncs
+  // (Settings backfill) still page through everything.
   let newActivities: GCActivity[];
+
   if (fullSync) {
-    // Full sync with optional date range
-    newActivities = activities;
-    if (fromDate) {
-      const from = parseClientDate(fromDate, tzOffset).getTime();
-      newActivities = newActivities.filter((a) => new Date(a.startTimeGMT).getTime() >= from);
-    }
-    if (toDate) {
-      const to = parseClientDate(toDate, tzOffset).getTime() + 86400000; // end of day
-      newActivities = newActivities.filter((a) => new Date(a.startTimeGMT).getTime() < to);
-    }
+    newActivities = await fetchGarminActivities(client);
   } else {
     // Incremental sync: cutoff is the start date of the newest activity already
     // imported for this source. The first import (nothing in the log yet) pulls
@@ -313,7 +335,24 @@ export async function syncGarminActivities(
       select: { startDate: true },
     });
     const cutoff = latest?.startDate.getTime() ?? -Infinity;
-    newActivities = activities.filter((a) => new Date(a.startTimeGMT).getTime() > cutoff);
+    const fetchFrom = latest
+      ? toGarminDateString(new Date(latest.startDate.getTime() - 86400000))
+      : undefined;
+    newActivities = (await fetchGarminActivities(client, fetchFrom)).filter(
+      (a) => new Date(a.startTimeGMT).getTime() > cutoff
+    );
+  }
+
+  // ── Apply full-sync date-range filter ───────────────────────
+  if (fullSync) {
+    if (fromDate) {
+      const from = parseClientDate(fromDate, tzOffset).getTime();
+      newActivities = newActivities.filter((a) => new Date(a.startTimeGMT).getTime() >= from);
+    }
+    if (toDate) {
+      const to = parseClientDate(toDate, tzOffset).getTime() + 86400000; // end of day
+      newActivities = newActivities.filter((a) => new Date(a.startTimeGMT).getTime() < to);
+    }
   }
 
   if (newActivities.length === 0) return { count: 0, newActivityIds: [] };
