@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 /**
  * Create a fully-mocked Prisma client for integration tests.
@@ -8,18 +8,18 @@ import { vi } from 'vitest';
  */
 export function createMockPrisma() {
   const modelMethods = [
-    'findMany',
-    'findUnique',
-    'findFirst',
-    'create',
-    'createMany',
-    'update',
-    'updateMany',
-    'upsert',
-    'delete',
-    'deleteMany',
-    'count',
-    'aggregate',
+    "findMany",
+    "findUnique",
+    "findFirst",
+    "create",
+    "createMany",
+    "update",
+    "updateMany",
+    "upsert",
+    "delete",
+    "deleteMany",
+    "count",
+    "aggregate",
   ];
 
   const makeMockModel = () => {

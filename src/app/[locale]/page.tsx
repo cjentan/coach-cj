@@ -35,7 +35,8 @@ export default async function Home() {
       {/* Hero */}
       <section className="px-4 py-20 md:py-32 max-w-4xl mx-auto text-center">
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
-          {t("heroTitle")}<br />
+          {t("heroTitle")}
+          <br />
           <span className="text-primary">{t("heroTitleAccent")}</span>
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
@@ -43,10 +44,14 @@ export default async function Home() {
         </p>
         <div className="flex gap-4 justify-center">
           <Link href="/auth/signup">
-            <Button size="lg" className="text-lg px-8">Get Started Free</Button>
+            <Button size="lg" className="text-lg px-8">
+              Get Started Free
+            </Button>
           </Link>
           <Link href="/auth/signin">
-            <Button size="lg" variant="outline" className="text-lg px-8">Sign In</Button>
+            <Button size="lg" variant="outline" className="text-lg px-8">
+              Sign In
+            </Button>
           </Link>
         </div>
       </section>
@@ -70,7 +75,9 @@ export default async function Home() {
         <h2 className="text-3xl font-bold mb-4">{t("ctaTitle")}</h2>
         <p className="text-muted-foreground mb-8">{t("ctaDescription")}</p>
         <Link href="/auth/signup">
-          <Button size="lg" className="text-lg px-8">{t("ctaButton")}</Button>
+          <Button size="lg" className="text-lg px-8">
+            {t("ctaButton")}
+          </Button>
         </Link>
       </section>
     </div>

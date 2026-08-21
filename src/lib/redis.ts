@@ -15,8 +15,6 @@ export function getRedisConnection() {
 // Singleton Redis client for direct use (not BullMQ)
 const globalForRedis = globalThis as unknown as { redis: Redis | undefined };
 
-export const redis =
-  globalForRedis.redis ??
-  new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+export const redis = globalForRedis.redis ?? new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 
 if (process.env.NODE_ENV !== "production") globalForRedis.redis = redis;

@@ -55,7 +55,10 @@ export async function PUT(req: Request) {
   }
 
   // Type-level validation
-  if (body.timeframeDays !== undefined && ![7, 30, 90, 180, 365, 730].includes(body.timeframeDays)) {
+  if (
+    body.timeframeDays !== undefined &&
+    ![7, 30, 90, 180, 365, 730].includes(body.timeframeDays)
+  ) {
     return NextResponse.json({ error: "Invalid timeframeDays" }, { status: 400 });
   }
   if (body.volumePeriod !== undefined && !["week", "month"].includes(body.volumePeriod)) {

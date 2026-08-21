@@ -5,7 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
-import { ActivityCard, TrainingLog, RouteMatch, DuplicateGroupInfo } from "@/components/activity/activity-card";
+import {
+  ActivityCard,
+  TrainingLog,
+  RouteMatch,
+  DuplicateGroupInfo,
+} from "@/components/activity/activity-card";
 import { COACH_CHAT_EVENTS } from "@/lib/coach-chat-events";
 
 export default function ActivityDetailPage() {
@@ -14,7 +19,10 @@ export default function ActivityDetailPage() {
   const t = useTranslations("activities");
   const common = useTranslations("common");
   const [log, setLog] = useState<TrainingLog | null>(null);
-  const [neighbors, setNeighbors] = useState<{ prev: TrainingLog | null; next: TrainingLog | null }>({ prev: null, next: null });
+  const [neighbors, setNeighbors] = useState<{
+    prev: TrainingLog | null;
+    next: TrainingLog | null;
+  }>({ prev: null, next: null });
   const [loading, setLoading] = useState(true);
   const [remarksText, setRemarksText] = useState("");
   const [remarksDirty, setRemarksDirty] = useState(false);
@@ -82,7 +90,9 @@ export default function ActivityDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  useEffect(() => { fetchLog(); }, [fetchLog]);
+  useEffect(() => {
+    fetchLog();
+  }, [fetchLog]);
 
   // Refresh when a chat-saved analysis is persisted for this activity
   useEffect(() => {
@@ -91,7 +101,8 @@ export default function ActivityDetailPage() {
       if (detail?.activityId === id) fetchLog();
     }
     window.addEventListener(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, onAnalysisSaved);
-    return () => window.removeEventListener(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, onAnalysisSaved);
+    return () =>
+      window.removeEventListener(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, onAnalysisSaved);
   }, [id, fetchLog]);
 
   // Fetch similar routes when log changes
@@ -103,12 +114,14 @@ export default function ActivityDetailPage() {
       .catch(() => setSimilarRoutes([]));
   }, [id]);
 
-
   // Fetch duplicate info
   useEffect(() => {
-    if (!log?.duplicateGroupId) { setDuplicateGroup(null); return; }
+    if (!log?.duplicateGroupId) {
+      setDuplicateGroup(null);
+      return;
+    }
     fetch(`/api/duplicates/list?status=pending`)
-      .then((r) => r.ok ? r.json() : { groups: [] })
+      .then((r) => (r.ok ? r.json() : { groups: [] }))
       .then((data) => {
         const g = data.groups?.find((g: DuplicateGroupInfo) => g.id === log.duplicateGroupId);
         setDuplicateGroup(g || null);
@@ -119,7 +132,8 @@ export default function ActivityDetailPage() {
   // Poll analysis status while pending or processing
   const pollRef = useRef<ReturnType<typeof setInterval>>();
   useEffect(() => {
-    const shouldPoll = !analyzing && (analysisStatus === "pending" || analysisStatus === "processing");
+    const shouldPoll =
+      !analyzing && (analysisStatus === "pending" || analysisStatus === "processing");
 
     if (pollRef.current) {
       clearInterval(pollRef.current);
@@ -159,21 +173,27 @@ export default function ActivityDetailPage() {
   }, []);
 
   // Auto-save remarks with debounce
-  const saveRemarks = useCallback(async (text: string) => {
-    await fetch(`/api/activities/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ remarks: text || null }),
-    });
-  }, [id]);
+  const saveRemarks = useCallback(
+    async (text: string) => {
+      await fetch(`/api/activities/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remarks: text || null }),
+      });
+    },
+    [id]
+  );
 
-  const saveIsRace = useCallback(async (value: boolean) => {
-    await fetch(`/api/activities/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isRace: value }),
-    });
-  }, [id]);
+  const saveIsRace = useCallback(
+    async (value: boolean) => {
+      await fetch(`/api/activities/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isRace: value }),
+      });
+    },
+    [id]
+  );
 
   function handleRemarksChange(text: string) {
     setRemarksText(text);
@@ -233,46 +253,51 @@ export default function ActivityDetailPage() {
   }, [id, t]);
 
   // Carousel navigation — use preloaded data when available, fetch if not
-  const navigateTo = useCallback((newId: string, preloadedLog?: TrainingLog | null) => {
-    if (!newId) return;
-    if (preloadedLog) {
-      // Instant — data is already loaded
-      setLog(preloadedLog);
-      setRemarksText(preloadedLog.remarks || "");
-      setRemarksDirty(false);
-      setSaved(false);
-      // Fetch new neighbors in the background
+  const navigateTo = useCallback(
+    (newId: string, preloadedLog?: TrainingLog | null) => {
+      if (!newId) return;
+      if (preloadedLog) {
+        // Instant — data is already loaded
+        setLog(preloadedLog);
+        setRemarksText(preloadedLog.remarks || "");
+        setRemarksDirty(false);
+        setSaved(false);
+        // Fetch new neighbors in the background
+        fetch(`/api/activities/${newId}?neighbors=full`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.log) setLog(data.log);
+            setNeighbors({ prev: data.prev ?? null, next: data.next ?? null });
+          });
+        router.replace(`/activities/${newId}`, { scroll: false });
+        return;
+      }
+      // Fallback: fetch from server
       fetch(`/api/activities/${newId}?neighbors=full`)
         .then((r) => r.json())
         .then((data) => {
-          if (data.log) setLog(data.log);
+          const l = data.log || data;
+          setLog(l);
+          setRestingHr(data.restingHr ?? null);
+          setMaxHr(data.maxHr ?? null);
+          setRemarksText(l.remarks || "");
+          setRemarksDirty(false);
+          setSaved(false);
           setNeighbors({ prev: data.prev ?? null, next: data.next ?? null });
+          router.replace(`/activities/${newId}`, { scroll: false });
         });
-      router.replace(`/activities/${newId}`, { scroll: false });
-      return;
-    }
-    // Fallback: fetch from server
-    fetch(`/api/activities/${newId}?neighbors=full`)
-      .then((r) => r.json())
-      .then((data) => {
-        const l = data.log || data;
-        setLog(l);
-        setRestingHr(data.restingHr ?? null);
-        setMaxHr(data.maxHr ?? null);
-        setRemarksText(l.remarks || "");
-        setRemarksDirty(false);
-        setSaved(false);
-        setNeighbors({ prev: data.prev ?? null, next: data.next ?? null });
-        router.replace(`/activities/${newId}`, { scroll: false });
-      });
-  }, [router]);
+    },
+    [router]
+  );
 
   // Keyboard navigation between activities
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
-      if (e.key === "ArrowLeft" && neighbors.prev?.id) navigateTo(neighbors.prev.id, neighbors.prev);
-      if (e.key === "ArrowRight" && neighbors.next?.id) navigateTo(neighbors.next.id, neighbors.next);
+      if (e.key === "ArrowLeft" && neighbors.prev?.id)
+        navigateTo(neighbors.prev.id, neighbors.prev);
+      if (e.key === "ArrowRight" && neighbors.next?.id)
+        navigateTo(neighbors.next.id, neighbors.next);
     }
 
     window.addEventListener("keydown", onKey);
@@ -280,7 +305,8 @@ export default function ActivityDetailPage() {
   }, [neighbors, navigateTo]);
 
   if (loading) return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
-  if (!log) return <div className="container mx-auto px-4 py-8 text-center">{t("detail.notFound")}</div>;
+  if (!log)
+    return <div className="container mx-auto px-4 py-8 text-center">{t("detail.notFound")}</div>;
 
   const prevId = neighbors.prev?.id;
   const nextId = neighbors.next?.id;
@@ -294,7 +320,8 @@ export default function ActivityDetailPage() {
         </Button>
         <div className="flex items-center gap-1">
           <Button
-            variant="ghost" size="sm"
+            variant="ghost"
+            size="sm"
             disabled={!prevId}
             onClick={() => prevId && navigateTo(prevId, neighbors.prev)}
             title={t("detail.prevTooltip")}
@@ -302,7 +329,8 @@ export default function ActivityDetailPage() {
             <ChevronLeft className="h-5 w-5" /> {t("detail.prev")}
           </Button>
           <Button
-            variant="ghost" size="sm"
+            variant="ghost"
+            size="sm"
             disabled={!nextId}
             onClick={() => nextId && navigateTo(nextId, neighbors.next)}
             title={t("detail.nextTooltip")}
@@ -338,7 +366,8 @@ export default function ActivityDetailPage() {
       {/* Bottom nav — desktop only */}
       <div className="hidden sm:flex items-center justify-between mt-4">
         <Button
-          variant="outline" size="sm"
+          variant="outline"
+          size="sm"
           disabled={!prevId}
           onClick={() => prevId && navigateTo(prevId, neighbors.prev)}
         >
@@ -346,7 +375,8 @@ export default function ActivityDetailPage() {
         </Button>
         <span className="text-xs text-muted-foreground">{t("detail.keyboardHint")}</span>
         <Button
-          variant="outline" size="sm"
+          variant="outline"
+          size="sm"
           disabled={!nextId}
           onClick={() => nextId && navigateTo(nextId, neighbors.next)}
         >

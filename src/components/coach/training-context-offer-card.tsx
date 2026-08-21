@@ -21,19 +21,12 @@ export default function TrainingContextOfferCard({
         <ClipboardList className="h-4 w-4 shrink-0 text-primary" />
         {t("contextOfferTitle")}
       </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {t("contextOfferDescription")}
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("contextOfferDescription")}</p>
       <div className="mt-2 flex gap-2">
         <Button size="sm" className="h-7 text-xs" onClick={onStart}>
           {t("contextOfferStart")}
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs"
-          onClick={onSkip}
-        >
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onSkip}>
           <X className="mr-1 h-3 w-3" /> {t("contextOfferSkip")}
         </Button>
       </div>

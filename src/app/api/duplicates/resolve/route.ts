@@ -68,8 +68,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, action: "merged" });
   } catch (err) {
     console.error("Duplicate resolution error:", err);
-    return NextResponse.json({
-      error: `Resolution failed: ${(err as Error).message}`,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: `Resolution failed: ${(err as Error).message}`,
+      },
+      { status: 500 }
+    );
   }
 }

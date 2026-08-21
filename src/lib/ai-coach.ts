@@ -18,7 +18,12 @@ import { z } from "zod";
 import { prisma } from "./prisma";
 import { ask, chatWithTools, resolveUserLlmConfig, isLlmConfigured } from "./llm";
 import type { LlmMessage } from "./llm";
-import { ALL_COACH_TOOLS, QUERY_ACTIVITIES_TOOL, executeTool, executeCreateTrainingPhase } from "./ai-coach-tools";
+import {
+  ALL_COACH_TOOLS,
+  QUERY_ACTIVITIES_TOOL,
+  executeTool,
+  executeCreateTrainingPhase,
+} from "./ai-coach-tools";
 import { gatherTrainingContext } from "./training-context";
 import { getWeekStart, formatDistance, formatDuration } from "./utils";
 import { resolvePrompt, PROMPT_KEYS, getLanguageInstruction } from "./coach-prompts";
@@ -66,11 +71,7 @@ export {
 } from "./ai-coach-utils";
 
 // Re-export the per-activity analysis API, extracted into ai-coach-activity.ts.
-export {
-  analyzeActivity,
-  analyzeActivityWorker,
-  analyzeActivityInChat,
-} from "./ai-coach-activity";
+export { analyzeActivity, analyzeActivityWorker, analyzeActivityInChat } from "./ai-coach-activity";
 
 // ── System prompts (resolved from DB with hardcoded fallback) ──
 
@@ -100,15 +101,22 @@ function checkGuardrails(
     if (s.type === "volume_change" && ctx.weeklyPlan) {
       const changes = s.changes as Record<string, number>;
       if (changes.targetVolumeMeters) {
-        const baseline = ctx.weeklyPlan.targetVolumeMeters || ctx.recentWeeks.reduce((a, w) => a + w.volumeMeters, 0) / Math.max(1, ctx.recentWeeks.length);
+        const baseline =
+          ctx.weeklyPlan.targetVolumeMeters ||
+          ctx.recentWeeks.reduce((a, w) => a + w.volumeMeters, 0) /
+            Math.max(1, ctx.recentWeeks.length);
         if (baseline > 0 && changes.targetVolumeMeters > baseline * 1.15) {
-          violations.push(`Volume suggestion "${s.title}" exceeds +15% cap (${formatDistance(baseline)} → ${formatDistance(changes.targetVolumeMeters)})`);
+          violations.push(
+            `Volume suggestion "${s.title}" exceeds +15% cap (${formatDistance(baseline)} → ${formatDistance(changes.targetVolumeMeters)})`
+          );
         }
       }
     }
 
     if (s.type === "rest_day_addition" && ctx.weeklyPlan) {
-      const existingRestDays = ctx.weeklyPlan.plannedSessions.filter((ps) => ps.type === "rest").length;
+      const existingRestDays = ctx.weeklyPlan.plannedSessions.filter(
+        (ps) => ps.type === "rest"
+      ).length;
       const changes = s.changes as Record<string, unknown>;
       const newRestDay = changes.dayOfWeek !== undefined;
       if (existingRestDays >= 6 && newRestDay) {
@@ -179,13 +187,15 @@ async function persistLegacyNotes(
         weekStartDate: weekStart,
         coachNotes: analysis,
         plannedSessions: ctx.weeklyPlan?.plannedSessions
-          ? structuredClone(ctx.weeklyPlan.plannedSessions) as any
+          ? (structuredClone(ctx.weeklyPlan.plannedSessions) as any)
           : [],
         adjustments: ctx.weeklyPlan?.adjustments || [],
       },
       update: { coachNotes: analysis, generatedAt: now },
     });
-  } catch { /* ignore upsert errors */ }
+  } catch {
+    /* ignore upsert errors */
+  }
 
   try {
     await prisma.analysisReport.create({
@@ -202,7 +212,9 @@ async function persistLegacyNotes(
         outputContent: analysis,
       },
     });
-  } catch { /* ignore analysis report errors */ }
+  } catch {
+    /* ignore analysis report errors */
+  }
 }
 
 // ── Main service ───────────────────────────────────────
@@ -263,7 +275,9 @@ async function buildPageContextSummary(
       if (activity.averageHr) {
         parts.push(`Avg HR: ${activity.averageHr} bpm`);
       }
-      parts.push(`Date: ${activity.startDate.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" })}`);
+      parts.push(
+        `Date: ${activity.startDate.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" })}`
+      );
       const summary = parts.join(" · ");
 
       // Include any previously saved coach analysis so the coach can build on it.
@@ -322,7 +336,10 @@ export async function analyze(
   // 1. Resolve LLM config
   const llmConfig = await resolveUserLlmConfig(userId);
   if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) {
-    return { error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.", code: "NOT_CONFIGURED" };
+    return {
+      error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.",
+      code: "NOT_CONFIGURED",
+    };
   }
 
   // 2. Gather training context
@@ -373,7 +390,10 @@ export async function analyze(
   });
 
   if (!result) {
-    return { error: "AI coach returned no response. The model may be unavailable.", code: "LLM_FAILED" };
+    return {
+      error: "AI coach returned no response. The model may be unavailable.",
+      code: "LLM_FAILED",
+    };
   }
 
   // 6. Parse and validate
@@ -385,9 +405,18 @@ export async function analyze(
     const retry = await ask(
       systemPrompt,
       `Your previous response was invalid JSON. Return ONLY valid JSON matching the schema.`,
-      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model, thinking: "disabled" }
+      {
+        temperature: 0.2,
+        maxTokens: 4096,
+        jsonMode: true,
+        apiKey: llmConfig.apiKey,
+        baseUrl: llmConfig.baseUrl,
+        model: llmConfig.model,
+        thinking: "disabled",
+      }
     );
-    if (!retry) return { error: "AI coach failed to generate valid analysis.", code: "PARSE_FAILED" };
+    if (!retry)
+      return { error: "AI coach failed to generate valid analysis.", code: "PARSE_FAILED" };
     try {
       parsed = AnalyzeResponseSchema.parse(JSON.parse(sanitizeJsonText(retry)));
     } catch {
@@ -473,16 +502,31 @@ export async function startInterview(
   userId: string,
   options?: ChatOptions,
   locale = "en",
-  pageContext?: PageContext | null,
-): Promise<{ conversationId: string; response: string; proposal: z.infer<typeof PlanProposalSchema> | null; needsGoal?: boolean; needsContext?: boolean } | { error: string; code: string }> {
+  pageContext?: PageContext | null
+): Promise<
+  | {
+      conversationId: string;
+      response: string;
+      proposal: z.infer<typeof PlanProposalSchema> | null;
+      needsGoal?: boolean;
+      needsContext?: boolean;
+    }
+  | { error: string; code: string }
+> {
   // 1. Resolve LLM config
   const llmConfig = await resolveUserLlmConfig(userId);
   if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) {
-    return { error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.", code: "NOT_CONFIGURED" };
+    return {
+      error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.",
+      code: "NOT_CONFIGURED",
+    };
   }
 
   // 2. Gather training context
-  options?.onProgress?.({ type: "status", message: "Loading your training data from recent activities..." });
+  options?.onProgress?.({
+    type: "status",
+    message: "Loading your training data from recent activities...",
+  });
   const ctx = await gatherTrainingContext(userId);
   // Whether the athlete has a saved free-text training context to build on
   const needsContext = !ctx.trainingContext?.trim();
@@ -512,13 +556,16 @@ export async function startInterview(
   });
 
   // 4. Fire status event
-  options?.onProgress?.({ type: "status", message: "Reviewing your training data to design a personalized plan..." });
+  options?.onProgress?.({
+    type: "status",
+    message: "Reviewing your training data to design a personalized plan...",
+  });
 
   // ── No-goal guard: ask the user to set a goal before designing a plan ──
   if (ctx.goals.length === 0) {
     const noGoalResponse = locale.startsWith("zh")
       ? "我很想幫你建立訓練計畫！不過首先，我需要知道你要訓練什麼。\n\n能告訴我你的目標賽事嗎？例如：\n• 比賽名稱（如「台北馬拉松」、「高雄超馬」）\n• 比賽距離（如 42 公里、21 公里）\n• 目標日期\n• 爬升量、目標時間 (選擇性)\n\n你也可以到設定頁面新增目標賽事，之後我就能為你設計個人化訓練計畫。"
-      : "I'd love to build you a training plan! First, I need to know what you're training for.\n\nTell me about your goal race:\n• **Event name** (e.g. \"Chicago Marathon\", \"Leadville 100\")\n• **Distance** (e.g. 42.2 km, 50 miles)\n• **Target date**\n• Elevation gain, target time (optional)\n\nOr you can set a goal in your **Settings → Goals** page and I'll design a plan around it.";
+      : 'I\'d love to build you a training plan! First, I need to know what you\'re training for.\n\nTell me about your goal race:\n• **Event name** (e.g. "Chicago Marathon", "Leadville 100")\n• **Distance** (e.g. 42.2 km, 50 miles)\n• **Target date**\n• Elevation gain, target time (optional)\n\nOr you can set a goal in your **Settings → Goals** page and I\'ll design a plan around it.';
 
     await prisma.coachMessage.create({
       data: {
@@ -549,17 +596,20 @@ export async function startInterview(
 
   const distanceKm = nearestGoal.distanceMeters ? nearestGoal.distanceMeters / 1000 : 0;
   const raceGoalName = `${nearestGoal.name}${distanceKm > 0 ? ` (${distanceKm.toFixed(0)}K)` : ""}`;
-  const raceDateFormatted = raceTargetDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const raceDateFormatted = raceTargetDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
   // ── Deterministic volume computation (overrides LLM output) ──────────
   // Training-log data may be incomplete, so set a minimum floor based on
   // race distance.  A runner targeting a marathon needs at least ~35 km/wk.
-  const minimumVolumeKm = distanceKm > 0
-    ? Math.max(20, Math.round(distanceKm * 0.5))
-    : 20;
+  const minimumVolumeKm = distanceKm > 0 ? Math.max(20, Math.round(distanceKm * 0.5)) : 20;
   const effectiveStartKm = Math.max(avgVolumeKm, minimumVolumeKm);
   // Peak scales with race distance: shorter races → lower multiplier
-  const peakMultiplier = distanceKm < 21 ? 1.5 : distanceKm < 42 ? 1.6 : distanceKm < 80 ? 1.7 : 2.0;
+  const peakMultiplier =
+    distanceKm < 21 ? 1.5 : distanceKm < 42 ? 1.6 : distanceKm < 80 ? 1.7 : 2.0;
   const effectivePeakKm = Math.round(effectiveStartKm * peakMultiplier);
 
   // Default start date: the coming Monday (or today if Monday)
@@ -613,7 +663,8 @@ ADJUSTMENTS RULES:
 ## Current Training Context
 ${contextStr}`;
 
-  const proposalPrompt = "Design a training plan proposal for this athlete following the schema above. Consider their actual fitness data and training history when determining phase lengths and volumes.";
+  const proposalPrompt =
+    "Design a training plan proposal for this athlete following the schema above. Consider their actual fitness data and training history when determining phase lengths and volumes.";
 
   // Detect disconnect before calling LLM
   if (options?.signal?.aborted) {
@@ -621,7 +672,10 @@ ${contextStr}`;
   }
 
   // Notify the user that the AI is designing the plan
-  options?.onProgress?.({ type: "status", message: `Designing a ${totalWeeks}-week training plan based on your fitness data...` });
+  options?.onProgress?.({
+    type: "status",
+    message: `Designing a ${totalWeeks}-week training plan based on your fitness data...`,
+  });
 
   console.error(`[COACH] Calling LLM for plan proposal (model=${llmConfig.model})`);
   const t0 = Date.now();
@@ -638,7 +692,9 @@ ${contextStr}`;
   });
 
   const elapsed = Date.now() - t0;
-  console.error(`[COACH] LLM call completed in ${elapsed}ms, result=${rawResult ? `(${rawResult.length} chars)` : "NULL"}`);
+  console.error(
+    `[COACH] LLM call completed in ${elapsed}ms, result=${rawResult ? `(${rawResult.length} chars)` : "NULL"}`
+  );
 
   if (!rawResult) {
     return { error: "AI coach failed to start the interview. Try again.", code: "LLM_FAILED" };
@@ -651,15 +707,19 @@ ${contextStr}`;
     parsed = StartInterviewResponseSchema.parse(JSON.parse(sanitizeJsonText(rawResult)));
   } catch {
     // Retry once with a more explicit instruction
-    const retry = await ask(proposalSystemPrompt, "Your previous response didn't match the required JSON schema. Output ONLY valid JSON matching the schema exactly.", {
-      temperature: 0.1,
-      maxTokens: 8192,
-      jsonMode: true,
-      apiKey: llmConfig.apiKey,
-      baseUrl: llmConfig.baseUrl,
-      model: llmConfig.model,
-      thinking: "disabled",
-    });
+    const retry = await ask(
+      proposalSystemPrompt,
+      "Your previous response didn't match the required JSON schema. Output ONLY valid JSON matching the schema exactly.",
+      {
+        temperature: 0.1,
+        maxTokens: 8192,
+        jsonMode: true,
+        apiKey: llmConfig.apiKey,
+        baseUrl: llmConfig.baseUrl,
+        model: llmConfig.model,
+        thinking: "disabled",
+      }
+    );
     if (retry) {
       try {
         parsed = StartInterviewResponseSchema.parse(JSON.parse(sanitizeJsonText(retry)));
@@ -694,10 +754,30 @@ ${contextStr}`;
         peakVolume: phasePeakStr,
         proposedStartDate: defaultStartStr,
         phases: [
-          { name: "Base", weeks: baseWeeks, focus: "Build aerobic foundation", peakVolume: `~${Math.round(peakVol * 0.8)} km/wk` },
-          { name: "Build", weeks: buildWeeks, focus: "Race-specific intensity", peakVolume: phasePeakStr },
-          { name: "Peak", weeks: peakWeeks, focus: "Sharpen and rehearse", peakVolume: phasePeakStr },
-          { name: "Taper", weeks: taperWeeks, focus: "Rest and prepare", peakVolume: `~${Math.round(peakVol * 0.5)} km/wk` },
+          {
+            name: "Base",
+            weeks: baseWeeks,
+            focus: "Build aerobic foundation",
+            peakVolume: `~${Math.round(peakVol * 0.8)} km/wk`,
+          },
+          {
+            name: "Build",
+            weeks: buildWeeks,
+            focus: "Race-specific intensity",
+            peakVolume: phasePeakStr,
+          },
+          {
+            name: "Peak",
+            weeks: peakWeeks,
+            focus: "Sharpen and rehearse",
+            peakVolume: phasePeakStr,
+          },
+          {
+            name: "Taper",
+            weeks: taperWeeks,
+            focus: "Rest and prepare",
+            peakVolume: `~${Math.round(peakVol * 0.5)} km/wk`,
+          },
         ],
         adjustments: ["Phases adjusted based on available training data"],
       },
@@ -706,7 +786,10 @@ ${contextStr}`;
 
   // TypeScript guard — both parse attempts and fallback must produce a result
   if (!parsed) {
-    return { error: "Failed to generate a plan proposal after all attempts.", code: "PARSE_FAILED" };
+    return {
+      error: "Failed to generate a plan proposal after all attempts.",
+      code: "PARSE_FAILED",
+    };
   }
 
   // ── Override ALL volumes with deterministic values ───────────────
@@ -772,9 +855,19 @@ export async function approvePlanProposal(
   userId: string,
   options?: ChatOptions,
   locale = "en",
-  proposalOverrides?: Record<string, unknown>,
+  proposalOverrides?: Record<string, unknown>
 ): Promise<
-  | { success: true; response: string; phases: Array<{ name: string; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> }
+  | {
+      success: true;
+      response: string;
+      phases: Array<{
+        name: string;
+        weekCount: number;
+        sessionCount: number;
+        workoutCount: number;
+        restCount: number;
+      }>;
+    }
   | { error: string; code: string }
 > {
   // 1. Load conversation + config
@@ -798,7 +891,13 @@ export async function approvePlanProposal(
 
   await prisma.coachConversation.update({
     where: { id: conversationId },
-    data: { contextSnapshot: { ...(conversation.contextSnapshot as Record<string, unknown> || {}), summaryText: contextStr }, updatedAt: new Date() },
+    data: {
+      contextSnapshot: {
+        ...((conversation.contextSnapshot as Record<string, unknown>) || {}),
+        summaryText: contextStr,
+      },
+      updatedAt: new Date(),
+    },
   });
 
   // 3. Generate the plan ONE PHASE AT A TIME using JSON mode.
@@ -812,15 +911,15 @@ export async function approvePlanProposal(
   }
 
   // ── Determine phase structure ──────────────────────────
-  const overrides = proposalOverrides as {
-    proposedStartDate?: string;
-    phases?: Array<{ name: string; weeks: number }>;
-    peakVolume?: string;
-  } | undefined;
+  const overrides = proposalOverrides as
+    | {
+        proposedStartDate?: string;
+        phases?: Array<{ name: string; weeks: number }>;
+        peakVolume?: string;
+      }
+    | undefined;
 
-  const phaseStructure = overrides?.phases?.length
-    ? overrides.phases
-    : derivePhaseStructure(ctx);
+  const phaseStructure = overrides?.phases?.length ? overrides.phases : derivePhaseStructure(ctx);
 
   // ── Determine start date ───────────────────────────────
   const proposedStartDate = overrides?.proposedStartDate;
@@ -849,9 +948,12 @@ export async function approvePlanProposal(
 
   // Recent 4-week volume trend
   if (ctx.recentWeeks.length > 0) {
-    const weekLines = ctx.recentWeeks.map((w) =>
-      `  ${w.label}: ${(w.volumeMeters / 1000).toFixed(0)} km, ${w.elevationMeters.toFixed(0)}m vert, ${w.activityCount} activities`
-    ).join("\n");
+    const weekLines = ctx.recentWeeks
+      .map(
+        (w) =>
+          `  ${w.label}: ${(w.volumeMeters / 1000).toFixed(0)} km, ${w.elevationMeters.toFixed(0)}m vert, ${w.activityCount} activities`
+      )
+      .join("\n");
     athleteContextParts.push(`\n### Recent 4 Weeks\n${weekLines}`);
   }
 
@@ -876,7 +978,9 @@ export async function approvePlanProposal(
 
   // Fatigue
   if (ctx.fatigue) {
-    athleteContextParts.push(`\n### Fatigue (${ctx.fatigue.severity})\n${ctx.fatigue.signals.join("\n")}`);
+    athleteContextParts.push(
+      `\n### Fatigue (${ctx.fatigue.severity})\n${ctx.fatigue.signals.join("\n")}`
+    );
   }
 
   // Health
@@ -889,10 +993,19 @@ export async function approvePlanProposal(
   const goalContext = athleteContextParts.join("\n");
 
   const toolProgressCb = options?.onProgress
-    ? (event: Record<string, unknown>) => { options.onProgress!(event as ChatProgressEvent); }
+    ? (event: Record<string, unknown>) => {
+        options.onProgress!(event as ChatProgressEvent);
+      }
     : undefined;
 
-  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> = [];
+  const savedPhases: Array<{
+    name: string;
+    phaseOrder: number;
+    weekCount: number;
+    sessionCount: number;
+    workoutCount: number;
+    restCount: number;
+  }> = [];
   let currentStartDate = new Date(startDate);
   let anyFailure: string | null = null;
 
@@ -952,15 +1065,19 @@ Design rules:
 - CRITICAL: Use the athlete's Training Context (terrain, schedule, constraints), Goals, Health, and Fatigue data above to tailor every session — do NOT generate generic workouts
 - Past days (before today) should still be included — the system skips them automatically`;
 
-    const rawResult = await ask(phaseSystemPrompt, "Generate the phase JSON now. Output ONLY the JSON object with the weeks array.", {
-      temperature: 0.3,
-      maxTokens: 16384,
-      jsonMode: true,
-      apiKey: llmConfig.apiKey,
-      baseUrl: llmConfig.baseUrl,
-      model: llmConfig.model,
-      thinking: "disabled",
-    });
+    const rawResult = await ask(
+      phaseSystemPrompt,
+      "Generate the phase JSON now. Output ONLY the JSON object with the weeks array.",
+      {
+        temperature: 0.3,
+        maxTokens: 16384,
+        jsonMode: true,
+        apiKey: llmConfig.apiKey,
+        baseUrl: llmConfig.baseUrl,
+        model: llmConfig.model,
+        thinking: "disabled",
+      }
+    );
 
     if (!rawResult) {
       anyFailure = `Failed to generate ${ps.name} phase. Try again.`;
@@ -970,7 +1087,7 @@ Design rules:
     let weeksData: Array<Record<string, unknown>> | null = null;
     try {
       const parsed = JSON.parse(sanitizeJsonText(rawResult));
-      weeksData = parsed.weeks as Array<Record<string, unknown>> | undefined || null;
+      weeksData = (parsed.weeks as Array<Record<string, unknown>> | undefined) || null;
       if (!weeksData || !Array.isArray(weeksData) || weeksData.length === 0) {
         // Try wrapping in weeks if it looks like a single-phase response
         if (parsed.phaseName || parsed.phaseOrder) {
@@ -979,15 +1096,26 @@ Design rules:
       }
     } catch {
       // Parse failed — retry this phase once
-      const retry = await ask(phaseSystemPrompt, "Your previous response wasn't valid JSON. Output ONLY a JSON object with a weeks array. No other text.", {
-        temperature: 0.2, maxTokens: 16384, jsonMode: true,
-        apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model, thinking: "disabled",
-      });
+      const retry = await ask(
+        phaseSystemPrompt,
+        "Your previous response wasn't valid JSON. Output ONLY a JSON object with a weeks array. No other text.",
+        {
+          temperature: 0.2,
+          maxTokens: 16384,
+          jsonMode: true,
+          apiKey: llmConfig.apiKey,
+          baseUrl: llmConfig.baseUrl,
+          model: llmConfig.model,
+          thinking: "disabled",
+        }
+      );
       if (retry) {
         try {
           const parsed = JSON.parse(sanitizeJsonText(retry));
-          weeksData = parsed.weeks as Array<Record<string, unknown>> | undefined || null;
-        } catch { /* still bad — give up on this phase */ }
+          weeksData = (parsed.weeks as Array<Record<string, unknown>> | undefined) || null;
+        } catch {
+          /* still bad — give up on this phase */
+        }
       }
     }
 
@@ -1004,13 +1132,17 @@ Design rules:
     } as ToolCallEvent);
 
     // Save the phase to DB
-    const saveResult = await executeCreateTrainingPhase(userId, {
-      phaseName: `${ps.name} Phase`,
-      phaseGoal: generatePhaseGoal(ps.name),
-      raceGoalId: primaryGoal.id,
-      phaseOrder,
-      weeks: weeksData,
-    }, toolProgressCb);
+    const saveResult = await executeCreateTrainingPhase(
+      userId,
+      {
+        phaseName: `${ps.name} Phase`,
+        phaseGoal: generatePhaseGoal(ps.name),
+        raceGoalId: primaryGoal.id,
+        phaseOrder,
+        weeks: weeksData,
+      },
+      toolProgressCb
+    );
 
     if (!saveResult.success) {
       anyFailure = saveResult.message;
@@ -1056,7 +1188,9 @@ Design rules:
     },
   });
 
-  const phaseSummary = savedPhases.map(p => `${p.name} (${p.weekCount}w, ${p.workoutCount} workouts + ${p.restCount} rest)`).join(", ");
+  const phaseSummary = savedPhases
+    .map((p) => `${p.name} (${p.weekCount}w, ${p.workoutCount} workouts + ${p.restCount} rest)`)
+    .join(", ");
   const finalText = `Your training plan is ready! ${phaseSummary}`;
 
   await prisma.coachMessage.create({
@@ -1110,7 +1244,7 @@ export async function chat(
   }
 
   // 2. Gather fresh training context (always current, not the stale snapshot)
-  const ctx = options?.trainingContext ?? await gatherTrainingContext(userId);
+  const ctx = options?.trainingContext ?? (await gatherTrainingContext(userId));
   let freshContextSummary = buildContextSummary(ctx, locale);
 
   // Append page context if available
@@ -1125,7 +1259,10 @@ export async function chat(
   await prisma.coachConversation.update({
     where: { id: conversationId },
     data: {
-      contextSnapshot: { ...(conversation.contextSnapshot as Record<string, unknown> || {}), summaryText: freshContextSummary },
+      contextSnapshot: {
+        ...((conversation.contextSnapshot as Record<string, unknown>) || {}),
+        summaryText: freshContextSummary,
+      },
       updatedAt: new Date(),
     },
   });
@@ -1133,7 +1270,10 @@ export async function chat(
   const langInstruction = getLanguageInstruction(locale);
   const recentMessages = conversation.messages.reverse();
   const llmMessages: LlmMessage[] = [
-    { role: "system", content: `${langInstruction}${await getChatPrompt()}\n\n## Current Training Context\n${freshContextSummary}` },
+    {
+      role: "system",
+      content: `${langInstruction}${await getChatPrompt()}\n\n## Current Training Context\n${freshContextSummary}`,
+    },
   ];
 
   for (const m of recentMessages) {
@@ -1156,7 +1296,9 @@ export async function chat(
 
   while (iterations < MAX_TOOL_ITERATIONS) {
     iterations++;
-    console.error(`[AI-COACH] Tool loop iteration ${iterations}, messages count: ${llmMessages.length}`);
+    console.error(
+      `[AI-COACH] Tool loop iteration ${iterations}, messages count: ${llmMessages.length}`
+    );
 
     // Check for client disconnect before making another LLM call
     if (options?.signal?.aborted) {
@@ -1170,9 +1312,10 @@ export async function chat(
     if (options?.onProgress) {
       options.onProgress({
         type: "status",
-        message: iterations === 1
-          ? "Analyzing your training data and preparing a response..."
-          : `Working on next steps (iteration ${iterations})...`,
+        message:
+          iterations === 1
+            ? "Analyzing your training data and preparing a response..."
+            : `Working on next steps (iteration ${iterations})...`,
       });
     }
 
@@ -1199,7 +1342,9 @@ export async function chat(
 
     // Store the assistant's response text (may be null if only tool calls)
     const assistantContent = response.content || "";
-    console.error(`[AI-COACH] Iteration ${iterations}: content length=${assistantContent.length}, toolCalls=${response.toolCalls?.length || 0}`);
+    console.error(
+      `[AI-COACH] Iteration ${iterations}: content length=${assistantContent.length}, toolCalls=${response.toolCalls?.length || 0}`
+    );
 
     // Add assistant message to the context
     llmMessages.push({
@@ -1223,15 +1368,24 @@ export async function chat(
       const toolNames = response.toolCalls.map((tc) => tc.function.name);
       const toolDescriptions = toolNames.map((name) => {
         switch (name) {
-          case "create_training_phase": return "Creating training phase";
-          case "update_weekly_plan": return "Updating weekly plan";
-          case "get_weekly_plan": return "Looking up your training plan";
-          case "update_training_day": return "Updating a training day";
-          case "manage_goals": return "Managing race goals";
-          case "query_activities": return "Looking up your activity history";
-          case "update_training_context": return "Updating training context";
-          case "set_activity_as_goal": return "Setting activity as goal";
-          default: return name.replace(/_/g, " ");
+          case "create_training_phase":
+            return "Creating training phase";
+          case "update_weekly_plan":
+            return "Updating weekly plan";
+          case "get_weekly_plan":
+            return "Looking up your training plan";
+          case "update_training_day":
+            return "Updating a training day";
+          case "manage_goals":
+            return "Managing race goals";
+          case "query_activities":
+            return "Looking up your activity history";
+          case "update_training_context":
+            return "Updating training context";
+          case "set_activity_as_goal":
+            return "Setting activity as goal";
+          default:
+            return name.replace(/_/g, " ");
         }
       });
       options.onProgress({
@@ -1243,14 +1397,21 @@ export async function chat(
     // If no tool calls, decide whether to accept or push back
     if (!response.toolCalls || response.toolCalls.length === 0) {
       const trimmed = assistantContent.trim().toLowerCase();
-      const bailed = !trimmed || trimmed === "done." || trimmed === "done" || trimmed === "ok." || trimmed === "ok" || trimmed === "okay";
+      const bailed =
+        !trimmed ||
+        trimmed === "done." ||
+        trimmed === "done" ||
+        trimmed === "ok." ||
+        trimmed === "ok" ||
+        trimmed === "okay";
 
       if (bailed && iterations < 5) {
         // Push back — the LLM bailed without doing anything
         console.error(`[AI-COACH] Bail detected (iter ${iterations}), pushing back`);
         llmMessages.push({
           role: "user",
-          content: "That's not actionable. You have the athlete's data — use create_training_phase to design their training plan phase by phase. Build at least Phase 1 now with appropriate weeks and sessions.",
+          content:
+            "That's not actionable. You have the athlete's data — use create_training_phase to design their training plan phase by phase. Build at least Phase 1 now with appropriate weeks and sessions.",
         });
         continue;
       }
@@ -1267,11 +1428,17 @@ export async function chat(
       try {
         args = JSON.parse(toolCall.function.arguments);
       } catch {
-        console.error(`[AI-COACH] Failed to parse tool call args for "${toolCall.function.name}": length=${toolCall.function.arguments?.length || 0}, start=${toolCall.function.arguments?.slice(0, 120)}`);
-        console.error(`[AI-COACH] End of truncated args: ${toolCall.function.arguments?.slice(-200)}`);
+        console.error(
+          `[AI-COACH] Failed to parse tool call args for "${toolCall.function.name}": length=${toolCall.function.arguments?.length || 0}, start=${toolCall.function.arguments?.slice(0, 120)}`
+        );
+        console.error(
+          `[AI-COACH] End of truncated args: ${toolCall.function.arguments?.slice(-200)}`
+        );
       }
 
-      console.error(`[AI-COACH] Executing tool: ${toolCall.function.name} with args: ${JSON.stringify(args).slice(0, 200)}`);
+      console.error(
+        `[AI-COACH] Executing tool: ${toolCall.function.name} with args: ${JSON.stringify(args).slice(0, 200)}`
+      );
 
       // Fire tool_call event so frontend shows what the LLM is doing
       if (options?.onProgress) {
@@ -1289,17 +1456,22 @@ export async function chat(
 
       // Wrap onProgress from chat() to forward progress events from tool execution
       const toolProgressCb = options?.onProgress
-        ? (event: Record<string, unknown>) => { options.onProgress!(event as ChatProgressEvent); }
+        ? (event: Record<string, unknown>) => {
+            options.onProgress!(event as ChatProgressEvent);
+          }
         : undefined;
 
       const result = await executeTool(toolCall.function.name, args, userId, toolProgressCb);
       if (result.success) allToolCallsExecuted = true;
-      console.error(`[AI-COACH] Tool result: success=${result.success}, message="${result.message?.slice(0, 100)}"`);
+      console.error(
+        `[AI-COACH] Tool result: success=${result.success}, message="${result.message?.slice(0, 100)}"`
+      );
 
       const resultContent = JSON.stringify(result);
-      const trimmedContent = resultContent.length > 2000
-        ? resultContent.slice(0, 2000) + "... [truncated]"
-        : resultContent;
+      const trimmedContent =
+        resultContent.length > 2000
+          ? resultContent.slice(0, 2000) + "... [truncated]"
+          : resultContent;
 
       llmMessages.push({
         role: "tool",
@@ -1394,8 +1566,18 @@ export async function chat(
     response: finalResponse,
     suggestions,
     messages: [
-      { id: userMsg.id, role: "user", content: userMsg.content, createdAt: userMsg.createdAt.toISOString() },
-      { id: "assistant-msg", role: "assistant", content: finalResponse, createdAt: new Date().toISOString() },
+      {
+        id: userMsg.id,
+        role: "user",
+        content: userMsg.content,
+        createdAt: userMsg.createdAt.toISOString(),
+      },
+      {
+        id: "assistant-msg",
+        role: "assistant",
+        content: finalResponse,
+        createdAt: new Date().toISOString(),
+      },
     ],
     ...(updatedProposal ? { proposal: updatedProposal } : {}),
   };
@@ -1443,10 +1625,20 @@ async function buildProposalFromState(
     const recentVolumeKm = recentActivities.reduce((s, a) => s + (a.distanceMeters || 0), 0) / 1000;
 
     // Derive phases from plan weeks
-    const phaseData: Array<{ name: "Base" | "Build" | "Peak" | "Taper"; weeks: number; focus: string; peakVolume: string }> = [];
+    const phaseData: Array<{
+      name: "Base" | "Build" | "Peak" | "Taper";
+      weeks: number;
+      focus: string;
+      peakVolume: string;
+    }> = [];
     if (hasPlan) {
       // Group consecutive weeks by theme extracted from coachNotes
-      let currentPhase: { name: "Base" | "Build" | "Peak" | "Taper"; focus: string; weeks: number; peakVolume: number } | null = null;
+      let currentPhase: {
+        name: "Base" | "Build" | "Peak" | "Taper";
+        focus: string;
+        weeks: number;
+        peakVolume: number;
+      } | null = null;
       for (const pw of planWeeks) {
         const notes = (pw.coachNotes || "").toLowerCase();
         let phaseName: "Base" | "Build" | "Peak" | "Taper" = "Build";
@@ -1491,18 +1683,45 @@ async function buildProposalFromState(
       const peakWeeks = Math.max(1, Math.round(totalWeeks * 0.15));
       const taperWeeks = Math.max(1, totalWeeks - baseWeeks - buildWeeks - peakWeeks);
       const peakVol = Math.round(recentVolumeKm * 1.5);
-      phaseData.push({ name: "Base", weeks: baseWeeks, focus: "Build aerobic base", peakVolume: `~${peakVol} km/wk` });
-      phaseData.push({ name: "Build", weeks: buildWeeks, focus: "Race-specific training", peakVolume: `~${peakVol} km/wk` });
-      phaseData.push({ name: "Peak", weeks: peakWeeks, focus: "Sharpen and rehearse", peakVolume: `~${peakVol} km/wk` });
-      phaseData.push({ name: "Taper", weeks: taperWeeks, focus: "Rest and prepare", peakVolume: `~${Math.round(peakVol * 0.6)} km/wk` });
+      phaseData.push({
+        name: "Base",
+        weeks: baseWeeks,
+        focus: "Build aerobic base",
+        peakVolume: `~${peakVol} km/wk`,
+      });
+      phaseData.push({
+        name: "Build",
+        weeks: buildWeeks,
+        focus: "Race-specific training",
+        peakVolume: `~${peakVol} km/wk`,
+      });
+      phaseData.push({
+        name: "Peak",
+        weeks: peakWeeks,
+        focus: "Sharpen and rehearse",
+        peakVolume: `~${peakVol} km/wk`,
+      });
+      phaseData.push({
+        name: "Taper",
+        weeks: taperWeeks,
+        focus: "Rest and prepare",
+        peakVolume: `~${Math.round(peakVol * 0.6)} km/wk`,
+      });
     }
 
     // Calculate peak volume
-    const peakVol = Math.max(...phaseData.map((p) => parseInt(p.peakVolume) || 0), Math.round(recentVolumeKm * 1.3));
+    const peakVol = Math.max(
+      ...phaseData.map((p) => parseInt(p.peakVolume) || 0),
+      Math.round(recentVolumeKm * 1.3)
+    );
 
     const distanceKm = goal.distanceMeters ? goal.distanceMeters / 1000 : 0;
     const raceName = `${goal.name}${distanceKm > 0 ? ` (${distanceKm.toFixed(0)}K)` : ""}`;
-    const formattedDate = raceDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const formattedDate = raceDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
 
     const adjustments: string[] = [];
     if (phaseData.length > 0) {
@@ -1561,14 +1780,21 @@ export async function applySuggestion(
 
   if (suggestion.suggestionType === "rest_day_addition" && changes.dayOfWeek !== undefined) {
     sessions = sessions.map((s) =>
-      s.dayOfWeek === changes.dayOfWeek ? { ...s, type: "rest", description: "Rest day", targetDistance: null, targetElevation: null, targetDuration: 0 } : s
+      s.dayOfWeek === changes.dayOfWeek
+        ? {
+            ...s,
+            type: "rest",
+            description: "Rest day",
+            targetDistance: null,
+            targetElevation: null,
+            targetDuration: 0,
+          }
+        : s
     );
   } else if (suggestion.suggestionType === "session_change" && changes.sessions) {
     const sessionChanges = changes.sessions as Array<Record<string, unknown>>;
     for (const sc of sessionChanges) {
-      sessions = sessions.map((s) =>
-        s.dayOfWeek === sc.dayOfWeek ? { ...s, ...sc } : s
-      );
+      sessions = sessions.map((s) => (s.dayOfWeek === sc.dayOfWeek ? { ...s, ...sc } : s));
     }
   } else if (suggestion.suggestionType === "volume_change") {
     // Volume target changes are applied to the plan-level fields, not individual sessions
@@ -1576,7 +1802,12 @@ export async function applySuggestion(
 
   // Build adjustment summary
   const summary = `${suggestion.title}: ${suggestion.description}`;
-  const adjustmentHistory = (existingPlan.adjustmentHistory as Array<{ timestamp: string; prompt: string; summary: string }>) || [];
+  const adjustmentHistory =
+    (existingPlan.adjustmentHistory as Array<{
+      timestamp: string;
+      prompt: string;
+      summary: string;
+    }>) || [];
   adjustmentHistory.push({
     timestamp: now.toISOString(),
     prompt: `Applied suggestion: ${suggestion.title}`,
@@ -1588,17 +1819,16 @@ export async function applySuggestion(
     plannedSessions: structuredClone(sessions) as any,
     overridesExisting: true,
     generatedAt: now,
-    adjustments: [
-      `🤖 ${summary}`,
-      ...(existingPlan.adjustments || []),
-    ],
+    adjustments: [`🤖 ${summary}`, ...(existingPlan.adjustments || [])],
     adjustmentHistory,
   };
 
   if (suggestion.suggestionType === "volume_change") {
     if (changes.targetVolumeMeters) updateData.targetVolumeMeters = changes.targetVolumeMeters;
-    if (changes.targetElevationMeters) updateData.targetElevationMeters = changes.targetElevationMeters;
-    if (changes.targetDurationSeconds) updateData.targetDurationSeconds = changes.targetDurationSeconds;
+    if (changes.targetElevationMeters)
+      updateData.targetElevationMeters = changes.targetElevationMeters;
+    if (changes.targetDurationSeconds)
+      updateData.targetDurationSeconds = changes.targetDurationSeconds;
   }
 
   await prisma.weeklyPlan.update({
@@ -1619,4 +1849,3 @@ export async function applySuggestion(
 
   return { success: true, plan: updatedPlan as unknown as Record<string, unknown> };
 }
-

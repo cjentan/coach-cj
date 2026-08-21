@@ -39,7 +39,7 @@ export async function parseStravaExportZip(
   zipBuffer: Buffer,
   onProgress?: (msg: string) => void,
   onActivity?: ActivityCallback,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<StravaExportResult> {
   const log = (msg: string) => {
     console.log(`[import:parse] ${msg}`);
@@ -66,8 +66,16 @@ export async function parseStravaExportZip(
     dirCounts.set(topDir, (dirCounts.get(topDir) || 0) + 1);
   }
 
-  log(`File types in ZIP: ${Array.from(extCounts.entries()).map(([ext, n]) => `${ext}×${n}`).join(", ")}`);
-  log(`Top-level dirs: ${Array.from(dirCounts.entries()).map(([d, n]) => `${d}/ (${n} files)`).join(", ")}`);
+  log(
+    `File types in ZIP: ${Array.from(extCounts.entries())
+      .map(([ext, n]) => `${ext}×${n}`)
+      .join(", ")}`
+  );
+  log(
+    `Top-level dirs: ${Array.from(dirCounts.entries())
+      .map(([d, n]) => `${d}/ (${n} files)`)
+      .join(", ")}`
+  );
 
   // ── 1. Find activities.csv ──────────────────────────────
   let csvContent: string | null = null;
@@ -93,8 +101,10 @@ export async function parseStravaExportZip(
   const csvResult = parseStravaCsv(csvContent);
   errors.push(...csvResult.errors);
 
-  log(`CSV parsed: ${csvResult.activities.length} activities from ${csvResult.totalRows} rows` +
-    (csvResult.errors.length > 0 ? ` (${csvResult.errors.length} parse warnings)` : ""));
+  log(
+    `CSV parsed: ${csvResult.activities.length} activities from ${csvResult.totalRows} rows` +
+      (csvResult.errors.length > 0 ? ` (${csvResult.errors.length} parse warnings)` : "")
+  );
 
   if (csvResult.activities.length === 0) {
     return {
@@ -107,9 +117,9 @@ export async function parseStravaExportZip(
   }
 
   // ── Diagnostic: CSV ID + Filename samples ──────────────
-  const csvIdSamples = csvResult.activities.slice(0, 5).map(a => a.externalId);
+  const csvIdSamples = csvResult.activities.slice(0, 5).map((a) => a.externalId);
   log(`CSV activity ID samples: ${csvIdSamples.join(", ")}`);
-  const csvFnSamples = csvResult.activities.slice(0, 5).map(a => a.filename || "(none)");
+  const csvFnSamples = csvResult.activities.slice(0, 5).map((a) => a.filename || "(none)");
   log(`CSV filename samples: ${csvFnSamples.join(", ")}`);
 
   // ── 2. Build lookup of activity files by ID ─────────────
@@ -125,7 +135,7 @@ export async function parseStravaExportZip(
 
     const match = name.match(ACTIVITY_FILE_GLOBAL_RE);
     if (match) {
-      const id = match[2];          // the numeric activity ID
+      const id = match[2]; // the numeric activity ID
       const ext = match[3].toLowerCase();
       const isGz = match[4] === ".gz";
 
@@ -148,7 +158,9 @@ export async function parseStravaExportZip(
     }
   }
 
-  log(`Indexed ${fileCount} activity files from ZIP${fitGzCount > 0 ? ` (${fitGzCount} .fit.gz compressed)` : ""}`);
+  log(
+    `Indexed ${fileCount} activity files from ZIP${fitGzCount > 0 ? ` (${fitGzCount} .fit.gz compressed)` : ""}`
+  );
 
   // ── Diagnostic: show unmatched activity files ───────────
   if (nonMatchingSamples.length > 0) {
@@ -180,9 +192,11 @@ export async function parseStravaExportZip(
   csvIdLookup.forEach((_, cid) => {
     if (filesById.has(cid)) matchCount++;
   });
-  const unmatchedFileIds = fileIdKeys.filter(fid => !csvIdLookup.has(fid));
+  const unmatchedFileIds = fileIdKeys.filter((fid) => !csvIdLookup.has(fid));
   log(`CSV-to-file match rate (by Activity ID): ${matchCount} of ${csvIdLookup.size}`);
-  log(`CSV-to-file match rate (by Filename column): ${fnMatchCount} matched, ${fnLookupFailures} looked up but not found in ZIP`);
+  log(
+    `CSV-to-file match rate (by Filename column): ${fnMatchCount} matched, ${fnLookupFailures} looked up but not found in ZIP`
+  );
   log(`File ID samples from ZIP: ${fileIdKeys.slice(0, 5).join(", ")}`);
 
   // ── 3. Correlate and parse ──────────────────────────────
@@ -331,7 +345,9 @@ export async function parseStravaExportZip(
 
     // Progress every 50 activities or on the last one
     if ((i + 1) % 50 === 0 || i === total - 1) {
-      log(`Parsed ${i + 1}/${total} activities (${withRichData} with GPS data, ${csvOnly} CSV-only)`);
+      log(
+        `Parsed ${i + 1}/${total} activities (${withRichData} with GPS data, ${csvOnly} CSV-only)`
+      );
     }
   }
 

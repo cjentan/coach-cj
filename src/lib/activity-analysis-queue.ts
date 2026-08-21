@@ -69,4 +69,3 @@ export async function scheduleBatchAnalysis(
     await analysisQueue.add("analyze", { activityId, userId });
   }
 }
-

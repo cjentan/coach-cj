@@ -38,9 +38,13 @@ export async function POST(req: Request) {
 
     // Simple TSS estimate
     const hours = data.durationSeconds / 3600;
-    const tss = data.averageHr && data.maxHr
-      ? Math.round((data.durationSeconds * (data.averageHr / data.maxHr) * (data.averageHr / data.maxHr)) / 36)
-      : Math.round(hours * 50);
+    const tss =
+      data.averageHr && data.maxHr
+        ? Math.round(
+            (data.durationSeconds * (data.averageHr / data.maxHr) * (data.averageHr / data.maxHr)) /
+              36
+          )
+        : Math.round(hours * 50);
 
     const activity = await prisma.trainingLog.create({
       data: {
@@ -79,10 +83,12 @@ export async function POST(req: Request) {
       restHr,
     });
     if (workoutType) {
-      await prisma.trainingLog.update({
-        where: { id: activity.id },
-        data: { workoutType },
-      }).catch(() => {});
+      await prisma.trainingLog
+        .update({
+          where: { id: activity.id },
+          data: { workoutType },
+        })
+        .catch(() => {});
     }
 
     // Snapshot the affected week so trends stay current

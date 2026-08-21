@@ -50,7 +50,10 @@ export async function POST(req: Request) {
   }
 
   if (!name) {
-    return NextResponse.json({ error: "Provide a name for the key (e.g. 'Watch Push', 'Zapier')" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Provide a name for the key (e.g. 'Watch Push', 'Zapier')" },
+      { status: 400 }
+    );
   }
 
   if (name.length > 100) {
@@ -68,16 +71,19 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({
-    key: {
-      id: key.id,
-      name: key.name,
-      keyPrefix: key.keyPrefix,
-      createdAt: key.createdAt,
+  return NextResponse.json(
+    {
+      key: {
+        id: key.id,
+        name: key.name,
+        keyPrefix: key.keyPrefix,
+        createdAt: key.createdAt,
+      },
+      rawKey, // ← Only returned here — the user must copy it now
+      message: "Copy this key now — it won't be shown again.",
     },
-    rawKey, // ← Only returned here — the user must copy it now
-    message: "Copy this key now — it won't be shown again.",
-  }, { status: 201 });
+    { status: 201 }
+  );
 }
 
 // ── Revoke key ─────────────────────────────────────────────

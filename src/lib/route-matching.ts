@@ -92,7 +92,7 @@ function pointToSegmentDistance(p: RoutePoint, a: RoutePoint, b: RoutePoint): nu
 export function computeTrackSimilarity(
   trackA: RoutePoint[],
   trackB: RoutePoint[],
-  thresholdMeters: number = 50,
+  thresholdMeters: number = 50
 ): number {
   if (trackA.length < 3 || trackB.length < 3) return 0;
 

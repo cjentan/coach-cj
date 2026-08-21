@@ -7,7 +7,9 @@ import { Loader2, Check, X, AlertCircle } from "lucide-react";
 import type { PlanProposal } from "@/lib/training-plan-types";
 import PlanProposalCard from "@/components/coach/plan-proposal-card";
 import TrainingContextOfferCard from "@/components/coach/training-context-offer-card";
-import TrainingPlanSummaryCard, { type PhaseSummary } from "@/components/coach/training-plan-summary-card";
+import TrainingPlanSummaryCard, {
+  type PhaseSummary,
+} from "@/components/coach/training-plan-summary-card";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -76,7 +78,10 @@ interface CoachMessageListProps {
   saveProgress: SaveProgressInfo | null;
   error: string | null;
   feedback: string | null;
-  t: (key: string, values?: Record<string, string | number | boolean | Date | null | undefined>) => string;
+  t: (
+    key: string,
+    values?: Record<string, string | number | boolean | Date | null | undefined>
+  ) => string;
   onApplySuggestion: (id: string) => void;
   onDismissSuggestion: (id: string) => void;
   onProposalChange: (proposal: PlanProposal) => void;
@@ -155,25 +160,39 @@ const CoachMessageList = memo(function CoachMessageList({
           {/* Suggestion cards pinned at top — only when a plan exists */}
           {hasExistingPlan && suggestions.filter((s) => s.status === "pending").length > 0 && (
             <div className="space-y-2 mb-4">
-              {suggestions.filter((s) => s.status === "pending").map((s) => (
-                <div key={s.id} className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <Badge variant="outline" className="text-[0.625rem] mb-1">{s.type.replace(/_/g, " ")}</Badge>
-                      <p className="text-sm font-medium">{s.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+              {suggestions
+                .filter((s) => s.status === "pending")
+                .map((s) => (
+                  <div key={s.id} className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <Badge variant="outline" className="text-[0.625rem] mb-1">
+                          {s.type.replace(/_/g, " ")}
+                        </Badge>
+                        <p className="text-sm font-medium">{s.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-7 text-xs"
+                        onClick={() => onApplySuggestion(s.id)}
+                      >
+                        <Check className="h-3 w-3 mr-1" /> {t("apply")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => onDismissSuggestion(s.id)}
+                      >
+                        <X className="h-3 w-3 mr-1" /> {t("dismiss")}
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-2">
-                    <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onApplySuggestion(s.id)}>
-                      <Check className="h-3 w-3 mr-1" /> {t("apply")}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onDismissSuggestion(s.id)}>
-                      <X className="h-3 w-3 mr-1" /> {t("dismiss")}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           )}
 
@@ -212,19 +231,26 @@ const CoachMessageList = memo(function CoachMessageList({
 
           {/* Messages */}
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : msg.id.startsWith("summary")
-                    ? "bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
-                    : "bg-muted"
-              }`}>
+            <div
+              key={msg.id}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm ${
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : msg.id.startsWith("summary")
+                      ? "bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+                      : "bg-muted"
+                }`}
+              >
                 <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
                 {msg.id.startsWith("summary") && (
-                  <p className="text-[0.625rem] text-muted-foreground mt-1 italic">{t("conversationSummary")}</p>
+                  <p className="text-[0.625rem] text-muted-foreground mt-1 italic">
+                    {t("conversationSummary")}
+                  </p>
                 )}
                 {savePrompt && savePrompt.messageId === msg.id && (
                   <div className="mt-2 pt-2 border-t border-border/60">
@@ -232,11 +258,25 @@ const CoachMessageList = memo(function CoachMessageList({
                       {t("saveAnalysisPrompt", { name: savePrompt.activityName })}
                     </p>
                     <div className="flex gap-2">
-                      <Button size="sm" className="h-7 text-xs" onClick={onSaveAnalysis} disabled={savingAnalysis}>
-                        {savingAnalysis ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={onSaveAnalysis}
+                        disabled={savingAnalysis}
+                      >
+                        {savingAnalysis ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Check className="h-3 w-3 mr-1" />
+                        )}
                         {t("saveToActivity")}
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onDiscardAnalysis}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={onDiscardAnalysis}
+                      >
                         <X className="h-3 w-3 mr-1" /> {t("discard")}
                       </Button>
                     </div>
@@ -254,10 +294,15 @@ const CoachMessageList = memo(function CoachMessageList({
         <div className="mb-4">
           {(statusFeed.length > 0 || saveProgress) && (
             <div className="space-y-1 mb-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">{t("activity")}</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                {t("activity")}
+              </p>
               <div className="space-y-0.5 max-h-[200px] overflow-y-auto">
                 {statusFeed.slice(-8).map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <div
+                    key={entry.id}
+                    className="flex items-start gap-1.5 text-xs text-muted-foreground"
+                  >
                     <span className="shrink-0 mt-0.5 text-[0.625rem]">💬</span>
                     <span className="leading-relaxed">{entry.text}</span>
                   </div>
@@ -267,7 +312,9 @@ const CoachMessageList = memo(function CoachMessageList({
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2 p-2 rounded border border-primary/10 bg-primary/5">
                   <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                   <span className="flex-1">{saveProgress.message}</span>
-                  <Badge variant="outline" className="text-[0.625rem] shrink-0">{saveProgress.weekCurrent}/{saveProgress.weekTotal}</Badge>
+                  <Badge variant="outline" className="text-[0.625rem] shrink-0">
+                    {saveProgress.weekCurrent}/{saveProgress.weekTotal}
+                  </Badge>
                 </div>
               )}
             </div>
@@ -287,14 +334,19 @@ const CoachMessageList = memo(function CoachMessageList({
                       ? `${t("weeksCount", { count: p.weekCount })} · ${t("sessionsCount", { count: p.sessionCount })}`
                       : `${p.weekCount} week${p.weekCount !== 1 ? "s" : ""} · ${p.sessionCount} session${p.sessionCount !== 1 ? "s" : ""}`;
                 return (
-                  <div key={i} className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                  <div
+                    key={i}
+                    className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm"
+                  >
                     <div className="flex items-center gap-2">
                       <div className="h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-green-600" />
                       </div>
                       <span className="font-medium">{p.phaseName}</span>
                       <Badge variant="outline" className="ml-auto text-[0.625rem]">
-                        {isFloating ? t("phase", { phaseOrder: p.phaseOrder }) : `Phase ${p.phaseOrder}`}
+                        {isFloating
+                          ? t("phase", { phaseOrder: p.phaseOrder })
+                          : `Phase ${p.phaseOrder}`}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 ml-7">{p.phaseGoal}</p>
@@ -310,8 +362,7 @@ const CoachMessageList = memo(function CoachMessageList({
               ? t("thinking")
               : isFloating
                 ? t("processing")
-                : "Processing..."
-            }
+                : "Processing..."}
           </div>
         </div>
       )}

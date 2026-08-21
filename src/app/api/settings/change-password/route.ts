@@ -20,10 +20,7 @@ export async function POST(req: Request) {
     const parsed = changePasswordSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
     const { currentPassword, newPassword } = parsed.data;
@@ -39,10 +36,7 @@ export async function POST(req: Request) {
 
     const isValid = await compare(currentPassword, user.passwordHash);
     if (!isValid) {
-      return NextResponse.json(
-        { error: "Current password is incorrect" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Current password is incorrect" }, { status: 403 });
     }
 
     const passwordHash = await hash(newPassword, 12);
@@ -54,9 +48,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

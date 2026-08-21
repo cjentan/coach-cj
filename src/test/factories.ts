@@ -7,8 +7,8 @@ import type {
   DuplicateStatus,
   AlertSeverity,
   AnalysisStatus,
-} from '@prisma/client';
-import type { Prisma } from '@prisma/client';
+} from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 /** Generate a random UUID-like string for tests. */
 export function testId(): string {
@@ -16,28 +16,30 @@ export function testId(): string {
 }
 
 /** Build a mock User object. */
-export function buildUser(overrides: Partial<{
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  locale: string;
-  onboardingCompleted: boolean;
-}> = {}) {
+export function buildUser(
+  overrides: Partial<{
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    locale: string;
+    onboardingCompleted: boolean;
+  }> = {}
+) {
   return {
     id: testId(),
-    email: 'test@example.com',
-    name: 'Test User',
-    role: 'user',
-    locale: 'en',
+    email: "test@example.com",
+    name: "Test User",
+    role: "user",
+    locale: "en",
     onboardingCompleted: true,
-    passwordHash: '$2a$10$...',
+    passwordHash: "$2a$10$...",
     resetToken: null,
     resetTokenExpiry: null,
     reviewDayOfWeek: 1,
-    reviewTime: '18:00',
+    reviewTime: "18:00",
     reviewDayOfMonth: 1,
-    analysisTrigger: 'weekly',
+    analysisTrigger: "weekly",
     analysisTriggerValue: 1,
     llmProvider: null,
     llmBaseUrl: null,
@@ -96,21 +98,21 @@ export function buildTrainingLog(
     duplicateGroupId: string | null;
     duplicateStatus: DuplicateStatus | null;
     mergedIntoId: string | null;
-  }> = {},
+  }> = {}
 ) {
   return {
     id: testId(),
-    userId: overrides.userId ?? 'test-user-id',
+    userId: overrides.userId ?? "test-user-id",
     externalId: null,
-    source: 'garmin' as ActivitySource,
-    type: 'run' as ActivityType,
+    source: "garmin" as ActivitySource,
+    type: "run" as ActivityType,
     subType: null,
-    name: 'Morning Run',
+    name: "Morning Run",
     description: null,
     remarks: null,
     coachAnalysis: null,
     isRace: false,
-    startDate: new Date('2025-01-15'),
+    startDate: new Date("2025-01-15"),
     durationSeconds: 3600,
     distanceMeters: 10000,
     elevationGainMeters: 100,
@@ -162,19 +164,19 @@ export function buildRaceGoal(
     notes: string | null;
     goalStatement: string | null;
     courseProfile: Prisma.JsonValue | null;
-  }> = {},
+  }> = {}
 ) {
   return {
     id: testId(),
-    userId: 'test-user-id',
-    name: 'Test Marathon',
-    raceType: 'road_run',
-    targetDate: new Date('2025-06-01'),
+    userId: "test-user-id",
+    name: "Test Marathon",
+    raceType: "road_run",
+    targetDate: new Date("2025-06-01"),
     distanceMeters: 42195,
     elevationGainMeters: null,
     targetTimeSeconds: 14400,
-    priority: 'A' as GoalPriority,
-    status: 'active' as GoalStatus,
+    priority: "A" as GoalPriority,
+    status: "active" as GoalStatus,
     notes: null,
     goalStatement: null,
     courseProfile: null,
@@ -194,11 +196,11 @@ export function buildBodyMetric(
     heightCm: number | null;
     restingHr: number | null;
     notes: string | null;
-  }> = {},
+  }> = {}
 ) {
   return {
     id: testId(),
-    userId: 'test-user-id',
+    userId: "test-user-id",
     recordedAt: new Date(),
     weightKg: 70,
     heightCm: 175,
@@ -228,12 +230,12 @@ export function buildWeeklyAssessment(
     goalProgressPct: unknown;
     recommendations: string[];
     rawData: unknown;
-  }> = {},
+  }> = {}
 ) {
   return {
     id: testId(),
-    userId: 'test-user-id',
-    weekStartDate: new Date('2025-01-13'),
+    userId: "test-user-id",
+    weekStartDate: new Date("2025-01-13"),
     acuteTrainingLoad: 70,
     chronicTrainingLoad: 60,
     tsb: -10,
@@ -259,7 +261,7 @@ export function buildTrackPoints(
     baseHr?: number;
     basePower?: number;
     baseSpeed?: number;
-  } = {},
+  } = {}
 ): Array<{ hr?: number; power?: number; speed?: number; distance?: number }> {
   const { baseHr = 140, basePower = 200, baseSpeed = 3.5 } = options;
   return Array.from({ length: count }, (_, i) => ({

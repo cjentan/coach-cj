@@ -83,14 +83,19 @@ export async function GET(request: Request) {
   if (plan) {
     sessions = (plan.plannedSessions as unknown as PlannedSession[]) || [];
 
-    const adjHistory = (plan.adjustmentHistory as unknown as Array<{
-      timestamp: string; prompt: string; summary: string;
-      dayOfWeek?: number; reason?: string;
-    }>) || [];
+    const adjHistory =
+      (plan.adjustmentHistory as unknown as Array<{
+        timestamp: string;
+        prompt: string;
+        summary: string;
+        dayOfWeek?: number;
+        reason?: string;
+      }>) || [];
 
     for (const entry of adjHistory) {
       // New format: dayChanges array
-      const dayChanges = (entry as any).dayChanges as Array<{ dayOfWeek: number; reason: string }> | undefined;
+      const dayChanges = (entry as any).dayChanges as
+        Array<{ dayOfWeek: number; reason: string }> | undefined;
       if (dayChanges && Array.isArray(dayChanges)) {
         for (const dc of dayChanges) {
           if (dc.reason && !dc.reason.startsWith("Skipped")) {
@@ -162,12 +167,14 @@ export async function GET(request: Request) {
           targetDistance: session.targetDistance ?? null,
           targetElevation: session.targetElevation ?? null,
           targetDuration: session.targetDuration ?? null,
-          ...(changeInfo ? { changedAt: changeInfo.changedAt, changeReason: changeInfo.changeReason } : {}),
+          ...(changeInfo
+            ? { changedAt: changeInfo.changedAt, changeReason: changeInfo.changeReason }
+            : {}),
         }
       : null;
 
     // Actual activity from training logs (for past/today days)
-    let actual: typeof days[number]["actual"] = null;
+    let actual: (typeof days)[number]["actual"] = null;
     const dateLogs = logsByDate.get(dateStr);
     if (dateLogs && dateLogs.length > 0) {
       const best = dateLogs[0];

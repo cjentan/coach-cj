@@ -77,7 +77,10 @@ export async function PUT(req: Request) {
 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid body" }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Invalid body" },
+      { status: 400 }
+    );
   }
 
   const exists = await prisma.user.findUnique({
@@ -92,9 +95,10 @@ export async function PUT(req: Request) {
   // explicit baseUrl was given) — mirrors src/app/api/settings/llm/route.ts.
   if (parsed.data.provider !== undefined) {
     data.llmProvider = parsed.data.provider;
-    data.llmBaseUrl = parsed.data.baseUrl !== undefined
-      ? parsed.data.baseUrl
-      : (PROVIDER_BASE_URLS[parsed.data.provider] || "");
+    data.llmBaseUrl =
+      parsed.data.baseUrl !== undefined
+        ? parsed.data.baseUrl
+        : PROVIDER_BASE_URLS[parsed.data.provider] || "";
   } else if (parsed.data.baseUrl !== undefined) {
     data.llmBaseUrl = parsed.data.baseUrl;
   }

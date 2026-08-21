@@ -31,8 +31,7 @@ export async function GET(req: Request) {
     healthData.find((d) => d.restingHeartRate != null)?.restingHeartRate ?? null;
 
   // Latest HRV
-  const latestHrv =
-    healthData.find((d) => d.overnightHrv != null)?.overnightHrv ?? null;
+  const latestHrv = healthData.find((d) => d.overnightHrv != null)?.overnightHrv ?? null;
 
   return NextResponse.json({
     healthData,

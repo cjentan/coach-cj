@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,7 +23,9 @@ export async function POST(
   let body: { priority?: string; targetDate?: string; goalStatement?: string } = {};
   try {
     body = await request.json();
-  } catch { /* no body — use defaults */ }
+  } catch {
+    /* no body — use defaults */
+  }
 
   // Build a sensible race type from the activity type
   let raceType = "other";
@@ -46,9 +45,7 @@ export async function POST(
   const defaultTarget = new Date(activityDate);
   defaultTarget.setDate(defaultTarget.getDate() + 84);
 
-  const targetDate = body.targetDate
-    ? new Date(body.targetDate as string)
-    : defaultTarget;
+  const targetDate = body.targetDate ? new Date(body.targetDate as string) : defaultTarget;
 
   // Create the goal
   const goal = await prisma.raceGoal.create({

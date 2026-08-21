@@ -46,11 +46,7 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
 
   const value = useMemo(() => ({ textSize, setTextSize }), [textSize, setTextSize]);
 
-  return (
-    <AccessibilityContext.Provider value={value}>
-      {children}
-    </AccessibilityContext.Provider>
-  );
+  return <AccessibilityContext.Provider value={value}>{children}</AccessibilityContext.Provider>;
 }
 
 export function useAccessibility() {

@@ -59,7 +59,11 @@ export async function POST(request: Request) {
   const [goals, trainingLogs, fatigueAlert, userCtx] = await Promise.all([
     prisma.raceGoal.findMany({ where: { userId: session.user.id, status: "active" } }),
     prisma.trainingLog.findMany({
-      where: { userId: session.user.id, startDate: { gte: new Date(now.getTime() - 28 * 86400000) }, mergedIntoId: null },
+      where: {
+        userId: session.user.id,
+        startDate: { gte: new Date(now.getTime() - 28 * 86400000) },
+        mergedIntoId: null,
+      },
       orderBy: { startDate: "asc" },
       select: { startDate: true, distanceMeters: true },
     }),
@@ -80,11 +84,12 @@ export async function POST(request: Request) {
   }
 
   // Extract adjustment history
-  const adjustmentHistory = (existingPlan.adjustmentHistory as Array<{
-    timestamp: string;
-    prompt: string;
-    summary: string;
-  }> | null) || [];
+  const adjustmentHistory =
+    (existingPlan.adjustmentHistory as Array<{
+      timestamp: string;
+      prompt: string;
+      summary: string;
+    }> | null) || [];
 
   // Load user's LLM config (falls back to server-default DeepSeek key)
   const llmCfg = await resolveUserLlmConfig(session.user.id);
@@ -179,10 +184,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const targetDuration = result.plan.plannedSessions.reduce(
-    (sum, s) => sum + s.targetDuration,
-    0
-  );
+  const targetDuration = result.plan.plannedSessions.reduce((sum, s) => sum + s.targetDuration, 0);
 
   return NextResponse.json({
     weekStart: weekStart.toISOString(),

@@ -84,8 +84,8 @@ async function main(): Promise<void> {
       continue; // rawJson was cleared since the scan; nothing to compute
     }
 
-    const trackPoints = (log.rawJson as Record<string, unknown>)
-      .trackPoints as TrackPoint[] | undefined;
+    const trackPoints = (log.rawJson as Record<string, unknown>).trackPoints as
+      TrackPoint[] | undefined;
     const restHr = await restHrFor(userId);
     // Anchor to the user-level max HR (estimated > user-set > default), not
     // this activity's own observed max, so every activity's zones mean the
@@ -112,9 +112,7 @@ async function main(): Promise<void> {
     }
 
     if ((i + 1) % 50 === 0 || i === rows.length - 1) {
-      console.log(
-        `[recompute] ${i + 1}/${rows.length} (${ok} updated, ${failed} failed)`,
-      );
+      console.log(`[recompute] ${i + 1}/${rows.length} (${ok} updated, ${failed} failed)`);
     }
   }
 

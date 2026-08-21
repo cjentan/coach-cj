@@ -84,13 +84,10 @@ function DayCard({
   const t = useTranslations("training-plan");
   const now = new Date();
   const dayDate = new Date(date + "T00:00:00");
-  const isPastDay =
-    dayDate < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const isPastDay = dayDate < new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   // Classify effort
-  const effort = planned
-    ? inferEffort(planned.type, planned.description)
-    : "rest";
+  const effort = planned ? inferEffort(planned.type, planned.description) : "rest";
   const effortStyle = EFFORT_STYLES[effort];
 
   // Activity icon
@@ -118,7 +115,7 @@ function DayCard({
         isToday && "bg-primary/5",
         isClickable && "cursor-pointer",
         !isClickable && "cursor-default",
-        "hover:bg-muted/20",
+        "hover:bg-muted/20"
       )}
     >
       <div className="px-3 py-2.5 space-y-1.5">
@@ -128,7 +125,7 @@ function DayCard({
             className={cn(
               "text-xs font-semibold shrink-0 w-14",
               isToday && "text-primary",
-              !isToday && "text-foreground",
+              !isToday && "text-foreground"
             )}
           >
             {dayHeader}
@@ -142,7 +139,7 @@ function DayCard({
               <span
                 className={cn(
                   "inline-flex items-center rounded-full px-2 py-0.5 text-[0.625rem] font-medium leading-tight truncate max-w-[40%]",
-                  effortStyle.badge,
+                  effortStyle.badge
                 )}
               >
                 {planned.type === "rest" ? t("rest") : planned.type}

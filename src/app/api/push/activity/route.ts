@@ -33,7 +33,10 @@ import { generateActivityName } from "@/lib/activity-naming";
 import { snapshotWeek } from "@/lib/metrics-snapshot";
 import { getWeekStart } from "@/lib/utils";
 import { ActivityType } from "@prisma/client";
-import { computePrecomputedTrackpointMetrics, PrecomputedTrackpointMetrics } from "@/lib/trackpoint-metrics";
+import {
+  computePrecomputedTrackpointMetrics,
+  PrecomputedTrackpointMetrics,
+} from "@/lib/trackpoint-metrics";
 import { getEffectiveMaxHr, getLatestRestingHr } from "@/lib/body-metrics";
 
 const VALID_TYPES: ActivityType[] = ["run", "ride", "swim", "hike", "walk", "workout", "other"];
@@ -44,7 +47,10 @@ export async function POST(req: Request) {
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   if (!token) {
-    return NextResponse.json({ error: "Missing Authorization header. Use: Bearer <api_key>" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Missing Authorization header. Use: Bearer <api_key>" },
+      { status: 401 }
+    );
   }
 
   const userId = await verifyApiKey(token);
@@ -63,9 +69,12 @@ export async function POST(req: Request) {
   const externalIdOverride = searchParams.get("externalId") || undefined;
 
   if (typeOverride && !VALID_TYPES.includes(typeOverride as ActivityType)) {
-    return NextResponse.json({
-      error: `Invalid type "${typeOverride}". Must be one of: ${VALID_TYPES.join(", ")}`,
-    }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: `Invalid type "${typeOverride}". Must be one of: ${VALID_TYPES.join(", ")}`,
+      },
+      { status: 400 }
+    );
   }
 
   // ── Determine parsing strategy ──────────────────────────
@@ -82,7 +91,10 @@ export async function POST(req: Request) {
       const file = formData.get("file") as File | null;
 
       if (!file) {
-        return NextResponse.json({ error: "No file provided. Send as raw body or multipart form field 'file'." }, { status: 400 });
+        return NextResponse.json(
+          { error: "No file provided. Send as raw body or multipart form field 'file'." },
+          { status: 400 }
+        );
       }
 
       fileName = file.name || "activity";
@@ -102,10 +114,14 @@ export async function POST(req: Request) {
     }
 
     if (activities.length === 0) {
-      return NextResponse.json({
-        success: false,
-        error: "Could not parse any activities from the file. Ensure it's a valid GPX, TCX, or FIT file.",
-      }, { status: 422 });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Could not parse any activities from the file. Ensure it's a valid GPX, TCX, or FIT file.",
+        },
+        { status: 422 }
+      );
     }
 
     // ── Upsert to database ───────────────────────────────
@@ -123,7 +139,7 @@ export async function POST(req: Request) {
             activity.startDate,
             activity.trackPoints,
             undefined, // no timezone preference — uses FIT local_timestamp if available
-            activity.localTimestamp ?? undefined,
+            activity.localTimestamp ?? undefined
           );
         } catch {
           // If geocoding fails, keep the parser-generated name
@@ -139,11 +155,7 @@ export async function POST(req: Request) {
       // Precompute trackpoint metrics while the trackpoints are in memory, so
       // dashboard chart routes never have to load the rawJson blobs. Zone math
       // anchors to the user-level max HR, not this activity's observed max.
-      const tpMetrics = computePrecomputedTrackpointMetrics(
-        activity.trackPoints,
-        maxHr,
-        restHr,
-      );
+      const tpMetrics = computePrecomputedTrackpointMetrics(activity.trackPoints, maxHr, restHr);
 
       // Check for exact duplicate from same source before inserting.
       // A watch may retransmit the same activity with richer GPS data,
@@ -260,10 +272,13 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Push API error:", err);
-    return NextResponse.json({
-      success: false,
-      error: `Failed to process file: ${(err as Error).message}`,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Failed to process file: ${(err as Error).message}`,
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -284,7 +299,7 @@ async function findExistingDuplicateForPush(
   userId: string,
   activity: ParsedFileActivity,
   rawJson: Record<string, unknown>,
-  tpMetrics: PrecomputedTrackpointMetrics,
+  tpMetrics: PrecomputedTrackpointMetrics
 ): Promise<{ id: string } | null> {
   const startWindow = new Date(activity.startDate.getTime() - 120_000);
   const endWindow = new Date(activity.startDate.getTime() + 120_000);

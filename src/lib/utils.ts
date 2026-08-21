@@ -22,15 +22,87 @@ type UnitLabels = {
 };
 
 const METRIC_LABELS: Record<string, UnitLabels> = {
-  en: { km: "km", m: "m", mi: "mi", ft: "ft", yd: "yd", h: "h", min: "m", sec: "s", speed: "km/h", perDistance: "/km", per100: "/100m" },
-  "zh-CN": { km: "公里", m: "米", mi: "英里", ft: "英尺", yd: "码", h: "小时", min: "分", sec: "秒", speed: "公里/小时", perDistance: "/公里", per100: "/100米" },
-  "zh-TW": { km: "公里", m: "公尺", mi: "英里", ft: "英尺", yd: "碼", h: "小時", min: "分", sec: "秒", speed: "公里/小時", perDistance: "/公里", per100: "/100公尺" },
+  en: {
+    km: "km",
+    m: "m",
+    mi: "mi",
+    ft: "ft",
+    yd: "yd",
+    h: "h",
+    min: "m",
+    sec: "s",
+    speed: "km/h",
+    perDistance: "/km",
+    per100: "/100m",
+  },
+  "zh-CN": {
+    km: "公里",
+    m: "米",
+    mi: "英里",
+    ft: "英尺",
+    yd: "码",
+    h: "小时",
+    min: "分",
+    sec: "秒",
+    speed: "公里/小时",
+    perDistance: "/公里",
+    per100: "/100米",
+  },
+  "zh-TW": {
+    km: "公里",
+    m: "公尺",
+    mi: "英里",
+    ft: "英尺",
+    yd: "碼",
+    h: "小時",
+    min: "分",
+    sec: "秒",
+    speed: "公里/小時",
+    perDistance: "/公里",
+    per100: "/100公尺",
+  },
 };
 
 const IMPERIAL_LABELS: Record<string, UnitLabels> = {
-  en: { km: "mi", m: "ft", mi: "mi", ft: "ft", yd: "yd", h: "h", min: "m", sec: "s", speed: "mph", perDistance: "/mi", per100: "/100yd" },
-  "zh-CN": { km: "英里", m: "英尺", mi: "英里", ft: "英尺", yd: "码", h: "小时", min: "分", sec: "秒", speed: "英里/小时", perDistance: "/英里", per100: "/100码" },
-  "zh-TW": { km: "英里", m: "英尺", mi: "英里", ft: "英尺", yd: "碼", h: "小時", min: "分", sec: "秒", speed: "英里/小時", perDistance: "/英里", per100: "/100碼" },
+  en: {
+    km: "mi",
+    m: "ft",
+    mi: "mi",
+    ft: "ft",
+    yd: "yd",
+    h: "h",
+    min: "m",
+    sec: "s",
+    speed: "mph",
+    perDistance: "/mi",
+    per100: "/100yd",
+  },
+  "zh-CN": {
+    km: "英里",
+    m: "英尺",
+    mi: "英里",
+    ft: "英尺",
+    yd: "码",
+    h: "小时",
+    min: "分",
+    sec: "秒",
+    speed: "英里/小时",
+    perDistance: "/英里",
+    per100: "/100码",
+  },
+  "zh-TW": {
+    km: "英里",
+    m: "英尺",
+    mi: "英里",
+    ft: "英尺",
+    yd: "碼",
+    h: "小時",
+    min: "分",
+    sec: "秒",
+    speed: "英里/小時",
+    perDistance: "/英里",
+    per100: "/100碼",
+  },
 };
 
 // Module-level default so the format* helpers reflect the active setting
@@ -49,7 +121,12 @@ function getUnits(locale = "en", units: Units = defaultUnits): UnitLabels {
   return map[locale] || map.en;
 }
 
-export function formatDistance(meters: number, type?: string, locale = "en", units: Units = defaultUnits): string {
+export function formatDistance(
+  meters: number,
+  type?: string,
+  locale = "en",
+  units: Units = defaultUnits
+): string {
   const labels = getUnits(locale, units);
   // Swims: always show in meters (metric) or yards (imperial) — pool distances
   // are typically well under a mile, so miles would be awkward.
@@ -84,7 +161,12 @@ export function formatDuration(seconds: number, locale = "en"): string {
   return `${m}${units.min}`;
 }
 
-export function formatPace(metersPerSecond: number, type?: string, locale = "en", units: Units = defaultUnits): string {
+export function formatPace(
+  metersPerSecond: number,
+  type?: string,
+  locale = "en",
+  units: Units = defaultUnits
+): string {
   const labels = getUnits(locale, units);
   if (metersPerSecond === 0) return "--:--";
   // Rides: show speed
@@ -336,17 +418,12 @@ function toRad(deg: number): number {
  * Haversine distance between two GPS coordinates in meters.
  * Uses the WGS-84 ellipsoid approximation (Earth radius ≈ 6,371 km).
  */
-export function haversine(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number
-): number {
+export function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const sinLat = Math.sin(dLat / 2);
   const sinLon = Math.sin(dLon / 2);
-  const a =
-    sinLat * sinLat +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLon * sinLon;
+  const a = sinLat * sinLat + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLon * sinLon;
   return 2 * 6371000 * Math.asin(Math.sqrt(a));
 }
 
@@ -435,7 +512,10 @@ export function inferSurface(description?: string): SurfaceType {
  * Metric shows e.g. "450m" under 1000m and "1.2km" above; imperial always
  * shows feet.
  */
-export function formatElevation(meters: number | null | undefined, units: Units = defaultUnits): string {
+export function formatElevation(
+  meters: number | null | undefined,
+  units: Units = defaultUnits
+): string {
   if (!meters || meters <= 0) return "";
   if (units === "imperial") {
     return `${Math.round(meters * 3.28084)}ft`;

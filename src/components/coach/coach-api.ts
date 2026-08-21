@@ -9,9 +9,16 @@
  * makes the network layer independently testable and shrinks `coach-chat.tsx`.
  */
 
-export type CoachT = (key: string, values?: Record<string, string | number | boolean | Date | null | undefined>) => string;
+export type CoachT = (
+  key: string,
+  values?: Record<string, string | number | boolean | Date | null | undefined>
+) => string;
 
-export async function coachApi(action: string, body: Record<string, unknown> | undefined, t: CoachT) {
+export async function coachApi(
+  action: string,
+  body: Record<string, unknown> | undefined,
+  t: CoachT
+) {
   const res = await fetch("/api/dashboard/coach", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -44,7 +51,9 @@ export async function coachApiStream(
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || t("requestFailed", { status: res.status }));
+    throw new Error(
+      (data as { error?: string }).error || t("requestFailed", { status: res.status })
+    );
   }
 
   const reader = res.body?.getReader();

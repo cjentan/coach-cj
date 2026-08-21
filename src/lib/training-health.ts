@@ -85,14 +85,12 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
   if (primaryGoal) {
     const weeksUntil = Math.max(
       1,
-      Math.ceil(
-        (primaryGoal.targetDate.getTime() - now.getTime()) / (7 * 86_400_000),
-      ),
+      Math.ceil((primaryGoal.targetDate.getTime() - now.getTime()) / (7 * 86_400_000))
     );
     const targetWeekly = primaryGoal.distanceMeters / (weeksUntil * 0.7);
     volumeAdherence = Math.min(
       100,
-      Math.round((weeklyVolumeMeters / Math.max(1, targetWeekly)) * 100),
+      Math.round((weeklyVolumeMeters / Math.max(1, targetWeekly)) * 100)
     );
   }
 
@@ -105,26 +103,15 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
     1,
     Math.min(
       7,
-      Math.ceil(
-        (Math.min(now.getTime(), endDate.getTime()) -
-          weekStartDate.getTime()) /
-          86_400_000,
-      ),
-    ),
+      Math.ceil((Math.min(now.getTime(), endDate.getTime()) - weekStartDate.getTime()) / 86_400_000)
+    )
   );
-  const activeDays = new Set(
-    activityLogs.map((l) => localDateStr(l.startDate, tzOffset ?? 0)),
-  ).size;
-  const consistencyScore = Math.min(
-    100,
-    Math.round((activeDays / elapsedDays) * 100),
-  );
+  const activeDays = new Set(activityLogs.map((l) => localDateStr(l.startDate, tzOffset ?? 0)))
+    .size;
+  const consistencyScore = Math.min(100, Math.round((activeDays / elapsedDays) * 100));
 
   // Rest balance — how much training load leaves room for recovery
-  const restBalance = Math.max(
-    0,
-    100 - Math.min(100, Math.round((weeklyTss / 700) * 100)),
-  );
+  const restBalance = Math.max(0, 100 - Math.min(100, Math.round((weeklyTss / 700) * 100)));
 
   // Trend score — simplified to neutral because multi-week trend data
   // is often unavailable in snapshot / context-gathering contexts
@@ -145,9 +132,9 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
           consistencyScore * 0.25 +
           restBalance * 0.2 +
           trendScore * 0.15 -
-          fatiguePenalty,
-      ),
-    ),
+          fatiguePenalty
+      )
+    )
   );
 
   return { readinessScore: score, volumeAdherence, consistencyScore };
@@ -171,53 +158,38 @@ export function computeFatigueSignals(input: FatigueInput): FatigueResult {
   // ── High volume ──────────────────────────────────────────
   if (weeklyTss > 600) {
     signals.push("High training volume this week");
-    recommendations.push(
-      "Your TSS load is high. Prioritize sleep and nutrition this week.",
-    );
+    recommendations.push("Your TSS load is high. Prioritize sleep and nutrition this week.");
   }
 
   // ── High load with few sessions ──────────────────────────
   if (weeklyTss > 350 && activityCount < 3) {
     signals.push("High load with few sessions");
-    recommendations.push(
-      "Consider distributing volume across more sessions.",
-    );
+    recommendations.push("Consider distributing volume across more sessions.");
   }
 
   // ── Resting HR trend ─────────────────────────────────────
   const restingHrValues = bodyMetrics.filter((m) => m.restingHr != null);
   if (restingHrValues.length >= 3) {
-    const recent =
-      restingHrValues
-        .slice(0, 3)
-        .reduce((sum, m) => sum + (m.restingHr ?? 0), 0) / 3;
+    const recent = restingHrValues.slice(0, 3).reduce((sum, m) => sum + (m.restingHr ?? 0), 0) / 3;
     const older =
       restingHrValues.length >= 6
-        ? restingHrValues
-            .slice(3, 6)
-            .reduce((sum, m) => sum + (m.restingHr ?? 0), 0) / 3
+        ? restingHrValues.slice(3, 6).reduce((sum, m) => sum + (m.restingHr ?? 0), 0) / 3
         : recent;
 
     if (older > 0 && recent - older > 5) {
-      signals.push(
-        `Resting HR +${Math.round(recent - older)} bpm above baseline`,
-      );
+      signals.push(`Resting HR +${Math.round(recent - older)} bpm above baseline`);
       recommendations.push(
-        "Your resting heart rate is trending up — a key sign of autonomic stress. Consider a lighter training week.",
+        "Your resting heart rate is trending up — a key sign of autonomic stress. Consider a lighter training week."
       );
     }
   }
 
   // ── Consistency ──────────────────────────────────────────
   const EXPECTED_SESSIONS = 5;
-  const consistencyPct = Math.round(
-    (activityCount / EXPECTED_SESSIONS) * 100,
-  );
+  const consistencyPct = Math.round((activityCount / EXPECTED_SESSIONS) * 100);
   if (consistencyPct < 50) {
     signals.push(`Low consistency (${consistencyPct}% of planned sessions)`);
-    recommendations.push(
-      "Consistency is the foundation of endurance training.",
-    );
+    recommendations.push("Consistency is the foundation of endurance training.");
   }
 
   // ── Severity ─────────────────────────────────────────────

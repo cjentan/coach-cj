@@ -22,7 +22,11 @@ export interface PmcResult {
 const CTL_TIME_CONSTANT = 42;
 const ATL_TIME_CONSTANT = 7;
 
-export function computePMC(dailyTss: DailyTss[], initialCtl: number = 30, initialAtl: number = 30): PmcResult[] {
+export function computePMC(
+  dailyTss: DailyTss[],
+  initialCtl: number = 30,
+  initialAtl: number = 30
+): PmcResult[] {
   if (dailyTss.length === 0) return [];
 
   const sorted = [...dailyTss].sort(
@@ -80,7 +84,11 @@ export function computeStrain(dailyTssValues: number[]): number {
   return Math.round(total * monotony);
 }
 
-export function computeLinearRegression(values: number[]): { slope: number; intercept: number; r2: number } {
+export function computeLinearRegression(values: number[]): {
+  slope: number;
+  intercept: number;
+  r2: number;
+} {
   const count = values.length;
   if (count < 2) return { slope: 0, intercept: values[0] || 0, r2: 0 };
 

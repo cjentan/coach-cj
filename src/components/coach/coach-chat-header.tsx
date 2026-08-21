@@ -3,7 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Loader2, Brain, Sparkles, Wand2 } from "lucide-react";
 
-type HeaderT = (key: string, values?: Record<string, string | number | boolean | Date | null | undefined>) => string;
+type HeaderT = (
+  key: string,
+  values?: Record<string, string | number | boolean | Date | null | undefined>
+) => string;
 
 interface CoachChatHeaderProps {
   t: HeaderT;
@@ -44,19 +47,34 @@ export default function CoachChatHeader({
   const isFloating = variant === "floating";
   const showAnalyzedDate = initialNotesAt && !hasMessages;
 
-  const summarizeButton = hasMessages && messageCount >= 2 && (
-    isFloating ? (
-      <Button size="sm" variant="ghost" onClick={onSummarize} disabled={summarizing} title={t("summarizeTitle")}>
-        {summarizing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+  const summarizeButton =
+    hasMessages &&
+    messageCount >= 2 &&
+    (isFloating ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onSummarize}
+        disabled={summarizing}
+        title={t("summarizeTitle")}
+      >
+        {summarizing ? (
+          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5 mr-1" />
+        )}
         {t("summarize")}
       </Button>
     ) : (
       <Button size="sm" variant="ghost" onClick={onSummarize} disabled={summarizing}>
-        {summarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+        {summarizing ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5" />
+        )}
         <span className="ml-1 hidden sm:inline">{t("summarize")}</span>
       </Button>
-    )
-  );
+    ));
 
   return (
     <div className={className ?? "flex items-center justify-between shrink-0"}>
@@ -67,18 +85,32 @@ export default function CoachChatHeader({
         </h2>
         {showAnalyzedDate && (
           <span className="text-[0.625rem] text-muted-foreground">
-            {new Date(initialNotesAt).toLocaleDateString(locale, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {new Date(initialNotesAt).toLocaleDateString(locale, {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
           </span>
         )}
       </div>
       <div className={isFloating ? "flex items-center gap-1" : "flex flex-col items-end gap-1"}>
         <div className="flex items-center gap-2">
           {summarizeButton}
-          <Button size="sm" onClick={onAnalyze} disabled={analyzing} title={isFloating ? t("analyzeTitle") : undefined}>
+          <Button
+            size="sm"
+            onClick={onAnalyze}
+            disabled={analyzing}
+            title={isFloating ? t("analyzeTitle") : undefined}
+          >
             {analyzing ? (
-              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("analyzing")}</>
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("analyzing")}
+              </>
             ) : (
-              <><Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}</>
+              <>
+                <Wand2 className="h-4 w-4 mr-1" /> {t("analyze")}
+              </>
             )}
           </Button>
         </div>

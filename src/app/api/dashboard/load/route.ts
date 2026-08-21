@@ -17,8 +17,14 @@ interface PeriodStats {
 }
 
 function aggregateLogs(
-  logs: { distanceMeters: number | null; elevationGainMeters: number | null; durationSeconds: number; averageHr: number | null; tss: number | null }[],
-  daysInPeriod: number,
+  logs: {
+    distanceMeters: number | null;
+    elevationGainMeters: number | null;
+    durationSeconds: number;
+    averageHr: number | null;
+    tss: number | null;
+  }[],
+  daysInPeriod: number
 ): PeriodStats {
   const weeklyDistance = logs.reduce((sum, log) => sum + (log.distanceMeters || 0), 0);
   const weeklyElevation = logs.reduce((sum, log) => sum + (log.elevationGainMeters || 0), 0);
@@ -27,11 +33,20 @@ function aggregateLogs(
   const weeklyTss = Math.round(logs.reduce((sum, log) => sum + (log.tss || 50), 0));
   const avgDailyTss = weeklyCount > 0 ? Math.round(weeklyTss / Math.max(1, daysInPeriod)) : 0;
   const hrLogs = logs.filter((log) => log.averageHr != null);
-  const avgHr = hrLogs.length > 0
-    ? Math.round(hrLogs.reduce((sum, log) => sum + (log.averageHr || 0), 0) / hrLogs.length)
-    : null;
+  const avgHr =
+    hrLogs.length > 0
+      ? Math.round(hrLogs.reduce((sum, log) => sum + (log.averageHr || 0), 0) / hrLogs.length)
+      : null;
 
-  return { weeklyDistance, weeklyElevation, weeklyDuration, weeklyCount, weeklyTss, avgDailyTss, avgHr };
+  return {
+    weeklyDistance,
+    weeklyElevation,
+    weeklyDuration,
+    weeklyCount,
+    weeklyTss,
+    avgDailyTss,
+    avgHr,
+  };
 }
 
 export async function GET(request: Request) {
@@ -46,7 +61,10 @@ export async function GET(request: Request) {
   // instants so they compare correctly against DB timestamps (which are UTC).
   const weekStart = parseClientDate(localWeekStart(now, tzOffset), tzOffset);
   const [localYear, localMonth, localDay] = localDateStr(now, tzOffset).split("-").map(Number);
-  const monthStart = parseClientDate(`${localYear}-${String(localMonth).padStart(2, "0")}-01`, tzOffset);
+  const monthStart = parseClientDate(
+    `${localYear}-${String(localMonth).padStart(2, "0")}-01`,
+    tzOffset
+  );
   const prevLocalMonth = localMonth === 1 ? 12 : localMonth - 1;
   const prevLocalYear = prevLocalMonth === 12 ? localYear - 1 : localYear;
   const prevLocalMonthStr = String(prevLocalMonth).padStart(2, "0");
@@ -68,7 +86,7 @@ export async function GET(request: Request) {
   const daysInLastMonth = new Date(Date.UTC(localYear, localMonth - 1, 0)).getUTCDate();
   const lastMonthSameDayEnd = parseClientDate(
     `${prevLocalYear}-${prevLocalMonthStr}-${String(Math.min(daysElapsedThisMonth, daysInLastMonth) + 1).padStart(2, "0")}`,
-    tzOffset,
+    tzOffset
   );
 
   // Single batch of parallel queries — covers all dashboard data
@@ -87,17 +105,31 @@ export async function GET(request: Request) {
       where: { userId: session.user.id, startDate: { gte: weekStart }, mergedIntoId: null },
       orderBy: { startDate: "desc" },
       select: {
-        id: true, name: true, type: true, startDate: true,
-        distanceMeters: true, durationSeconds: true,
-        elevationGainMeters: true, averageHr: true,
-        tss: true, remarks: true, workoutType: true,
+        id: true,
+        name: true,
+        type: true,
+        startDate: true,
+        distanceMeters: true,
+        durationSeconds: true,
+        elevationGainMeters: true,
+        averageHr: true,
+        tss: true,
+        remarks: true,
+        workoutType: true,
       },
     }),
     // PMC — last 90 days (wider select to derive other periods in JS)
     prisma.trainingLog.findMany({
       where: { userId: session.user.id, startDate: { gte: ninetyDaysAgo }, mergedIntoId: null },
       orderBy: { startDate: "asc" },
-      select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true, averageHr: true, tss: true },
+      select: {
+        startDate: true,
+        distanceMeters: true,
+        elevationGainMeters: true,
+        durationSeconds: true,
+        averageHr: true,
+        tss: true,
+      },
     }),
     // Active goals
     prisma.raceGoal.findMany({
@@ -137,9 +169,7 @@ export async function GET(request: Request) {
   const lastWeekLogs = pmcLogs.filter(
     (l) => l.startDate >= lastWeekStart && l.startDate < lastWeekSameDayEnd
   );
-  const monthLogs = pmcLogs.filter(
-    (l) => l.startDate >= monthStart
-  );
+  const monthLogs = pmcLogs.filter((l) => l.startDate >= monthStart);
   const lastMonthLogs = pmcLogs.filter(
     (l) => l.startDate >= lastMonthStart && l.startDate < lastMonthSameDayEnd
   );
@@ -175,7 +205,7 @@ export async function GET(request: Request) {
   const tssByDate: Record<string, number> = {};
   for (const log of pmcLogs) {
     const dateKey = log.startDate.toISOString().split("T")[0];
-    const tss = log.tss || Math.round(log.durationSeconds / 3600 * 50);
+    const tss = log.tss || Math.round((log.durationSeconds / 3600) * 50);
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + tss;
   }
 
@@ -189,9 +219,10 @@ export async function GET(request: Request) {
   const filledInput = fillDailyTss(pmcInput);
 
   const pmcResults = computePMC(filledInput);
-  const latestPmc = pmcResults.length > 0
-    ? pmcResults[pmcResults.length - 1]
-    : { ctl: 0, atl: 0, tsb: 0, rampRate: null };
+  const latestPmc =
+    pmcResults.length > 0
+      ? pmcResults[pmcResults.length - 1]
+      : { ctl: 0, atl: 0, tsb: 0, rampRate: null };
 
   let ctlTrend: "up" | "down" | "stable" = "stable";
   let atlTrend: "up" | "down" | "stable" = "stable";
@@ -223,15 +254,30 @@ export async function GET(request: Request) {
 
   // ── Goal summaries ────────────────────────────────────────────────
   const goalSummaries = goals.map((goal) => {
-    const weeksUntil = Math.max(1, Math.ceil((goal.targetDate.getTime() - now.getTime()) / (7 * 86400000)));
-    const totalDistance = pmcLogs.reduce((sum, log) => sum + (log.tss ? (log.durationSeconds / 3600 * 50) : 0), 0);
+    const weeksUntil = Math.max(
+      1,
+      Math.ceil((goal.targetDate.getTime() - now.getTime()) / (7 * 86400000))
+    );
+    const totalDistance = pmcLogs.reduce(
+      (sum, log) => sum + (log.tss ? (log.durationSeconds / 3600) * 50 : 0),
+      0
+    );
     const peakTarget = goal.distanceMeters * 0.7;
     const progress = Math.min(100, Math.round((totalDistance / peakTarget) * 100));
-    const daysUntil = Math.max(0, Math.ceil((goal.targetDate.getTime() - now.getTime()) / 86400000));
+    const daysUntil = Math.max(
+      0,
+      Math.ceil((goal.targetDate.getTime() - now.getTime()) / 86400000)
+    );
     return {
-      id: goal.id, name: goal.name, targetDate: goal.targetDate,
-      distanceMeters: goal.distanceMeters, elevationGainMeters: goal.elevationGainMeters,
-      priority: goal.priority, progress, daysUntil, goalStatement: goal.goalStatement,
+      id: goal.id,
+      name: goal.name,
+      targetDate: goal.targetDate,
+      distanceMeters: goal.distanceMeters,
+      elevationGainMeters: goal.elevationGainMeters,
+      priority: goal.priority,
+      progress,
+      daysUntil,
+      goalStatement: goal.goalStatement,
     };
   });
 
@@ -253,7 +299,12 @@ export async function GET(request: Request) {
   // Return a status key (not a display string); the client translates it.
   const readiness = {
     score: readinessResult.readinessScore,
-    status: readinessResult.readinessScore >= 70 ? "on_track" : readinessResult.readinessScore >= 50 ? "needs_attention" : "off_track",
+    status:
+      readinessResult.readinessScore >= 70
+        ? "on_track"
+        : readinessResult.readinessScore >= 50
+          ? "needs_attention"
+          : "off_track",
     volumeAdherence: readinessResult.volumeAdherence,
   } as const;
 
@@ -266,11 +317,13 @@ export async function GET(request: Request) {
     pmc,
     coachNotes: latestPlan?.coachNotes || null,
     coachNotesAt: latestPlan?.generatedAt?.toISOString() || null,
-    analysisReport: latestAnalysisReport ? {
-      id: latestAnalysisReport.id,
-      reasoning: latestAnalysisReport.reasoning,
-      metrics: latestAnalysisReport.metrics,
-      createdAt: latestAnalysisReport.createdAt.toISOString(),
-    } : null,
+    analysisReport: latestAnalysisReport
+      ? {
+          id: latestAnalysisReport.id,
+          reasoning: latestAnalysisReport.reasoning,
+          metrics: latestAnalysisReport.metrics,
+          createdAt: latestAnalysisReport.createdAt.toISOString(),
+        }
+      : null,
   });
 }

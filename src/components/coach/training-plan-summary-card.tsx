@@ -174,9 +174,7 @@ export default function TrainingPlanSummaryCard({
 
       {/* Legend hint */}
       {visible.length > 1 && (
-        <p className="text-[10px] text-muted-foreground/60 text-center mt-3">
-          {t("planLegend")}
-        </p>
+        <p className="text-[10px] text-muted-foreground/60 text-center mt-3">{t("planLegend")}</p>
       )}
     </div>
   );

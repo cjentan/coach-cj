@@ -38,7 +38,8 @@ vi.mock("next-intl", () => {
       analyze: "Analyze",
       summarize: "Summarize",
       contextOfferTitle: "Build your training context",
-      contextOfferDescription: "Tell me where and when you train, your equipment, and any constraints — I'll use it to make your plan more personal. You can skip this.",
+      contextOfferDescription:
+        "Tell me where and when you train, your equipment, and any constraints — I'll use it to make your plan more personal. You can skip this.",
       contextOfferStart: "Start",
       contextOfferSkip: "Skip",
       contextOfferTrigger:
@@ -70,7 +71,13 @@ import CoachChat from "@/components/coach/coach-chat";
  */
 function InterviewHarness() {
   const [pending, setPending] = useState<"start-interview" | null>("start-interview");
-  return <CoachChat variant="default" pendingAction={pending} onPendingActionHandled={() => setPending(null)} />;
+  return (
+    <CoachChat
+      variant="default"
+      pendingAction={pending}
+      onPendingActionHandled={() => setPending(null)}
+    />
+  );
 }
 
 /** A fetch Response that streams a single SSE "complete" event. */
@@ -89,7 +96,12 @@ function jsonResponse(data: unknown): Response {
   return { ok: true, status: 200, json: async () => data } as unknown as Response;
 }
 
-function mockFetch(routes: Array<{ match: (url: string, body: Record<string, unknown>) => boolean; response: Response }>) {
+function mockFetch(
+  routes: Array<{
+    match: (url: string, body: Record<string, unknown>) => boolean;
+    response: Response;
+  }>
+) {
   global.fetch = vi.fn(async (url: unknown, init?: RequestInit) => {
     const u = String(url);
     let body: Record<string, unknown> = {};
@@ -106,7 +118,8 @@ function mockFetch(routes: Array<{ match: (url: string, body: Record<string, unk
 }
 
 function chatStreamCalls(): Array<Record<string, unknown>> {
-  const calls = (global.fetch as unknown as { mock: { calls: Array<[string, RequestInit]> } }).mock.calls;
+  const calls = (global.fetch as unknown as { mock: { calls: Array<[string, RequestInit]> } }).mock
+    .calls;
   return calls
     .filter(([, init]) => {
       const body = JSON.parse(String(init?.body ?? "{}"));
@@ -117,15 +130,18 @@ function chatStreamCalls(): Array<Record<string, unknown>> {
 
 const interviewRoutes = {
   list: {
-    match: (u: string, b: Record<string, unknown>) => u.endsWith("/api/dashboard/coach") && b.action === "list-conversations",
+    match: (u: string, b: Record<string, unknown>) =>
+      u.endsWith("/api/dashboard/coach") && b.action === "list-conversations",
     response: jsonResponse({ conversations: [] }),
   },
   newConv: {
-    match: (u: string, b: Record<string, unknown>) => u.endsWith("/api/dashboard/coach") && b.action === "new-conversation",
+    match: (u: string, b: Record<string, unknown>) =>
+      u.endsWith("/api/dashboard/coach") && b.action === "new-conversation",
     response: jsonResponse({ conversationId: "conv-1" }),
   },
   chatStream: {
-    match: (u: string, b: Record<string, unknown>) => u.endsWith("/api/dashboard/coach") && b.action === "chat-stream",
+    match: (u: string, b: Record<string, unknown>) =>
+      u.endsWith("/api/dashboard/coach") && b.action === "chat-stream",
     response: sseResponse({ response: "Sure, let's get started.", suggestions: [] }),
   },
 };
@@ -134,7 +150,9 @@ describe("CoachChat — training-context offer", () => {
   const trigger =
     "I'd like to build my training context. Please ask me a few questions about my training environment, schedule, equipment, and preferences.";
 
-  function renderInterview(routes: Array<{ match: (u: string, b: Record<string, unknown>) => boolean; response: Response }>) {
+  function renderInterview(
+    routes: Array<{ match: (u: string, b: Record<string, unknown>) => boolean; response: Response }>
+  ) {
     mockFetch(routes);
     return render(<InterviewHarness />);
   }

@@ -23,7 +23,7 @@ export function openCoachChat(startInterview = false): void {
   window.dispatchEvent(
     new CustomEvent(COACH_CHAT_EVENTS.OPEN, {
       detail: { startInterview },
-    }),
+    })
   );
 }
 
@@ -42,7 +42,9 @@ export function notifyPlanUpdated(): void {
  */
 export function notifyActivityAnalysisSaved(activityId: string): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, {
-    detail: { activityId },
-  }));
+  window.dispatchEvent(
+    new CustomEvent(COACH_CHAT_EVENTS.ACTIVITY_ANALYSIS_SAVED, {
+      detail: { activityId },
+    })
+  );
 }

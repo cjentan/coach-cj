@@ -54,8 +54,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ groups });
   } catch (err) {
     console.error("Error listing duplicate groups:", err);
-    return NextResponse.json({
-      error: `Failed to list duplicates: ${(err as Error).message}`,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: `Failed to list duplicates: ${(err as Error).message}`,
+      },
+      { status: 500 }
+    );
   }
 }

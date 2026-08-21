@@ -91,10 +91,16 @@ const fatigueWorker = new Worker(
         const dailyTss = Object.values(tssByDate);
         const restingHrHistory = user.bodyMetrics
           .filter((metric) => metric.restingHr)
-          .map((metric) => ({ date: metric.recordedAt.toISOString().split("T")[0], value: metric.restingHr! }))
+          .map((metric) => ({
+            date: metric.recordedAt.toISOString().split("T")[0],
+            value: metric.restingHr!,
+          }))
           .reverse();
         const weightHistory = user.bodyMetrics
-          .map((metric) => ({ date: metric.recordedAt.toISOString().split("T")[0], weightKg: metric.weightKg }))
+          .map((metric) => ({
+            date: metric.recordedAt.toISOString().split("T")[0],
+            weightKg: metric.weightKg,
+          }))
           .reverse();
 
         const result = detectFatigue({
@@ -148,11 +154,23 @@ const sundayWorker = new Worker(
         id: true,
         name: true,
         raceGoals: {
-          select: { id: true, name: true, targetDate: true, distanceMeters: true, elevationGainMeters: true, priority: true },
+          select: {
+            id: true,
+            name: true,
+            targetDate: true,
+            distanceMeters: true,
+            elevationGainMeters: true,
+            priority: true,
+          },
           where: { status: "active" },
         },
         trainingLogs: {
-          select: { startDate: true, distanceMeters: true, elevationGainMeters: true, durationSeconds: true },
+          select: {
+            startDate: true,
+            distanceMeters: true,
+            elevationGainMeters: true,
+            durationSeconds: true,
+          },
           orderBy: { startDate: "desc" },
           take: 100,
         },
@@ -183,7 +201,9 @@ const sundayWorker = new Worker(
           (entry) => entry.startDate >= start && entry.startDate < end
         );
         weeklyVolumes.push(weekLogs.reduce((s, logItem) => s + (logItem.distanceMeters || 0), 0));
-        weeklyElevations.push(weekLogs.reduce((s, logItem) => s + (logItem.elevationGainMeters || 0), 0));
+        weeklyElevations.push(
+          weekLogs.reduce((s, logItem) => s + (logItem.elevationGainMeters || 0), 0)
+        );
         weeklyDurations.push(weekLogs.reduce((s, logItem) => s + logItem.durationSeconds, 0));
       }
 
@@ -233,21 +253,27 @@ const sundayWorker = new Worker(
       //    Reads the plan from the DB via gatherTrainingContext().
       try {
         // Archive any active conversation so analyze() creates a fresh one
-        await prisma.coachConversation.updateMany({
-          where: { userId: user.id, status: "active" },
-          data: { status: "archived" },
-        }).catch(() => {});
+        await prisma.coachConversation
+          .updateMany({
+            where: { userId: user.id, status: "active" },
+            data: { status: "archived" },
+          })
+          .catch(() => {});
 
         const result = await analyze(user.id);
 
         if ("analysis" in result) {
           // Copy analysis text to next week's plan's coachNotes
-          await prisma.weeklyPlan.update({
-            where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
-            data: { coachNotes: result.analysis, generatedAt: new Date() },
-          }).catch(() => {});
+          await prisma.weeklyPlan
+            .update({
+              where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
+              data: { coachNotes: result.analysis, generatedAt: new Date() },
+            })
+            .catch(() => {});
 
-          console.log(`[sunday-review] User ${user.id}: analysis done (${result.analysis.length} chars, ${result.suggestions.length} suggestions)`);
+          console.log(
+            `[sunday-review] User ${user.id}: analysis done (${result.analysis.length} chars, ${result.suggestions.length} suggestions)`
+          );
         } else {
           console.log(`[sunday-review] User ${user.id}: AI coach unavailable (${result.code})`);
         }
@@ -311,7 +337,12 @@ const garminWorker = new Worker(
       }
     }
 
-    const garminResult = { usersChecked: users.length, activitiesImported, healthDaysSynced, errors };
+    const garminResult = {
+      usersChecked: users.length,
+      activitiesImported,
+      healthDaysSynced,
+      errors,
+    };
     gcNow("garmin");
     return garminResult;
   },
@@ -337,12 +368,10 @@ const corosWorker = new Worker(
           continue;
         }
 
-        const a = await syncCorosActivities(client, userId, false).catch(
-          (e) => {
-            console.error(`[coros-sync] activities error for ${userId}:`, e.message);
-            return { count: 0, newActivityIds: [] };
-          }
-        );
+        const a = await syncCorosActivities(client, userId, false).catch((e) => {
+          console.error(`[coros-sync] activities error for ${userId}:`, e.message);
+          return { count: 0, newActivityIds: [] };
+        });
 
         activitiesImported += a.count;
         if (a.newActivityIds.length > 0) {
@@ -372,7 +401,9 @@ const activityAnalysisWorker = new Worker(
     const result = await analyzeActivityWorker(userId, activityId);
 
     if ("success" in result) {
-      console.log(`[activity-analysis] ✅ ${activityId}: analysis complete (${result.analysis.length} chars)`);
+      console.log(
+        `[activity-analysis] ✅ ${activityId}: analysis complete (${result.analysis.length} chars)`
+      );
     } else {
       console.log(`[activity-analysis] ❌ ${activityId}: ${result.code} — ${result.error}`);
     }
@@ -389,112 +420,134 @@ const activityAnalysisWorker = new Worker(
 // ─── Scheduler (simple in-process cron-like scheduling) ──
 async function scheduleRecurring() {
   // Fatigue check daily at 6am
-  setInterval(async () => {
-    await fatigueQueue.add("check", {});
-  }, 24 * 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      await fatigueQueue.add("check", {});
+    },
+    24 * 60 * 60 * 1000
+  );
 
   // Per-user weekly review scheduler — checks every 10 minutes
   const processedReviews = new Map<string, number>(); // userId:weekStart → timestamp to prevent duplicates
 
-  setInterval(async () => {
-    try {
-      const now = new Date();
+  setInterval(
+    async () => {
+      try {
+        const now = new Date();
 
-      // Prune entries older than 14 days
-      const cutoff = Date.now() - 14 * 86400000;
-      processedReviews.forEach((ts, key) => {
-        if (ts < cutoff) processedReviews.delete(key);
-      });
+        // Prune entries older than 14 days
+        const cutoff = Date.now() - 14 * 86400000;
+        processedReviews.forEach((ts, key) => {
+          if (ts < cutoff) processedReviews.delete(key);
+        });
 
-      const dayOfWeek = now.getDay();
+        const dayOfWeek = now.getDay();
 
-      const users = await prisma.user.findMany({
-        where: { raceGoals: { some: { status: "active" } } },
-        select: { id: true, reviewDayOfWeek: true, reviewTime: true, reviewDayOfMonth: true, analysisTrigger: true, analysisTriggerValue: true },
-      });
+        const users = await prisma.user.findMany({
+          where: { raceGoals: { some: { status: "active" } } },
+          select: {
+            id: true,
+            reviewDayOfWeek: true,
+            reviewTime: true,
+            reviewDayOfMonth: true,
+            analysisTrigger: true,
+            analysisTriggerValue: true,
+          },
+        });
 
-      for (const user of users) {
-        const trigger = user.analysisTrigger || "weekly";
+        for (const user of users) {
+          const trigger = user.analysisTrigger || "weekly";
 
-        // Weekly: check review day and time
-        if (trigger === "weekly") {
-          if (user.reviewDayOfWeek !== dayOfWeek) continue;
-          const [h, m] = user.reviewTime.split(":").map(Number);
-          const reviewMinutes = h * 60 + m;
-          const nowMinutes = now.getHours() * 60 + now.getMinutes();
-          if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
-        }
-        // Daily: run every day at the user's review time
-        else if (trigger === "daily") {
-          const [h, m] = user.reviewTime.split(":").map(Number);
-          const reviewMinutes = h * 60 + m;
-          const nowMinutes = now.getHours() * 60 + now.getMinutes();
-          if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
-        }
-        // Monthly: run on the configured day of the month at the user's review time
-        else if (trigger === "monthly") {
-          const dayOfMonth = user.reviewDayOfMonth || 1;
-          if (now.getDate() !== dayOfMonth) continue;
-          const [h, m] = user.reviewTime.split(":").map(Number);
-          const reviewMinutes = h * 60 + m;
-          const nowMinutes = now.getHours() * 60 + now.getMinutes();
-          if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
-        }
-        // activity_count: skip — handled at activity creation time
-        else if (trigger === "activity_count") {
-          continue;
-        }
-        // every_n_days: check if N days have passed since last analysis
-        else if (trigger === "every_n_days") {
-          const key = `${user.id}:every_n_days`;
+          // Weekly: check review day and time
+          if (trigger === "weekly") {
+            if (user.reviewDayOfWeek !== dayOfWeek) continue;
+            const [h, m] = user.reviewTime.split(":").map(Number);
+            const reviewMinutes = h * 60 + m;
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
+          }
+          // Daily: run every day at the user's review time
+          else if (trigger === "daily") {
+            const [h, m] = user.reviewTime.split(":").map(Number);
+            const reviewMinutes = h * 60 + m;
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
+          }
+          // Monthly: run on the configured day of the month at the user's review time
+          else if (trigger === "monthly") {
+            const dayOfMonth = user.reviewDayOfMonth || 1;
+            if (now.getDate() !== dayOfMonth) continue;
+            const [h, m] = user.reviewTime.split(":").map(Number);
+            const reviewMinutes = h * 60 + m;
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            if (nowMinutes < reviewMinutes || nowMinutes >= reviewMinutes + 10) continue;
+          }
+          // activity_count: skip — handled at activity creation time
+          else if (trigger === "activity_count") {
+            continue;
+          }
+          // every_n_days: check if N days have passed since last analysis
+          else if (trigger === "every_n_days") {
+            const key = `${user.id}:every_n_days`;
+            if (processedReviews.has(key)) continue;
+
+            const daysBetween = user.analysisTriggerValue || 7;
+            const lastReport = await prisma.analysisReport.findFirst({
+              where: { userId: user.id, reportType: "coach_notes" },
+              orderBy: { createdAt: "desc" },
+              select: { createdAt: true },
+            });
+            if (lastReport) {
+              const daysSince =
+                (now.getTime() - lastReport.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+              if (daysSince < daysBetween) continue;
+            }
+
+            await sundayQueue.add("review", { userId: user.id });
+            processedReviews.set(key, Date.now());
+            continue;
+          }
+
+          // Prevent duplicate runs this week
+          const weekStart = getWeekStart(now);
+          weekStart.setDate(weekStart.getDate() + 7); // next Monday
+          const key = `${user.id}:${weekStart.toISOString().split("T")[0]}`;
           if (processedReviews.has(key)) continue;
 
-          const daysBetween = user.analysisTriggerValue || 7;
-          const lastReport = await prisma.analysisReport.findFirst({
-            where: { userId: user.id, reportType: "coach_notes" },
-            orderBy: { createdAt: "desc" },
-            select: { createdAt: true },
+          const existing = await prisma.weeklyPlan.findUnique({
+            where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
           });
-          if (lastReport) {
-            const daysSince = (now.getTime() - lastReport.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysSince < daysBetween) continue;
-          }
+          if (existing) continue; // already generated
 
           await sundayQueue.add("review", { userId: user.id });
           processedReviews.set(key, Date.now());
-          continue;
         }
-
-        // Prevent duplicate runs this week
-        const weekStart = getWeekStart(now);
-        weekStart.setDate(weekStart.getDate() + 7); // next Monday
-        const key = `${user.id}:${weekStart.toISOString().split("T")[0]}`;
-        if (processedReviews.has(key)) continue;
-
-        const existing = await prisma.weeklyPlan.findUnique({
-          where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
-        });
-        if (existing) continue; // already generated
-
-        await sundayQueue.add("review", { userId: user.id });
-        processedReviews.set(key, Date.now());
+      } catch (err) {
+        console.error("Review scheduler error:", (err as Error).message);
       }
-    } catch (err) {
-      console.error("Review scheduler error:", (err as Error).message);
-    }
-  }, 10 * 60 * 1000);
+    },
+    10 * 60 * 1000
+  );
 
   // Garmin sync every 4 hours
-  setInterval(async () => {
-    await garminQueue.add("sync", {});
-  }, 4 * 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      await garminQueue.add("sync", {});
+    },
+    4 * 60 * 60 * 1000
+  );
 
   // COROS sync every 4 hours
-  setInterval(async () => {
-    await corosQueue.add("sync", {});
-  }, 4 * 60 * 60 * 1000);
+  setInterval(
+    async () => {
+      await corosQueue.add("sync", {});
+    },
+    4 * 60 * 60 * 1000
+  );
 
-  console.log("⚡ Workers started: fatigue-monitor, sunday-review, garmin-sync, coros-sync, activity-analysis");
+  console.log(
+    "⚡ Workers started: fatigue-monitor, sunday-review, garmin-sync, coros-sync, activity-analysis"
+  );
   console.log("   Fatigue check: daily at 6am");
   console.log("   Weekly review: per-user schedule, checked every 10min");
   console.log("   Garmin sync: every 4 hours");

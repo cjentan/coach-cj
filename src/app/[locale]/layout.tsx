@@ -35,11 +35,7 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-export async function generateMetadata({
-  params: { locale },
-}: {
-  params: { locale: string };
-}) {
+export async function generateMetadata({ params: { locale } }: { params: { locale: string } }) {
   const t = await getTranslations({ locale, namespace: "metadata" });
 
   return {
@@ -96,7 +92,12 @@ export default async function LocaleLayout({
     <html lang={locale} suppressHydrationWarning>
       <body className={fontClass} style={{ fontFamily }}>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
             <AccessibilityProvider>
               <UnitsProvider>
                 <AuthProvider>

@@ -20,21 +20,18 @@ export function downsample<T>(points: T[], maxPoints: number): T[] {
 // ─── Splits ──────────────────────────────────────────────────
 
 export interface Split {
-  km: number;          // split number (1-indexed)
-  distance: number;    // cumulative meters at end of split
-  timeSec: number;     // elapsed seconds at end of split
-  splitSec: number;    // duration of this split
+  km: number; // split number (1-indexed)
+  distance: number; // cumulative meters at end of split
+  timeSec: number; // elapsed seconds at end of split
+  splitSec: number; // duration of this split
   pace: number | null; // min/km for this split
   avgHr: number | null;
-  gainM: number;       // cumulative elevation gained in this split (sum of upward deltas)
-  lossM: number;       // cumulative elevation lost in this split (sum of downward deltas)
+  gainM: number; // cumulative elevation gained in this split (sum of upward deltas)
+  lossM: number; // cumulative elevation lost in this split (sum of downward deltas)
 }
 
 /** Compute per-kilometer splits from trackpoints. */
-export function computeSplits(
-  trackPoints: TrackPoint[],
-  splitMeters: number = 1000,
-): Split[] {
+export function computeSplits(trackPoints: TrackPoint[], splitMeters: number = 1000): Split[] {
   if (trackPoints.length < 5) return [];
 
   const hasTime = trackPoints.some((tp) => tp.time != null);
@@ -44,7 +41,7 @@ export function computeSplits(
 
   const splits: Split[] = [];
   let splitStartIdx = 0;
-  let splitStartDist = hasDist ? (trackPoints[0].distance || 0) : 0;
+  let splitStartDist = hasDist ? trackPoints[0].distance || 0 : 0;
   let splitStartTime = new Date(trackPoints[0].time!).getTime();
   let splitGain = 0;
   let splitLoss = 0;
@@ -74,9 +71,10 @@ export function computeSplits(
     if (gap >= splitMeters || i === trackPoints.length - 1) {
       const endTime = tp.time ? new Date(tp.time).getTime() : splitStartTime;
       const elapsed = (endTime - splitStartTime) / 1000;
-      const splitPace = elapsed > 0 && gap > 0
-        ? (elapsed / 60) / (gap / 1000) // min/km
-        : null;
+      const splitPace =
+        elapsed > 0 && gap > 0
+          ? elapsed / 60 / (gap / 1000) // min/km
+          : null;
 
       splits.push({
         km,
@@ -115,7 +113,7 @@ export function computeSplits(
 
 export interface ElevationPoint {
   distance: number; // meters
-  ele: number;      // meters
+  ele: number; // meters
 }
 
 export function computeElevationProfile(trackPoints: TrackPoint[]): ElevationPoint[] {
@@ -239,7 +237,8 @@ export function computePaceProfile(trackPoints: TrackPoint[]): PacePoint[] {
     const dt = (now - lastTime) / 1000;
     if (dt > 0) {
       const speed = (cumDist - (pts[pts.length - 1]?.distance || 0)) / dt;
-      if (speed > 0 && speed < 20) { // filter unreasonable speeds
+      if (speed > 0 && speed < 20) {
+        // filter unreasonable speeds
         pts.push({
           distance: Math.round(cumDist),
           pace: Math.round((16.6667 / speed) * 100) / 100,
@@ -306,7 +305,7 @@ export function computePowerProfile(trackPoints: TrackPoint[]): PowerPoint[] {
 // ─── Grade-Adjusted Pace ─────────────────────────────────────
 
 export function computeGradeAdjustedPace(
-  trackPoints: TrackPoint[],
+  trackPoints: TrackPoint[]
 ): { distance: number; pace: number; gap: number }[] {
   const paceProfile = computePaceProfile(trackPoints);
   const eleProfile = computeElevationProfile(trackPoints);
@@ -320,7 +319,10 @@ export function computeGradeAdjustedPace(
     let minDiff = Infinity;
     for (const ep of eleProfile) {
       const diff = Math.abs(ep.distance - pp.distance);
-      if (diff < minDiff) { minDiff = diff; closest = ep; }
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = ep;
+      }
     }
     // Find grade over surrounding 200m
     const nearby = eleProfile.filter((ep) => Math.abs(ep.distance - pp.distance) <= 200);
@@ -345,7 +347,7 @@ export function computeGradeAdjustedPace(
 
 export function computeVam(trackPoints: TrackPoint[]): {
   totalGain: number;
-  vamTotal: number;    // m/h over entire activity
+  vamTotal: number; // m/h over entire activity
   peakVam30min: number; // best 30-min climbing rate
 } | null {
   const elevPoints = trackPoints.filter((tp) => tp.ele != null && tp.time != null);
@@ -376,12 +378,17 @@ export function computeVam(trackPoints: TrackPoint[]): {
     }
   }
   // Last partial segment
-  if (segGain > 0) segments.push({ time: (new Date(elevPoints[elevPoints.length - 1].time!).getTime() - segStartTime) / 1000, gain: segGain });
+  if (segGain > 0)
+    segments.push({
+      time: (new Date(elevPoints[elevPoints.length - 1].time!).getTime() - segStartTime) / 1000,
+      gain: segGain,
+    });
 
   const vamTotal = totalSec > 0 ? Math.round((totalGain / totalSec) * 3600) : 0;
-  const peakVam30min = segments.length > 0
-    ? Math.max(...segments.map((s) => s.time > 0 ? Math.round((s.gain / s.time) * 3600) : 0))
-    : vamTotal;
+  const peakVam30min =
+    segments.length > 0
+      ? Math.max(...segments.map((s) => (s.time > 0 ? Math.round((s.gain / s.time) * 3600) : 0)))
+      : vamTotal;
 
   return { totalGain: Math.round(totalGain), vamTotal, peakVam30min };
 }
@@ -389,8 +396,10 @@ export function computeVam(trackPoints: TrackPoint[]): {
 // ─── Route Map ───────────────────────────────────────────────
 
 export interface RoutePoint {
-  x: number; y: number;
-  lat: number; lon: number;
+  x: number;
+  y: number;
+  lat: number;
+  lon: number;
 }
 
 export function extractRoutePoints(trackPoints: TrackPoint[]): RoutePoint[] {
@@ -400,8 +409,10 @@ export function extractRoutePoints(trackPoints: TrackPoint[]): RoutePoint[] {
   const downsampled = downsample(valid, 5000);
 
   // Find bounding box
-  let minLat = Infinity, maxLat = -Infinity;
-  let minLon = Infinity, maxLon = -Infinity;
+  let minLat = Infinity,
+    maxLat = -Infinity;
+  let minLon = Infinity,
+    maxLon = -Infinity;
   for (const tp of downsampled) {
     minLat = Math.min(minLat, tp.lat!);
     maxLat = Math.max(maxLat, tp.lat!);
@@ -410,8 +421,8 @@ export function extractRoutePoints(trackPoints: TrackPoint[]): RoutePoint[] {
   }
 
   const padding = 0.05;
-  const rangeLat = (maxLat - minLat) || 0.001;
-  const rangeLon = (maxLon - minLon) || 0.001;
+  const rangeLat = maxLat - minLat || 0.001;
+  const rangeLon = maxLon - minLon || 0.001;
 
   // Scale to 0-100 coordinate space
   return downsampled.map((tp) => ({
@@ -425,33 +436,34 @@ export function extractRoutePoints(trackPoints: TrackPoint[]): RoutePoint[] {
 // ─── HR Zone Breakdown ───────────────────────────────────────
 
 export interface HrZoneBreakdown {
-  zones: { zone: number; label: string; pct: number; timeMin: number; lowerBpm: number; upperBpm: number }[];
+  zones: {
+    zone: number;
+    label: string;
+    pct: number;
+    timeMin: number;
+    lowerBpm: number;
+    upperBpm: number;
+  }[];
 }
 
 /** Compute time-in-HR-zone as percentages. */
 export function computeHrZoneBreakdown(
   trackPoints: TrackPoint[],
   maxHr: number,
-  restHr?: number | null,
+  restHr?: number | null
 ): HrZoneBreakdown | null {
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
   if (hrPoints.length < 10 || maxHr <= 0) return null;
 
   // 5-zone model — boundaries use the Karvonen method when a resting HR is
   // available, matching computeIntensityDistribution.
-  const zonePcts = [0.60, 0.70, 0.80, 0.90, 1.0]; // upper bounds as fraction of HR range
-  const labels = [
-    "Z1 · Recovery",
-    "Z2 · Endurance",
-    "Z3 · Tempo",
-    "Z4 · Threshold",
-    "Z5 · VO2Max",
-  ];
+  const zonePcts = [0.6, 0.7, 0.8, 0.9, 1.0]; // upper bounds as fraction of HR range
+  const labels = ["Z1 · Recovery", "Z2 · Endurance", "Z3 · Tempo", "Z4 · Threshold", "Z5 · VO2Max"];
   const colors = ["#6b7280", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7"];
 
   const timeInZone = [0, 0, 0, 0, 0];
   const upperBounds = zonePcts.map(
-    (pct) => hrZoneBoundaryBpm(maxHr, pct, restHr) ?? Math.round(maxHr * pct),
+    (pct) => hrZoneBoundaryBpm(maxHr, pct, restHr) ?? Math.round(maxHr * pct)
   );
 
   for (const tp of hrPoints) {
@@ -501,9 +513,10 @@ export function extractLaps(rawJson: Record<string, unknown> | null): LapSummary
     index: i + 1,
     durationSec: Math.round(lap.totalTimeSeconds || 0),
     distanceM: Math.round(lap.distanceMeters || 0),
-    pace: lap.totalTimeSeconds > 0 && lap.distanceMeters > 0
-      ? Math.round(((lap.totalTimeSeconds / 60) / (lap.distanceMeters / 1000)) * 100) / 100
-      : null,
+    pace:
+      lap.totalTimeSeconds > 0 && lap.distanceMeters > 0
+        ? Math.round((lap.totalTimeSeconds / 60 / (lap.distanceMeters / 1000)) * 100) / 100
+        : null,
     avgHr: lap.averageHr || null,
     maxHr: lap.maxHr || null,
     avgPower: lap.averagePower || null,
@@ -571,18 +584,21 @@ function buildCoordMap(trackPoints: TrackPoint[]): {
     pairs.push({ dist: cumDist, timeSec });
   }
 
-  function interpolate(target: number, extract: (p: typeof pairs[0]) => number): number | null {
+  function interpolate(target: number, extract: (p: (typeof pairs)[0]) => number): number | null {
     if (pairs.length === 0) return null;
     if (target <= extract(pairs[0])) return pairs[0].timeSec;
     if (target >= extract(pairs[pairs.length - 1])) return pairs[pairs.length - 1].timeSec;
-    let lo = 0, hi = pairs.length - 1;
+    let lo = 0,
+      hi = pairs.length - 1;
     while (lo < hi - 1) {
       const mid = (lo + hi) >> 1;
       if (extract(pairs[mid]) < target) lo = mid;
       else hi = mid;
     }
-    const p0 = pairs[lo], p1 = pairs[hi];
-    const v0 = extract(p0), v1 = extract(p1);
+    const p0 = pairs[lo],
+      p1 = pairs[hi];
+    const v0 = extract(p0),
+      v1 = extract(p1);
     if (v1 === v0) return p0.timeSec;
     const t = (target - v0) / (v1 - v0);
     return p0.timeSec + t * (p1.timeSec - p0.timeSec);
@@ -594,14 +610,17 @@ function buildCoordMap(trackPoints: TrackPoint[]): {
       const result = interpolate(timeSec, (p) => p.timeSec);
       if (result == null) return null;
       // interpolate returns timeSec, we need dist — search again
-      let lo = 0, hi = pairs.length - 1;
+      let lo = 0,
+        hi = pairs.length - 1;
       while (lo < hi - 1) {
         const mid = (lo + hi) >> 1;
         if (pairs[mid].timeSec < timeSec) lo = mid;
         else hi = mid;
       }
-      const p0 = pairs[lo], p1 = pairs[hi];
-      const v0 = p0.timeSec, v1 = p1.timeSec;
+      const p0 = pairs[lo],
+        p1 = pairs[hi];
+      const v0 = p0.timeSec,
+        v1 = p1.timeSec;
       if (v1 === v0) return p0.dist;
       const t = (timeSec - v0) / (v1 - v0);
       return p0.dist + t * (p1.dist - p0.dist);
@@ -614,7 +633,7 @@ function nearestValue(
   arr: Record<string, unknown>[],
   targetX: number,
   xKey: string,
-  yKey: string,
+  yKey: string
 ): number | null {
   if (arr.length === 0) return null;
   let best = arr[0];
@@ -623,7 +642,10 @@ function nearestValue(
     const x = pt[xKey];
     if (typeof x !== "number") continue;
     const d = Math.abs(x - targetX);
-    if (d < bestDist) { bestDist = d; best = pt; }
+    if (d < bestDist) {
+      bestDist = d;
+      best = pt;
+    }
   }
   const val = best[yKey];
   return typeof val === "number" ? val : null;
@@ -642,14 +664,39 @@ export function computeCombinedDistanceData(trackPoints: TrackPoint[]): Combined
 
   return paceProfile.map((pp) => {
     const timeAtDist = coord.distToTime(pp.distance);
-    const ele = nearestValue(elevProfile as unknown as Record<string, unknown>[], pp.distance, "distance", "ele");
-    const hr = nearestValue(hrProfile as unknown as Record<string, unknown>[], pp.distance, "distance", "hr");
-    const gapVal = nearestValue(gapProfile as unknown as Record<string, unknown>[], pp.distance, "distance", "gap");
+    const ele = nearestValue(
+      elevProfile as unknown as Record<string, unknown>[],
+      pp.distance,
+      "distance",
+      "ele"
+    );
+    const hr = nearestValue(
+      hrProfile as unknown as Record<string, unknown>[],
+      pp.distance,
+      "distance",
+      "hr"
+    );
+    const gapVal = nearestValue(
+      gapProfile as unknown as Record<string, unknown>[],
+      pp.distance,
+      "distance",
+      "gap"
+    );
     let power: number | null = null;
     let smoothedPower: number | null = null;
     if (timeAtDist != null) {
-      power = nearestValue(powerProfile as unknown as Record<string, unknown>[], timeAtDist, "timeSec", "power");
-      smoothedPower = nearestValue(powerProfile as unknown as Record<string, unknown>[], timeAtDist, "timeSec", "smoothedPower");
+      power = nearestValue(
+        powerProfile as unknown as Record<string, unknown>[],
+        timeAtDist,
+        "timeSec",
+        "power"
+      );
+      smoothedPower = nearestValue(
+        powerProfile as unknown as Record<string, unknown>[],
+        timeAtDist,
+        "timeSec",
+        "smoothedPower"
+      );
     }
     return {
       distance: pp.distance,
@@ -677,14 +724,42 @@ export function computeCombinedTimeData(trackPoints: TrackPoint[]): CombinedData
 
   return powerProfile.map((pp) => {
     const distAtTime = coord.timeToDist(pp.timeSec);
-    const ele = distAtTime != null
-      ? nearestValue(elevProfile as unknown as Record<string, unknown>[], distAtTime, "distance", "ele") : null;
-    const hr = distAtTime != null
-      ? nearestValue(hrProfile as unknown as Record<string, unknown>[], distAtTime, "distance", "hr") : null;
-    const pace = distAtTime != null
-      ? nearestValue(paceProfile as unknown as Record<string, unknown>[], distAtTime, "distance", "pace") : null;
-    const gap = distAtTime != null
-      ? nearestValue(gapProfile as unknown as Record<string, unknown>[], distAtTime, "distance", "gap") : null;
+    const ele =
+      distAtTime != null
+        ? nearestValue(
+            elevProfile as unknown as Record<string, unknown>[],
+            distAtTime,
+            "distance",
+            "ele"
+          )
+        : null;
+    const hr =
+      distAtTime != null
+        ? nearestValue(
+            hrProfile as unknown as Record<string, unknown>[],
+            distAtTime,
+            "distance",
+            "hr"
+          )
+        : null;
+    const pace =
+      distAtTime != null
+        ? nearestValue(
+            paceProfile as unknown as Record<string, unknown>[],
+            distAtTime,
+            "distance",
+            "pace"
+          )
+        : null;
+    const gap =
+      distAtTime != null
+        ? nearestValue(
+            gapProfile as unknown as Record<string, unknown>[],
+            distAtTime,
+            "distance",
+            "gap"
+          )
+        : null;
     return {
       distance: Math.round(distAtTime ?? 0),
       timeSec: pp.timeSec,

@@ -32,34 +32,34 @@ const HEARTBEAT_MS = 3000; // ping every 3 seconds to keep proxies alive
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized" }) + "\n",
-      { status: 401, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Unauthorized" }) + "\n", {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   let formData: FormData;
   try {
     formData = await req.formData();
   } catch {
-    return new Response(
-      JSON.stringify({ error: "Invalid form data" }) + "\n",
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Invalid form data" }) + "\n", {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   const file = formData.get("file") as File | null;
   if (!file) {
-    return new Response(
-      JSON.stringify({ error: "No file provided" }) + "\n",
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "No file provided" }) + "\n", {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   if (!file.name.toLowerCase().endsWith(".zip")) {
     return new Response(
       JSON.stringify({ error: "Please upload a .zip file from your Strava data export" }) + "\n",
-      { status: 400, headers: { "Content-Type": "application/json" } },
+      { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
 
@@ -73,9 +73,11 @@ export async function POST(req: Request) {
   // Make toDate inclusive of the end of the selected day
   if (toDate) toDate.setUTCDate(toDate.getUTCDate() + 1);
 
-  console.log(`[import] Starting import: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` +
-    (fromDate ? ` from ${fromDate.toISOString().slice(0, 10)}` : "") +
-    (toDate ? ` to ${toDate.toISOString().slice(0, 10)}` : ""));
+  console.log(
+    `[import] Starting import: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)` +
+      (fromDate ? ` from ${fromDate.toISOString().slice(0, 10)}` : "") +
+      (toDate ? ` to ${toDate.toISOString().slice(0, 10)}` : "")
+  );
 
   const encoder = new TextEncoder();
   const send = (controller: ReadableStreamDefaultController, data: Record<string, unknown>) => {
@@ -102,7 +104,17 @@ export async function POST(req: Request) {
         clearInterval(heartbeat);
         try {
           s({ type: "error", message: "Import cancelled by user" });
-          s({ type: "summary", imported: 0, enriched: 0, skipped: 0, withRichData: 0, csvOnly: 0, totalCsvRows: 0, errors: ["Import cancelled"], message: "Import stopped — user cancelled" });
+          s({
+            type: "summary",
+            imported: 0,
+            enriched: 0,
+            skipped: 0,
+            withRichData: 0,
+            csvOnly: 0,
+            totalCsvRows: 0,
+            errors: ["Import cancelled"],
+            message: "Import stopped — user cancelled",
+          });
           s({ type: "done" });
           controller.close();
         } catch {
@@ -116,9 +128,13 @@ export async function POST(req: Request) {
         // ── Phase 1: Read & parse the ZIP ──────────────
         log("Phase 1: Reading ZIP file");
         const filterMsg =
-          fromDate && toDate ? ` (${fromDate.toISOString().slice(0, 10)} → ${toDate.toISOString().slice(0, 10)})` :
-          fromDate ? ` (from ${fromDate.toISOString().slice(0, 10)})` :
-          toDate ? ` (until ${toDate.toISOString().slice(0, 10)})` : "";
+          fromDate && toDate
+            ? ` (${fromDate.toISOString().slice(0, 10)} → ${toDate.toISOString().slice(0, 10)})`
+            : fromDate
+              ? ` (from ${fromDate.toISOString().slice(0, 10)})`
+              : toDate
+                ? ` (until ${toDate.toISOString().slice(0, 10)})`
+                : "";
         s({ type: "progress", phase: "reading", message: "Reading ZIP file…" + filterMsg });
 
         let arrayBuffer: ArrayBuffer;
@@ -186,9 +202,13 @@ export async function POST(req: Request) {
               // use the user's local timezone. enrichNameWithArea preserves the
               // time-of-day from the original name rather than recomputing from UTC.
               if (activity.hasRichData && activity.rawJson) {
-                if (activity.name === "Untitled" || isDefaultPattern(activity.name, activity.type, activity.subType)) {
+                if (
+                  activity.name === "Untitled" ||
+                  isDefaultPattern(activity.name, activity.type, activity.subType)
+                ) {
                   try {
-                    const points = (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined;
+                    const points = (activity.rawJson as Record<string, unknown>).trackPoints as
+                      TrackPoint[] | undefined;
                     activity.name = await enrichNameWithArea(
                       activity.name,
                       activity.type,
@@ -196,7 +216,7 @@ export async function POST(req: Request) {
                       activity.startDate,
                       points,
                       undefined, // no timezone preference
-                      undefined, // no localTimestamp from Strava data
+                      undefined // no localTimestamp from Strava data
                     );
                   } catch {
                     // Keep existing name if area lookup fails
@@ -221,17 +241,20 @@ export async function POST(req: Request) {
                   averagePower: activity.averagePower,
                   normalizedPower: activity.normalizedPower,
                   trackPoints: activity.rawJson
-                    ? ((activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined)
+                    ? ((activity.rawJson as Record<string, unknown>).trackPoints as
+                        TrackPoint[] | undefined)
                     : undefined,
                 });
 
                 // Compute simplified trackpoints for route rendering (when GPS data available)
-                const simplified = activity.hasRichData && activity.rawJson
-                  ? simplifyTrackPoints(
-                      (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined,
-                      500,
-                    )
-                  : { coords: [], bbox: null };
+                const simplified =
+                  activity.hasRichData && activity.rawJson
+                    ? simplifyTrackPoints(
+                        (activity.rawJson as Record<string, unknown>).trackPoints as
+                          TrackPoint[] | undefined,
+                        500
+                      )
+                    : { coords: [], bbox: null };
 
                 // Precompute trackpoint metrics while the trackpoints are in
                 // memory, so dashboard chart routes never have to load the
@@ -239,10 +262,11 @@ export async function POST(req: Request) {
                 // not this activity's observed max.
                 const tpMetrics = computePrecomputedTrackpointMetrics(
                   activity.rawJson
-                    ? (activity.rawJson as Record<string, unknown>).trackPoints as TrackPoint[] | undefined
+                    ? ((activity.rawJson as Record<string, unknown>).trackPoints as
+                        TrackPoint[] | undefined)
                     : undefined,
                   maxHr,
-                  restHr,
+                  restHr
                 );
 
                 if (existing) {
@@ -343,7 +367,7 @@ export async function POST(req: Request) {
                 console.error(`[import] ${msg}`);
               }
             },
-            req.signal,
+            req.signal
           );
           totalCsvRows = result.totalCsvRows;
         } catch (err) {
@@ -362,7 +386,9 @@ export async function POST(req: Request) {
         }
 
         const parseMs = Date.now() - startParse;
-        log(`Import complete in ${(parseMs / 1000).toFixed(1)}s: ${imported} imported, ${enriched} enriched, ${skipped} skipped`);
+        log(
+          `Import complete in ${(parseMs / 1000).toFixed(1)}s: ${imported} imported, ${enriched} enriched, ${skipped} skipped`
+        );
 
         // ── Phase 4: Recompute weekly snapshots ────────
         if (affectedWeeks.size > 0) {
@@ -401,7 +427,8 @@ export async function POST(req: Request) {
             csvOnly: result.csvOnly,
             totalCsvRows: result.totalCsvRows,
             errors: [...result.errors, ...fileErrors].slice(0, 20),
-            message: `Imported ${imported} activities (${result.withRichData} with full GPS/trackpoint data` +
+            message:
+              `Imported ${imported} activities (${result.withRichData} with full GPS/trackpoint data` +
               `${enriched > 0 ? `, ${enriched} upgraded from basic` : ""})` +
               `${skipped > 0 ? `, ${skipped} skipped` : ""}`,
           });
@@ -413,7 +440,9 @@ export async function POST(req: Request) {
         clearInterval(heartbeat);
         req.signal.removeEventListener("abort", onAbort);
         s({ type: "done" });
-        try { controller.close(); } catch {}
+        try {
+          controller.close();
+        } catch {}
         log("Stream closed");
       }
     },

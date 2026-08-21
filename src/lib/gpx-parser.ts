@@ -134,8 +134,12 @@ function parseFloatOrNull(val: string | null): number | null {
 
 function parseLap(lapXml: string): LapData {
   const calories = parseFloatOrNull(getTagContent(lapXml, "Calories"));
-  const avgHr = parseFloatOrNull(getTagContent(getTagContent(lapXml, "AverageHeartRateBpm") || "", "Value"));
-  const maxHr = parseFloatOrNull(getTagContent(getTagContent(lapXml, "MaximumHeartRateBpm") || "", "Value"));
+  const avgHr = parseFloatOrNull(
+    getTagContent(getTagContent(lapXml, "AverageHeartRateBpm") || "", "Value")
+  );
+  const maxHr = parseFloatOrNull(
+    getTagContent(getTagContent(lapXml, "MaximumHeartRateBpm") || "", "Value")
+  );
   const avgCadence = parseFloatOrNull(getTagContent(lapXml, "Cadence"));
   const intensity = getTagContent(lapXml, "Intensity");
   const trigger = getTagContent(lapXml, "TriggerMethod");
@@ -181,7 +185,8 @@ function parseGpx(xml: string): ParsedFileActivity | null {
     const extensions = getTagContent(inner, "extensions");
 
     points.push({
-      lat, lon,
+      lat,
+      lon,
       ele: parseFloatOrNull(getTagContent(inner, "ele")),
       time: getTagContent(inner, "time"),
       hr: getExtensionValue(inner, "hr") || parseFloatOrNull(getTagContent(inner, "hr")),
@@ -247,8 +252,12 @@ function parseTcx(xml: string): ParsedFileActivity | null {
         ele: parseFloatOrNull(getTagContent(tp, "AltitudeMeters")),
         time: getTagContent(tp, "Time"),
         hr: parseFloatOrNull(getTagContent(getTagContent(tp, "HeartRateBpm") || "", "Value")),
-        cadence: parseFloatOrNull(getTagContent(tp, "Cadence")) ||
-                 (extensions ? getExtensionValue(extensions, "Cadence") ?? getExtensionValue(extensions, "RunCadence") : null),
+        cadence:
+          parseFloatOrNull(getTagContent(tp, "Cadence")) ||
+          (extensions
+            ? (getExtensionValue(extensions, "Cadence") ??
+              getExtensionValue(extensions, "RunCadence"))
+            : null),
         power: extensions ? getExtensionValue(extensions, "Watts") : null,
         distance: parseFloatOrNull(getTagContent(tp, "DistanceMeters")),
         speed: extensions ? getExtensionValue(extensions, "Speed") : null,
@@ -280,8 +289,12 @@ function parseTcx(xml: string): ParsedFileActivity | null {
         ele: parseFloatOrNull(getTagContent(tp, "AltitudeMeters")),
         time: getTagContent(tp, "Time"),
         hr: parseFloatOrNull(getTagContent(getTagContent(tp, "HeartRateBpm") || "", "Value")),
-        cadence: parseFloatOrNull(getTagContent(tp, "Cadence")) ||
-                 (extensions ? getExtensionValue(extensions, "Cadence") ?? getExtensionValue(extensions, "RunCadence") : null),
+        cadence:
+          parseFloatOrNull(getTagContent(tp, "Cadence")) ||
+          (extensions
+            ? (getExtensionValue(extensions, "Cadence") ??
+              getExtensionValue(extensions, "RunCadence"))
+            : null),
         power: extensions ? getExtensionValue(extensions, "Watts") : null,
         distance: parseFloatOrNull(getTagContent(tp, "DistanceMeters")),
         speed: extensions ? getExtensionValue(extensions, "Speed") : null,
@@ -298,7 +311,7 @@ function parseTcx(xml: string): ParsedFileActivity | null {
   if (totalCalories > 0) base.calories = Math.round(totalCalories);
 
   // Aggregate HR from laps if available (more accurate than trackpoint-derived)
-  const lapAvgHrs = laps.map(l => l.averageHr).filter(Boolean) as number[];
+  const lapAvgHrs = laps.map((l) => l.averageHr).filter(Boolean) as number[];
   if (lapAvgHrs.length > 0) {
     // Weight by lap duration
     let weightedHr = 0;
@@ -315,20 +328,20 @@ function parseTcx(xml: string): ParsedFileActivity | null {
   }
 
   // Lap max HR
-  const lapMaxHrs = laps.map(l => l.maxHr).filter(Boolean) as number[];
+  const lapMaxHrs = laps.map((l) => l.maxHr).filter(Boolean) as number[];
   if (lapMaxHrs.length > 0) {
     base.maxHr = Math.max(...lapMaxHrs);
   }
 
   // Power from lap extensions
-  const lapPowers = laps.map(l => l.averagePower).filter(Boolean) as number[];
+  const lapPowers = laps.map((l) => l.averagePower).filter(Boolean) as number[];
   if (lapPowers.length > 0) {
     const avgPower = lapPowers.reduce((a, b) => a + b, 0) / lapPowers.length;
     base.averagePower = Math.round(avgPower);
   }
 
   // Cadence from lap data
-  const lapCadences = laps.map(l => l.averageCadence).filter(Boolean) as number[];
+  const lapCadences = laps.map((l) => l.averageCadence).filter(Boolean) as number[];
   if (lapCadences.length > 0) {
     const avgCad = lapCadences.reduce((a, b) => a + b, 0) / lapCadences.length;
     base.averageCadence = Math.round(avgCad);
@@ -344,7 +357,11 @@ function parseTcx(xml: string): ParsedFileActivity | null {
   return base;
 }
 
-function computeFromPoints(points: TrackPoint[], name: string, laps: LapData[]): ParsedFileActivity | null {
+function computeFromPoints(
+  points: TrackPoint[],
+  name: string,
+  laps: LapData[]
+): ParsedFileActivity | null {
   if (points.length < 2) return null;
 
   // Compute distance using Haversine
@@ -376,27 +393,31 @@ function computeFromPoints(points: TrackPoint[], name: string, laps: LapData[]):
   }
 
   const firstTime = points[0].time ? new Date(points[0].time as string) : null;
-  const lastTime = points[points.length - 1].time ? new Date(points[points.length - 1].time as string) : null;
-  const durationSeconds = firstTime && lastTime
-    ? Math.round((lastTime.getTime() - firstTime.getTime()) / 1000)
-    : 0;
-
-  const avgHr = hrValues.length > 0
-    ? Math.round((hrValues.reduce((a, b) => a + b, 0) / hrValues.length) * 10) / 10
+  const lastTime = points[points.length - 1].time
+    ? new Date(points[points.length - 1].time as string)
     : null;
+  const durationSeconds =
+    firstTime && lastTime ? Math.round((lastTime.getTime() - firstTime.getTime()) / 1000) : 0;
+
+  const avgHr =
+    hrValues.length > 0
+      ? Math.round((hrValues.reduce((a, b) => a + b, 0) / hrValues.length) * 10) / 10
+      : null;
 
   const maxHr = hrValues.length > 0 ? Math.max(...hrValues) : null;
 
   // Cadence
-  const avgCadence = cadenceValues.length > 0
-    ? Math.round(cadenceValues.reduce((a, b) => a + b, 0) / cadenceValues.length)
-    : null;
+  const avgCadence =
+    cadenceValues.length > 0
+      ? Math.round(cadenceValues.reduce((a, b) => a + b, 0) / cadenceValues.length)
+      : null;
   const maxCadence = cadenceValues.length > 0 ? Math.max(...cadenceValues) : null;
 
   // Power
-  const avgPower = powerValues.length > 0
-    ? Math.round(powerValues.reduce((a, b) => a + b, 0) / powerValues.length)
-    : null;
+  const avgPower =
+    powerValues.length > 0
+      ? Math.round(powerValues.reduce((a, b) => a + b, 0) / powerValues.length)
+      : null;
   const maxPower = powerValues.length > 0 ? Math.max(...powerValues) : null;
 
   // Normalized Power® (NP): 4th root of the mean of the 4th powers over 30s rolling averages
@@ -476,9 +497,9 @@ export function parseActivityFile(content: string, filename: string): ParsedFile
 export function generateGpxXml(
   trackPoints: TrackPoint[],
   activityName: string,
-  startTime?: string | null,
+  startTime?: string | null
 ): string {
-  const validPoints = trackPoints.filter(tp => tp.lat != null && tp.lon != null);
+  const validPoints = trackPoints.filter((tp) => tp.lat != null && tp.lon != null);
   const gpxNs = "http://www.topografix.com/GPX/1/1";
 
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -530,17 +551,29 @@ function escapeXml(str: string): string {
 /**
  * Build the rawJson payload for DB storage from parsed activity.
  */
-export function buildRawJson(activity: ParsedFileActivity, sourceFile: string): Record<string, unknown> {
+export function buildRawJson(
+  activity: ParsedFileActivity,
+  sourceFile: string
+): Record<string, unknown> {
   const lower = sourceFile.toLowerCase();
-  const fileType = lower.endsWith(".tcx") ? "tcx"
-    : lower.endsWith(".gpx") ? "gpx"
-    : (lower.endsWith(".fit") || lower.endsWith(".fit.gz")) ? "fit"
-    : "unknown";
+  const fileType = lower.endsWith(".tcx")
+    ? "tcx"
+    : lower.endsWith(".gpx")
+      ? "gpx"
+      : lower.endsWith(".fit") || lower.endsWith(".fit.gz")
+        ? "fit"
+        : "unknown";
 
   // Keep trackpoints with data — strip completely null entries at the tail
-  const trackPoints = activity.trackPoints.filter(tp =>
-    tp.lat != null || tp.lon != null || tp.hr != null || tp.cadence != null ||
-    tp.power != null || tp.ele != null || tp.distance != null
+  const trackPoints = activity.trackPoints.filter(
+    (tp) =>
+      tp.lat != null ||
+      tp.lon != null ||
+      tp.hr != null ||
+      tp.cadence != null ||
+      tp.power != null ||
+      tp.ele != null ||
+      tp.distance != null
   );
 
   return {

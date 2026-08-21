@@ -13,7 +13,11 @@ import { QUERY_ACTIVITIES_TOOL, executeTool } from "./ai-coach-tools";
 import { gatherTrainingContext } from "./training-context";
 import { getWeekStart, formatDuration } from "./utils";
 import { resolvePrompt, PROMPT_KEYS, getLanguageInstruction } from "./coach-prompts";
-import { buildContextSummary, sanitizeJsonText, ActivityAnalysisResultSchema } from "./ai-coach-utils";
+import {
+  buildContextSummary,
+  sanitizeJsonText,
+  ActivityAnalysisResultSchema,
+} from "./ai-coach-utils";
 import { type PageContext } from "./page-context";
 
 async function getActivityAnalyzePrompt(): Promise<string> {
@@ -59,11 +63,17 @@ export async function analyzeActivity(
   // 2. Resolve LLM config
   const llmConfig = await resolveUserLlmConfig(userId);
   if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) {
-    return { error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.", code: "NOT_CONFIGURED" };
+    return {
+      error: "AI coach is not configured. Set up your API key in Settings → API & Credentials.",
+      code: "NOT_CONFIGURED",
+    };
   }
 
   // Determine locale (from override param or user DB record)
-  const locale = localeOverride || (await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } }))?.locale || "en";
+  const locale =
+    localeOverride ||
+    (await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } }))?.locale ||
+    "en";
 
   // 3. Gather training context
   const ctx = await gatherTrainingContext(userId);
@@ -85,9 +95,15 @@ export async function analyzeActivity(
       plannedSession = [
         `Type: ${matching.type}`,
         matching.description ? `Description: ${matching.description}` : null,
-        matching.targetDistance ? `Target distance: ${(matching.targetDistance as number) / 1000}km` : null,
-        matching.targetDuration ? `Target duration: ${formatDuration(matching.targetDuration as number)}` : null,
-        matching.targetElevation ? `Target elevation: ${Math.round(matching.targetElevation as number)}m` : null,
+        matching.targetDistance
+          ? `Target distance: ${(matching.targetDistance as number) / 1000}km`
+          : null,
+        matching.targetDuration
+          ? `Target duration: ${formatDuration(matching.targetDuration as number)}`
+          : null,
+        matching.targetElevation
+          ? `Target elevation: ${Math.round(matching.targetElevation as number)}m`
+          : null,
       ]
         .filter(Boolean)
         .join("\n");
@@ -95,9 +111,10 @@ export async function analyzeActivity(
   }
 
   // 5. Build pace string
-  const paceStr = activity.distanceMeters && activity.distanceMeters > 0 && activity.durationSeconds > 0
-    ? `${Math.floor(activity.durationSeconds / 60 / (activity.distanceMeters / 1000))}:${String(Math.round((activity.durationSeconds / (activity.distanceMeters / 1000)) % 60)).padStart(2, "0")}/km`
-    : null;
+  const paceStr =
+    activity.distanceMeters && activity.distanceMeters > 0 && activity.durationSeconds > 0
+      ? `${Math.floor(activity.durationSeconds / 60 / (activity.distanceMeters / 1000))}:${String(Math.round((activity.durationSeconds / (activity.distanceMeters / 1000)) % 60)).padStart(2, "0")}/km`
+      : null;
 
   // 6. Build activity summary
   const activitySummary = [
@@ -108,7 +125,9 @@ export async function analyzeActivity(
     `Date: ${activity.startDate.toISOString().split("T")[0]}`,
     activity.distanceMeters ? `Distance: ${(activity.distanceMeters / 1000).toFixed(2)}km` : null,
     `Duration: ${formatDuration(activity.durationSeconds)}`,
-    activity.elevationGainMeters ? `Elevation gain: ${Math.round(activity.elevationGainMeters)}m` : null,
+    activity.elevationGainMeters
+      ? `Elevation gain: ${Math.round(activity.elevationGainMeters)}m`
+      : null,
     paceStr ? `Average pace: ${paceStr}` : null,
     activity.averageHr ? `Average HR: ${Math.round(activity.averageHr)} bpm` : null,
     activity.maxHr ? `Max HR: ${Math.round(activity.maxHr)} bpm` : null,
@@ -119,11 +138,11 @@ export async function analyzeActivity(
     .join("\n");
 
   // 7. Build context summary (reuse shared buildContextSummary for consistency)
-  const contextStr = buildContextSummary(ctx, locale) + (
-    plannedSession
+  const contextStr =
+    buildContextSummary(ctx, locale) +
+    (plannedSession
       ? `\n### Planned Session for That Day\n${plannedSession}\n`
-      : "\n### Planned Session for That Day\nNo specific plan set for this day.\n"
-  );
+      : "\n### Planned Session for That Day\nNo specific plan set for this day.\n");
 
   // 9. Call LLM
   const langInstruction = getLanguageInstruction(locale);
@@ -141,7 +160,10 @@ export async function analyzeActivity(
   });
 
   if (!result) {
-    return { error: "AI coach returned no response. The model may be unavailable.", code: "LLM_FAILED" };
+    return {
+      error: "AI coach returned no response. The model may be unavailable.",
+      code: "LLM_FAILED",
+    };
   }
 
   // 10. Parse and validate (with one retry on parse failure)
@@ -149,20 +171,35 @@ export async function analyzeActivity(
   try {
     parsed = ActivityAnalysisResultSchema.parse(JSON.parse(sanitizeJsonText(result)));
   } catch (firstErr) {
-    console.error("[activity-analyze] First parse failed. Raw LLM response:", result?.substring(0, 2000));
+    console.error(
+      "[activity-analyze] First parse failed. Raw LLM response:",
+      result?.substring(0, 2000)
+    );
     console.error("[activity-analyze] First parse error:", (firstErr as Error).message);
 
     // Retry once with stricter instruction
     const retry = await ask(
       systemPrompt,
       `Your previous response was invalid JSON. Return ONLY valid JSON matching the schema exactly.`,
-      { temperature: 0.2, maxTokens: 4096, jsonMode: true, apiKey: llmConfig.apiKey, baseUrl: llmConfig.baseUrl, model: llmConfig.model, thinking: "disabled" }
+      {
+        temperature: 0.2,
+        maxTokens: 4096,
+        jsonMode: true,
+        apiKey: llmConfig.apiKey,
+        baseUrl: llmConfig.baseUrl,
+        model: llmConfig.model,
+        thinking: "disabled",
+      }
     );
-    if (!retry) return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
+    if (!retry)
+      return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     try {
       parsed = ActivityAnalysisResultSchema.parse(JSON.parse(sanitizeJsonText(retry)));
     } catch (retryErr) {
-      console.error("[activity-analyze] Retry parse also failed. Raw LLM response:", retry?.substring(0, 2000));
+      console.error(
+        "[activity-analyze] Retry parse also failed. Raw LLM response:",
+        retry?.substring(0, 2000)
+      );
       console.error("[activity-analyze] Retry parse error:", (retryErr as Error).message);
       return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     }
@@ -211,10 +248,12 @@ export async function analyzeActivityWorker(
 
     return result;
   } catch (err) {
-    await prisma.trainingLog.update({
-      where: { id: activityId },
-      data: { analysisStatus: "failed" },
-    }).catch(() => {}); // ignore if update fails
+    await prisma.trainingLog
+      .update({
+        where: { id: activityId },
+        data: { analysisStatus: "failed" },
+      })
+      .catch(() => {}); // ignore if update fails
 
     return { error: (err as Error).message, code: "WORKER_FAILED" };
   }
@@ -240,11 +279,15 @@ async function resolveActivityFromMessage(
       /\bmy\s+(activity|workout|session|run|ride|race|long run|tempo|interval)\b/i.test(message) ||
       /\banalyze this\b/i.test(message) ||
       /\bhow'?s\s+(my\s+)?(run|workout|session|activity|ride|race)\b/i.test(message) ||
-      /\bwhat (do|did) (you|ya) think (of|about)\s+(my\s+)?(run|workout|session|activity|ride|race)\b/i.test(message);
+      /\bwhat (do|did) (you|ya) think (of|about)\s+(my\s+)?(run|workout|session|activity|ride|race)\b/i.test(
+        message
+      );
     // Don't hijack requests that point at a specific past session ("my run
     // from yesterday", "last Sunday's long run") — those need real resolution.
     const hasPastDateRef =
-      /\b(yesterday|last\s+(night|week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\w+)|ago|previous|\d+\s+(days?|weeks?)|on\s+(mon|tue|wed|thu|fri|sat|sun))\b/i.test(message);
+      /\b(yesterday|last\s+(night|week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\w+)|ago|previous|\d+\s+(days?|weeks?)|on\s+(mon|tue|wed|thu|fri|sat|sun))\b/i.test(
+        message
+      );
     if (refersToCurrent && !hasPastDateRef) {
       const currentActivity = await prisma.trainingLog.findUnique({
         where: { id: pageContext.activityId, userId },
@@ -300,7 +343,11 @@ The activityId MUST come from a query_activities result. If you cannot determine
     if (response.toolCalls.length > 0) {
       for (const toolCall of response.toolCalls) {
         let args: Record<string, unknown> = {};
-        try { args = JSON.parse(toolCall.function.arguments); } catch { /* keep empty args */ }
+        try {
+          args = JSON.parse(toolCall.function.arguments);
+        } catch {
+          /* keep empty args */
+        }
         const result = await executeTool(toolCall.function.name, args, userId);
         llmMessages.push({
           role: "tool",
@@ -320,11 +367,16 @@ The activityId MUST come from a query_activities result. If you cannot determine
   // Tolerantly parse the final JSON response
   const tryParse = (text: string) => {
     try {
-      const parsed = JSON.parse(sanitizeJsonText(text)) as { activityId?: string | null; activityName?: string | null };
+      const parsed = JSON.parse(sanitizeJsonText(text)) as {
+        activityId?: string | null;
+        activityName?: string | null;
+      };
       if (parsed.activityId) {
         return { activityId: parsed.activityId, activityName: parsed.activityName || "" };
       }
-    } catch { /* try next strategy */ }
+    } catch {
+      /* try next strategy */
+    }
     return null;
   };
 
@@ -345,7 +397,9 @@ The activityId MUST come from a query_activities result. If you cannot determine
   // save-prompt flow from silently falling back to plain chat.
   if (pageContext?.page === "activity-detail" && pageContext.activityId) {
     const hasPastDateRef =
-      /\b(yesterday|last\s+(night|week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\w+)|ago|previous|\d+\s+(days?|weeks?)|on\s+(mon|tue|wed|thu|fri|sat|sun))\b/i.test(message);
+      /\b(yesterday|last\s+(night|week|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\w+)|ago|previous|\d+\s+(days?|weeks?)|on\s+(mon|tue|wed|thu|fri|sat|sun))\b/i.test(
+        message
+      );
     if (!hasPastDateRef) {
       const currentActivity = await prisma.trainingLog.findUnique({
         where: { id: pageContext.activityId, userId },
@@ -373,7 +427,7 @@ export async function analyzeActivityInChat(
   pageContext?: PageContext | null,
   locale = "en"
 ): Promise<
-  { conversationId: string; activityId: string; activityName: string; analysis: string }
+  | { conversationId: string; activityId: string; activityName: string; analysis: string }
   | { error: string; code: string }
 > {
   const conversation = await prisma.coachConversation.findUnique({
@@ -387,12 +441,15 @@ export async function analyzeActivityInChat(
   const resolved = await resolveActivityFromMessage(userId, message, pageContext, locale);
   if (!resolved) {
     return {
-      error: "I couldn't identify the specific activity you'd like me to analyze. Try including its date or name, e.g. \"analyze my long run on June 15\".",
+      error:
+        "I couldn't identify the specific activity you'd like me to analyze. Try including its date or name, e.g. \"analyze my long run on June 15\".",
       code: "NOT_FOUND",
     };
   }
 
-  const analysisResult = await analyzeActivity(userId, resolved.activityId, locale, { persist: false });
+  const analysisResult = await analyzeActivity(userId, resolved.activityId, locale, {
+    persist: false,
+  });
   if ("error" in analysisResult) return analysisResult;
 
   // Persist the exchange only after resolution + analysis succeeded, so a

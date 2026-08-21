@@ -110,7 +110,7 @@ function capitalize(s: string): string {
  * Group contiguous weeks with the same phase into TrainingPlanPhase objects.
  */
 function groupPhases(
-  weeks: Array<{ weekStart: string; phaseName: string | null }>,
+  weeks: Array<{ weekStart: string; phaseName: string | null }>
 ): TrainingPlanPhase[] {
   const phases: TrainingPlanPhase[] = [];
 
@@ -284,22 +284,24 @@ export async function GET(request: Request) {
     weekEnd.setDate(weekEnd.getDate() + 6);
 
     // Parse sessions
-    const sessions = (plan.plannedSessions as unknown as Array<{
-      dayOfWeek: number;
-      type: string;
-      description: string;
-      targetDistance?: number | null;
-      targetElevation?: number | null;
-      targetDuration?: number;
-    }>) || [];
+    const sessions =
+      (plan.plannedSessions as unknown as Array<{
+        dayOfWeek: number;
+        type: string;
+        description: string;
+        targetDistance?: number | null;
+        targetElevation?: number | null;
+        targetDuration?: number;
+      }>) || [];
 
     // Parse adjustment history for changed-day info
-    const adjHistory = (plan.adjustmentHistory as unknown as Array<{
-      timestamp: string;
-      dayChanges?: Array<{ dayOfWeek: number; reason: string }>;
-      dayOfWeek?: number;
-      reason?: string;
-    }>) || [];
+    const adjHistory =
+      (plan.adjustmentHistory as unknown as Array<{
+        timestamp: string;
+        dayChanges?: Array<{ dayOfWeek: number; reason: string }>;
+        dayOfWeek?: number;
+        reason?: string;
+      }>) || [];
 
     const changedDays = new Map<number, { changedAt: string; changeReason: string }>();
     for (const entry of adjHistory) {
@@ -363,7 +365,15 @@ export async function GET(request: Request) {
         };
       }
 
-      days.push({ date: dateStr, dayLabel: SHORT_DAY_NAMES[dow], dayOfWeek: dow, planned, actual, isPast, isToday });
+      days.push({
+        date: dateStr,
+        dayLabel: SHORT_DAY_NAMES[dow],
+        dayOfWeek: dow,
+        planned,
+        actual,
+        isPast,
+        isToday,
+      });
     }
 
     // Detect phase — uses authoritative phase name from

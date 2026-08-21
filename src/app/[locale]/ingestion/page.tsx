@@ -9,12 +9,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ACTIVITY_TYPES, SUB_TYPE_OPTIONS } from "@/lib/constants";
 import {
-  Upload, FileSpreadsheet, FileType, Pencil, CheckCircle2, XCircle, AlertCircle,
-  Trash2, Database, Loader2, Archive, ChevronDown, ChevronUp,
+  Upload,
+  FileSpreadsheet,
+  FileType,
+  Pencil,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Trash2,
+  Database,
+  Loader2,
+  Archive,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface ImportResult {
@@ -33,7 +50,13 @@ interface LogEntry {
 }
 
 const TYPE_ICON: Record<string, string> = {
-  run: "🏃", ride: "🚴", swim: "🏊", hike: "🥾", walk: "🚶", workout: "🏋️", other: "📋",
+  run: "🏃",
+  ride: "🚴",
+  swim: "🏊",
+  hike: "🥾",
+  walk: "🚶",
+  workout: "🏋️",
+  other: "📋",
 };
 
 function fmtDuration(sec: number): string {
@@ -62,10 +85,15 @@ export default function IngestionPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Strava Export ZIP
-  const [stravaExportResult, setStravaExportResult] = useState<ImportResult & { withRichData?: number; csvOnly?: number; enriched?: number } | null>(null);
+  const [stravaExportResult, setStravaExportResult] = useState<
+    (ImportResult & { withRichData?: number; csvOnly?: number; enriched?: number }) | null
+  >(null);
   const [stravaExportLoading, setStravaExportLoading] = useState(false);
   const [stravaExportLog, setStravaExportLog] = useState<LogEntry[]>([]);
-  const [stravaExportProgress, setStravaExportProgress] = useState<{ current: number; total: number } | null>(null);
+  const [stravaExportProgress, setStravaExportProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [stravaExportPhase, setStravaExportPhase] = useState<string>("");
   const [logExpanded, setLogExpanded] = useState(false);
   const [stravaFrom, setStravaFrom] = useState("");
@@ -81,9 +109,18 @@ export default function IngestionPage() {
 
   // Manual form
   const [manualForm, setManualForm] = useState({
-    name: "", type: "run", subType: "", date: new Date().toISOString().slice(0, 16),
-    durationMinutes: "", durationSeconds: "", distance: "", elevation: "",
-    avgHr: "", maxHr: "", calories: "", description: "",
+    name: "",
+    type: "run",
+    subType: "",
+    date: new Date().toISOString().slice(0, 16),
+    durationMinutes: "",
+    durationSeconds: "",
+    distance: "",
+    elevation: "",
+    avgHr: "",
+    maxHr: "",
+    calories: "",
+    description: "",
   });
   const [manualResult, setManualResult] = useState<string | null>(null);
 
@@ -128,12 +165,19 @@ export default function IngestionPage() {
     if (stravaTo) form.append("toDate", stravaTo);
     form.append("tzOffset", String(new Date().getTimezoneOffset()));
     try {
-      const res = await fetch("/api/ingestion/strava-export", { method: "POST", body: form, signal: controller.signal });
+      const res = await fetch("/api/ingestion/strava-export", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
 
       if (!res.ok) {
         const text = await res.text();
         let msg = t("uploadFailed");
-        try { const j = JSON.parse(text); msg = j.error || msg; } catch {}
+        try {
+          const j = JSON.parse(text);
+          msg = j.error || msg;
+        } catch {}
         setStravaExportResult({ imported: 0, skipped: 0, errors: [msg], message: msg });
         setStravaExportLoading(false);
         setStravaExportPhase("");
@@ -146,7 +190,12 @@ export default function IngestionPage() {
       if (contentType.includes("application/x-ndjson")) {
         const reader = res.body?.getReader();
         if (!reader) {
-          setStravaExportResult({ imported: 0, skipped: 0, errors: [t("noResponseBody")], message: t("uploadFailed") });
+          setStravaExportResult({
+            imported: 0,
+            skipped: 0,
+            errors: [t("noResponseBody")],
+            message: t("uploadFailed"),
+          });
           setStravaExportLoading(false);
           setStravaExportPhase("");
           return;
@@ -177,11 +226,14 @@ export default function IngestionPage() {
                 case "progress":
                   setStravaExportPhase(event.phase || "");
                   if (event.phase === "importing") {
-                    setStravaExportLog((prev) => [...prev, {
-                      text: event.message,
-                      level: "info",
-                      detail: `${event.imported ?? 0} new, ${event.enriched ?? 0} enriched, ${event.skipped ?? 0} skipped`,
-                    }]);
+                    setStravaExportLog((prev) => [
+                      ...prev,
+                      {
+                        text: event.message,
+                        level: "info",
+                        detail: `${event.imported ?? 0} new, ${event.enriched ?? 0} enriched, ${event.skipped ?? 0} skipped`,
+                      },
+                    ]);
                   } else {
                     setStravaExportLog((prev) => [...prev, { text: event.message, level: "info" }]);
                   }
@@ -192,13 +244,19 @@ export default function IngestionPage() {
 
                 case "activity": {
                   const statusIcon =
-                    event.status === "imported" ? "✓" :
-                    event.status === "enriched" ? "↑" :
-                    event.status === "error" ? "✗" : "−";
+                    event.status === "imported"
+                      ? "✓"
+                      : event.status === "enriched"
+                        ? "↑"
+                        : event.status === "error"
+                          ? "✗"
+                          : "−";
                   const level =
-                    event.status === "error" ? "error" :
-                    event.status === "imported" || event.status === "enriched" ? "success" :
-                    "activity";
+                    event.status === "error"
+                      ? "error"
+                      : event.status === "imported" || event.status === "enriched"
+                        ? "success"
+                        : "activity";
 
                   const typeEmoji = TYPE_ICON[event.activityType] || "";
                   const dur = event.duration ? ` ${fmtDuration(event.duration)}` : "";
@@ -207,11 +265,14 @@ export default function IngestionPage() {
                   const label = event.name || event.externalId || t("unknown");
                   const detail = event.error || `${typeEmoji}${dur}${dist}${rich}`;
 
-                  setStravaExportLog((prev) => [...prev, {
-                    text: `  ${statusIcon} ${label}`,
-                    level,
-                    detail,
-                  }]);
+                  setStravaExportLog((prev) => [
+                    ...prev,
+                    {
+                      text: `  ${statusIcon} ${label}`,
+                      level,
+                      detail,
+                    },
+                  ]);
                   break;
                 }
 
@@ -221,10 +282,13 @@ export default function IngestionPage() {
                   break;
 
                 case "error":
-                  setStravaExportLog((prev) => [...prev, {
-                    text: `❌ ${event.message}`,
-                    level: "error",
-                  }]);
+                  setStravaExportLog((prev) => [
+                    ...prev,
+                    {
+                      text: `❌ ${event.message}`,
+                      level: "error",
+                    },
+                  ]);
                   break;
 
                 case "done":
@@ -248,11 +312,18 @@ export default function IngestionPage() {
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setStravaExportResult({
-          imported: 0, skipped: 0, errors: [t("importCancelled")],
+          imported: 0,
+          skipped: 0,
+          errors: [t("importCancelled")],
           message: t("importCancelled"),
         });
       } else {
-        setStravaExportResult({ imported: 0, skipped: 0, errors: [t("networkError")], message: t("networkError") });
+        setStravaExportResult({
+          imported: 0,
+          skipped: 0,
+          errors: [t("networkError")],
+          message: t("networkError"),
+        });
       }
     }
     setStravaExportLoading(false);
@@ -273,13 +344,27 @@ export default function IngestionPage() {
     form.append("file", file);
 
     try {
-      const res = await fetch("/api/ingestion/csv", { method: "POST", body: form, signal: controller.signal });
+      const res = await fetch("/api/ingestion/csv", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
       setCsvResult(await res.json());
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        setCsvResult({ imported: 0, skipped: 0, errors: [t("importCancelled")], message: t("importCancelled") });
+        setCsvResult({
+          imported: 0,
+          skipped: 0,
+          errors: [t("importCancelled")],
+          message: t("importCancelled"),
+        });
       } else {
-        setCsvResult({ imported: 0, skipped: 0, errors: [t("uploadFailed")], message: t("uploadFailed") });
+        setCsvResult({
+          imported: 0,
+          skipped: 0,
+          errors: [t("uploadFailed")],
+          message: t("uploadFailed"),
+        });
       }
     }
     setCsvLoading(false);
@@ -302,13 +387,29 @@ export default function IngestionPage() {
     }
 
     try {
-      const res = await fetch("/api/ingestion/gpx", { method: "POST", body: form, signal: controller.signal });
+      const res = await fetch("/api/ingestion/gpx", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
       setGpxResult(await res.json());
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        setGpxResult({ imported: 0, skipped: 0, errors: [t("importCancelled")], message: t("importCancelled"), results: [] });
+        setGpxResult({
+          imported: 0,
+          skipped: 0,
+          errors: [t("importCancelled")],
+          message: t("importCancelled"),
+          results: [],
+        });
       } else {
-        setGpxResult({ imported: 0, skipped: 0, errors: [], message: t("uploadFailed"), results: [] });
+        setGpxResult({
+          imported: 0,
+          skipped: 0,
+          errors: [],
+          message: t("uploadFailed"),
+          results: [],
+        });
       }
     }
     setGpxLoading(false);
@@ -321,7 +422,9 @@ export default function IngestionPage() {
     e.preventDefault();
     setManualResult(null);
 
-    const durationSec = (parseInt(manualForm.durationMinutes || "0") * 60) + parseInt(manualForm.durationSeconds || "0");
+    const durationSec =
+      parseInt(manualForm.durationMinutes || "0") * 60 +
+      parseInt(manualForm.durationSeconds || "0");
 
     if (durationSec <= 0) {
       setManualResult(t("manual.invalidDuration"));
@@ -351,9 +454,18 @@ export default function IngestionPage() {
     if (res.ok) {
       setManualResult(t("manual.createdSuccess"));
       setManualForm({
-        name: "", type: "run", subType: "", date: new Date().toISOString().slice(0, 16),
-        durationMinutes: "", durationSeconds: "", distance: "", elevation: "",
-        avgHr: "", maxHr: "", calories: "", description: "",
+        name: "",
+        type: "run",
+        subType: "",
+        date: new Date().toISOString().slice(0, 16),
+        durationMinutes: "",
+        durationSeconds: "",
+        distance: "",
+        elevation: "",
+        avgHr: "",
+        maxHr: "",
+        calories: "",
+        description: "",
       });
     } else {
       const data = await res.json();
@@ -361,7 +473,8 @@ export default function IngestionPage() {
     }
   }
 
-  if (status === "loading") return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
+  if (status === "loading")
+    return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -370,10 +483,18 @@ export default function IngestionPage() {
 
       <Tabs defaultValue="strava-export">
         <TabsList className="mb-6">
-          <TabsTrigger value="strava-export"><Archive className="h-4 w-4 mr-2" /> {t("tabs.strava")}</TabsTrigger>
-          <TabsTrigger value="csv"><FileSpreadsheet className="h-4 w-4 mr-2" /> {t("tabs.csv")}</TabsTrigger>
-          <TabsTrigger value="gpx"><FileType className="h-4 w-4 mr-2" /> {t("tabs.gpx")}</TabsTrigger>
-          <TabsTrigger value="manual"><Pencil className="h-4 w-4 mr-2" /> {t("tabs.manual")}</TabsTrigger>
+          <TabsTrigger value="strava-export">
+            <Archive className="h-4 w-4 mr-2" /> {t("tabs.strava")}
+          </TabsTrigger>
+          <TabsTrigger value="csv">
+            <FileSpreadsheet className="h-4 w-4 mr-2" /> {t("tabs.csv")}
+          </TabsTrigger>
+          <TabsTrigger value="gpx">
+            <FileType className="h-4 w-4 mr-2" /> {t("tabs.gpx")}
+          </TabsTrigger>
+          <TabsTrigger value="manual">
+            <Pencil className="h-4 w-4 mr-2" /> {t("tabs.manual")}
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Strava Export Tab ──────────────────────── */}
@@ -408,17 +529,23 @@ export default function IngestionPage() {
                     className="w-44"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground pb-1">
-                  {t("strava.leaveBlank")}
-                </p>
+                <p className="text-xs text-muted-foreground pb-1">{t("strava.leaveBlank")}</p>
               </div>
 
-              <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => stravaExportInputRef.current?.click()}>
+              <div
+                className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => stravaExportInputRef.current?.click()}
+              >
                 <Archive className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">{t("strava.clickToUpload")}</p>
                 <p className="text-sm text-muted-foreground">{t("strava.downloadInstructions")}</p>
-                <Input ref={stravaExportInputRef} type="file" accept=".zip" className="hidden" onChange={handleStravaExportUpload} />
+                <Input
+                  ref={stravaExportInputRef}
+                  type="file"
+                  accept=".zip"
+                  className="hidden"
+                  onChange={handleStravaExportUpload}
+                />
               </div>
 
               {/* ── Processing UI ─────────────────────── */}
@@ -429,12 +556,17 @@ export default function IngestionPage() {
                     <div className="flex items-center gap-2 text-sm">
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
                       <span className="font-medium">
-                        {stravaExportPhase === "reading" ? t("strava.phase.reading") :
-                         stravaExportPhase === "parsing" ? t("strava.phase.parsing") :
-                         stravaExportPhase === "importing" ? t("strava.phase.importing") :
-                         stravaExportPhase === "snapshotting" ? t("strava.phase.snapshotting") :
-                         stravaExportPhase === "cancelled" ? t("strava.phase.cancelled") :
-                         t("strava.phase.processing")}
+                        {stravaExportPhase === "reading"
+                          ? t("strava.phase.reading")
+                          : stravaExportPhase === "parsing"
+                            ? t("strava.phase.parsing")
+                            : stravaExportPhase === "importing"
+                              ? t("strava.phase.importing")
+                              : stravaExportPhase === "snapshotting"
+                                ? t("strava.phase.snapshotting")
+                                : stravaExportPhase === "cancelled"
+                                  ? t("strava.phase.cancelled")
+                                  : t("strava.phase.processing")}
                       </span>
                     </div>
                     <Button
@@ -452,12 +584,20 @@ export default function IngestionPage() {
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{t("strava.progress")}</span>
-                        <span>{stravaExportProgress.current} / {stravaExportProgress.total} ({Math.round((stravaExportProgress.current / stravaExportProgress.total) * 100)}%)</span>
+                        <span>
+                          {stravaExportProgress.current} / {stravaExportProgress.total} (
+                          {Math.round(
+                            (stravaExportProgress.current / stravaExportProgress.total) * 100
+                          )}
+                          %)
+                        </span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
                         <div
                           className="bg-primary h-full rounded-full transition-all duration-200 ease-linear"
-                          style={{ width: `${Math.round((stravaExportProgress.current / stravaExportProgress.total) * 100)}%` }}
+                          style={{
+                            width: `${Math.round((stravaExportProgress.current / stravaExportProgress.total) * 100)}%`,
+                          }}
                         />
                       </div>
                     </div>
@@ -470,7 +610,11 @@ export default function IngestionPage() {
                         onClick={() => setLogExpanded(!logExpanded)}
                         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-1"
                       >
-                        {logExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        {logExpanded ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
                         {t("strava.processingLog", { entries: stravaExportLog.length })}
                       </button>
                       <div
@@ -479,16 +623,23 @@ export default function IngestionPage() {
                       >
                         {stravaExportLog.map((entry, i) => (
                           <div key={i} className="flex items-start gap-1.5">
-                            <span className={
-                              entry.level === "error" ? "text-red-600 dark:text-red-400" :
-                              entry.level === "success" ? "text-green-600 dark:text-green-400" :
-                              entry.level === "activity" ? "text-muted-foreground" :
-                              "text-foreground font-medium"
-                            }>
+                            <span
+                              className={
+                                entry.level === "error"
+                                  ? "text-red-600 dark:text-red-400"
+                                  : entry.level === "success"
+                                    ? "text-green-600 dark:text-green-400"
+                                    : entry.level === "activity"
+                                      ? "text-muted-foreground"
+                                      : "text-foreground font-medium"
+                              }
+                            >
                               {entry.text}
                             </span>
                             {entry.detail && (
-                              <span className="text-muted-foreground/60 truncate">{entry.detail}</span>
+                              <span className="text-muted-foreground/60 truncate">
+                                {entry.detail}
+                              </span>
                             )}
                           </div>
                         ))}
@@ -501,47 +652,70 @@ export default function IngestionPage() {
               {/* ── Results ───────────────────────────── */}
               {stravaExportResult && (
                 <div>
-                  <ResultBadge result={stravaExportResult as ImportResult} detail={`${stravaExportResult.totalRows || "?"} ${t("csv.rowsLabel")}`} />
+                  <ResultBadge
+                    result={stravaExportResult as ImportResult}
+                    detail={`${stravaExportResult.totalRows || "?"} ${t("csv.rowsLabel")}`}
+                  />
                   {stravaExportResult.imported > 0 && (
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
                       <div className="p-3 rounded-lg bg-muted text-center">
-                        <div className="text-2xl font-bold text-primary">{stravaExportResult.imported}</div>
-                        <div className="text-xs text-muted-foreground">{t("strava.totalImported")}</div>
+                        <div className="text-2xl font-bold text-primary">
+                          {stravaExportResult.imported}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t("strava.totalImported")}
+                        </div>
                       </div>
                       {stravaExportResult.withRichData != null && (
                         <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950 text-center">
-                          <div className="text-2xl font-bold text-green-600">{stravaExportResult.withRichData}</div>
-                          <div className="text-xs text-muted-foreground">{t("strava.withGpsData")}</div>
+                          <div className="text-2xl font-bold text-green-600">
+                            {stravaExportResult.withRichData}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("strava.withGpsData")}
+                          </div>
                         </div>
                       )}
                       {stravaExportResult.enriched != null && stravaExportResult.enriched > 0 && (
                         <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950 text-center">
-                          <div className="text-2xl font-bold text-blue-600">{stravaExportResult.enriched}</div>
-                          <div className="text-xs text-muted-foreground">{t("strava.upgradedFromBasic")}</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {stravaExportResult.enriched}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {t("strava.upgradedFromBasic")}
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
-                  {stravaExportResult.withRichData != null && stravaExportResult.withRichData > 0 && (
-                    <div className="mt-3 p-3 rounded-lg bg-muted/50 flex items-start gap-2">
-                      <Database className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                      <p className="text-sm text-muted-foreground">
-                        <strong>{t("strava.fullTrackpointData")}</strong> {t("strava.fullTrackpointDataDesc", { count: stravaExportResult.withRichData })}
-                      </p>
-                    </div>
-                  )}
+                  {stravaExportResult.withRichData != null &&
+                    stravaExportResult.withRichData > 0 && (
+                      <div className="mt-3 p-3 rounded-lg bg-muted/50 flex items-start gap-2">
+                        <Database className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                        <p className="text-sm text-muted-foreground">
+                          <strong>{t("strava.fullTrackpointData")}</strong>{" "}
+                          {t("strava.fullTrackpointDataDesc", {
+                            count: stravaExportResult.withRichData,
+                          })}
+                        </p>
+                      </div>
+                    )}
                 </div>
               )}
 
               <div className="text-sm text-muted-foreground space-y-2">
-                <p><strong>{t("strava.howItWorks")}</strong></p>
+                <p>
+                  <strong>{t("strava.howItWorks")}</strong>
+                </p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
                   <li>{t("strava.step1")}</li>
                   <li>{t("strava.step2")}</li>
                   <li>{t("strava.step3")}</li>
                   <li>{t("strava.step4")}</li>
                 </ol>
-                <p className="mt-2"><strong>{t("strava.safeToReupload")}</strong></p>
+                <p className="mt-2">
+                  <strong>{t("strava.safeToReupload")}</strong>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -555,12 +729,20 @@ export default function IngestionPage() {
               <CardDescription>{t("csv.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}>
+              <div
+                className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">{t("csv.clickToUpload")}</p>
                 <p className="text-sm text-muted-foreground">{t("csv.fromZip")}</p>
-                <Input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleCsvUpload}
+                />
               </div>
 
               {csvLoading && (
@@ -568,13 +750,23 @@ export default function IngestionPage() {
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" /> {t("csv.processing")}
                   </div>
-                  <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!csvLoading}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleCancel}
+                    disabled={!csvLoading}
+                  >
                     <Trash2 className="h-4 w-4 mr-1.5" /> {t("strava.stop")}
                   </Button>
                 </div>
               )}
 
-              {csvResult && <ResultBadge result={csvResult} detail={t("csv.rowsScanned", { value: csvResult.totalRows || "?" })} />}
+              {csvResult && (
+                <ResultBadge
+                  result={csvResult}
+                  detail={t("csv.rowsScanned", { value: csvResult.totalRows || "?" })}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -587,12 +779,21 @@ export default function IngestionPage() {
               <CardDescription>{t("gpx.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => gpxInputRef.current?.click()}>
+              <div
+                className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => gpxInputRef.current?.click()}
+              >
                 <FileType className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                 <p className="font-medium mb-1">{t("gpx.clickToUpload")}</p>
                 <p className="text-sm text-muted-foreground">{t("gpx.supportedDevices")}</p>
-                <Input ref={gpxInputRef} type="file" accept=".gpx,.tcx,.fit,.xml" multiple className="hidden" onChange={handleGpxUpload} />
+                <Input
+                  ref={gpxInputRef}
+                  type="file"
+                  accept=".gpx,.tcx,.fit,.xml"
+                  multiple
+                  className="hidden"
+                  onChange={handleGpxUpload}
+                />
               </div>
 
               {gpxLoading && (
@@ -600,7 +801,12 @@ export default function IngestionPage() {
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" /> {t("gpx.parsing")}
                   </div>
-                  <Button variant="destructive" size="sm" onClick={handleCancel} disabled={!gpxLoading}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleCancel}
+                    disabled={!gpxLoading}
+                  >
                     <Trash2 className="h-4 w-4 mr-1.5" /> {t("gpx.stop")}
                   </Button>
                 </div>
@@ -612,15 +818,32 @@ export default function IngestionPage() {
                   {gpxResult.results && gpxResult.results.length > 0 && (
                     <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
                       {gpxResult.results.map((r, i) => (
-                        <div key={i} className="flex items-center gap-2 text-sm p-2 rounded bg-muted">
-                          {r.status === "imported" ? <CheckCircle2 className="h-4 w-4 text-green-500" /> :
-                           r.status === "skipped" ? <AlertCircle className="h-4 w-4 text-amber-500" /> :
-                           <XCircle className="h-4 w-4 text-destructive" />}
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 text-sm p-2 rounded bg-muted"
+                        >
+                          {r.status === "imported" ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : r.status === "skipped" ? (
+                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          )}
                           <span className="flex-1 truncate">{r.filename}</span>
-                          <Badge variant={r.status === "imported" ? "success" : r.status === "skipped" ? "warning" : "destructive"}>
+                          <Badge
+                            variant={
+                              r.status === "imported"
+                                ? "success"
+                                : r.status === "skipped"
+                                  ? "warning"
+                                  : "destructive"
+                            }
+                          >
                             {r.status}
                           </Badge>
-                          {r.error && <span className="text-xs text-muted-foreground">{r.error}</span>}
+                          {r.error && (
+                            <span className="text-xs text-muted-foreground">{r.error}</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -647,85 +870,149 @@ export default function IngestionPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>{t("manual.nameLabel")}</Label>
-                    <Input value={manualForm.name} onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
-                      placeholder={t("manual.namePlaceholder")} required />
+                    <Input
+                      value={manualForm.name}
+                      onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
+                      placeholder={t("manual.namePlaceholder")}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.typeLabel")}</Label>
-                    <Select value={manualForm.type} onValueChange={(v) => { setManualForm({ ...manualForm, type: v, subType: "" }); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={manualForm.type}
+                      onValueChange={(v) => {
+                        setManualForm({ ...manualForm, type: v, subType: "" });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {ACTIVITY_TYPES.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
-                            <span className="flex items-center gap-2"><opt.icon className="h-4 w-4" /> {labelsT("activityTypes." + opt.labelKey)}</span>
+                            <span className="flex items-center gap-2">
+                              <opt.icon className="h-4 w-4" />{" "}
+                              {labelsT("activityTypes." + opt.labelKey)}
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  {SUB_TYPE_OPTIONS[manualForm.type] && SUB_TYPE_OPTIONS[manualForm.type].length > 0 && (
-                    <div className="space-y-2">
-                      <Label>{t("manual.subTypeLabel")}</Label>
-                      <Select value={manualForm.subType} onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}>
-                        <SelectTrigger><SelectValue placeholder={t("manual.subTypeNone")} /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">{t("manual.subTypeNone")}</SelectItem>
-                          {SUB_TYPE_OPTIONS[manualForm.type].map((st) => (
-                            <SelectItem key={st.value} value={st.value}>{labelsT("subTypes." + st.labelKey)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  {SUB_TYPE_OPTIONS[manualForm.type] &&
+                    SUB_TYPE_OPTIONS[manualForm.type].length > 0 && (
+                      <div className="space-y-2">
+                        <Label>{t("manual.subTypeLabel")}</Label>
+                        <Select
+                          value={manualForm.subType}
+                          onValueChange={(v) => setManualForm({ ...manualForm, subType: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t("manual.subTypeNone")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">{t("manual.subTypeNone")}</SelectItem>
+                            {SUB_TYPE_OPTIONS[manualForm.type].map((st) => (
+                              <SelectItem key={st.value} value={st.value}>
+                                {labelsT("subTypes." + st.labelKey)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   <div className="space-y-2">
                     <Label>{t("manual.dateTimeLabel")}</Label>
-                    <Input type="datetime-local" value={manualForm.date}
-                      onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })} required />
+                    <Input
+                      type="datetime-local"
+                      value={manualForm.date}
+                      onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.durationLabel")}</Label>
                     <div className="flex gap-2">
-                      <Input type="number" placeholder={t("manual.min")} value={manualForm.durationMinutes}
-                        onChange={(e) => setManualForm({ ...manualForm, durationMinutes: e.target.value })} />
-                      <Input type="number" placeholder={t("manual.sec")} value={manualForm.durationSeconds}
-                        onChange={(e) => setManualForm({ ...manualForm, durationSeconds: e.target.value })} />
+                      <Input
+                        type="number"
+                        placeholder={t("manual.min")}
+                        value={manualForm.durationMinutes}
+                        onChange={(e) =>
+                          setManualForm({ ...manualForm, durationMinutes: e.target.value })
+                        }
+                      />
+                      <Input
+                        type="number"
+                        placeholder={t("manual.sec")}
+                        value={manualForm.durationSeconds}
+                        onChange={(e) =>
+                          setManualForm({ ...manualForm, durationSeconds: e.target.value })
+                        }
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.distanceLabel")}</Label>
-                    <Input type="number" value={manualForm.distance}
-                      onChange={(e) => setManualForm({ ...manualForm, distance: e.target.value })} placeholder="12000" />
+                    <Input
+                      type="number"
+                      value={manualForm.distance}
+                      onChange={(e) => setManualForm({ ...manualForm, distance: e.target.value })}
+                      placeholder="12000"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.elevationLabel")}</Label>
-                    <Input type="number" value={manualForm.elevation}
-                      onChange={(e) => setManualForm({ ...manualForm, elevation: e.target.value })} placeholder="450" />
+                    <Input
+                      type="number"
+                      value={manualForm.elevation}
+                      onChange={(e) => setManualForm({ ...manualForm, elevation: e.target.value })}
+                      placeholder="450"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.avgHrLabel")}</Label>
-                    <Input type="number" value={manualForm.avgHr}
-                      onChange={(e) => setManualForm({ ...manualForm, avgHr: e.target.value })} placeholder="142" />
+                    <Input
+                      type="number"
+                      value={manualForm.avgHr}
+                      onChange={(e) => setManualForm({ ...manualForm, avgHr: e.target.value })}
+                      placeholder="142"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.maxHrLabel")}</Label>
-                    <Input type="number" value={manualForm.maxHr}
-                      onChange={(e) => setManualForm({ ...manualForm, maxHr: e.target.value })} placeholder="172" />
+                    <Input
+                      type="number"
+                      value={manualForm.maxHr}
+                      onChange={(e) => setManualForm({ ...manualForm, maxHr: e.target.value })}
+                      placeholder="172"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>{t("manual.caloriesLabel")}</Label>
-                    <Input type="number" value={manualForm.calories}
-                      onChange={(e) => setManualForm({ ...manualForm, calories: e.target.value })} placeholder="450" />
+                    <Input
+                      type="number"
+                      value={manualForm.calories}
+                      onChange={(e) => setManualForm({ ...manualForm, calories: e.target.value })}
+                      placeholder="450"
+                    />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>{t("manual.notesLabel")}</Label>
-                    <Input value={manualForm.description}
-                      onChange={(e) => setManualForm({ ...manualForm, description: e.target.value })}
-                      placeholder={t("manual.notesPlaceholder")} />
+                    <Input
+                      value={manualForm.description}
+                      onChange={(e) =>
+                        setManualForm({ ...manualForm, description: e.target.value })
+                      }
+                      placeholder={t("manual.notesPlaceholder")}
+                    />
                   </div>
                 </div>
 
                 {manualResult && (
-                  <div className={`p-3 rounded-md text-sm ${manualResult.includes("success") ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200" : "bg-destructive/10 text-destructive"}`}>
+                  <div
+                    className={`p-3 rounded-md text-sm ${manualResult.includes("success") ? "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200" : "bg-destructive/10 text-destructive"}`}
+                  >
                     {manualResult}
                   </div>
                 )}
@@ -745,10 +1032,18 @@ export default function IngestionPage() {
 function ResultBadge({ result, detail }: { result: ImportResult; detail?: string }) {
   const isError = result.imported === 0 && result.skipped === 0;
   return (
-    <div className={`p-4 rounded-lg ${isError ? "bg-destructive/10" : "bg-green-50 dark:bg-green-950"}`}>
+    <div
+      className={`p-4 rounded-lg ${isError ? "bg-destructive/10" : "bg-green-50 dark:bg-green-950"}`}
+    >
       <div className="flex items-center gap-2 mb-2">
-        {isError ? <XCircle className="h-5 w-5 text-destructive" /> : <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />}
-        <span className={`font-medium ${isError ? "text-destructive" : "text-green-800 dark:text-green-200"}`}>
+        {isError ? (
+          <XCircle className="h-5 w-5 text-destructive" />
+        ) : (
+          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+        )}
+        <span
+          className={`font-medium ${isError ? "text-destructive" : "text-green-800 dark:text-green-200"}`}
+        >
           {result.message}
         </span>
       </div>
@@ -756,7 +1051,10 @@ function ResultBadge({ result, detail }: { result: ImportResult; detail?: string
       {result.errors.length > 0 && (
         <div className="mt-2 ml-7">
           {result.errors.map((err, i) => (
-            <p key={i} className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <p
+              key={i}
+              className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1"
+            >
               <AlertCircle className="h-3 w-3" /> {err}
             </p>
           ))}

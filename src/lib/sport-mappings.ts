@@ -12,84 +12,84 @@ import { ActivityType, ActivitySubType } from "@prisma/client";
 
 /** Strava CSV sport string → ActivityType */
 export const STRAVA_TYPE_MAP: Record<string, ActivityType> = {
-  "Run": "run",
-  "TrailRun": "run",
+  Run: "run",
+  TrailRun: "run",
   "Trail Run": "run",
-  "VirtualRun": "run",
+  VirtualRun: "run",
   "Virtual Run": "run",
-  "Ride": "ride",
-  "VirtualRide": "ride",
+  Ride: "ride",
+  VirtualRide: "ride",
   "Virtual Ride": "ride",
-  "Swim": "swim",
-  "Hike": "hike",
-  "Walk": "walk",
-  "Workout": "workout",
-  "WeightTraining": "workout",
+  Swim: "swim",
+  Hike: "hike",
+  Walk: "walk",
+  Workout: "workout",
+  WeightTraining: "workout",
   "Weight Training": "workout",
-  "Yoga": "workout",
-  "Other": "other",
+  Yoga: "workout",
+  Other: "other",
   "Rock Climbing": "other",
-  "Surfing": "other",
+  Surfing: "other",
   "Stand Up Paddling": "other",
-  "Kayaking": "other",
-  "Canoeing": "other",
-  "Rowing": "other",
-  "Crossfit": "workout",
-  "Elliptical": "workout",
-  "StairStepper": "workout",
+  Kayaking: "other",
+  Canoeing: "other",
+  Rowing: "other",
+  Crossfit: "workout",
+  Elliptical: "workout",
+  StairStepper: "workout",
   "Ice Skating": "other",
   "Inline Skating": "other",
   "Nordic Ski": "other",
   "Alpine Ski": "other",
   "Backcountry Ski": "other",
-  "Snowboard": "other",
-  "Snowshoe": "other",
-  "Soccer": "other",
-  "Tennis": "other",
-  "Golf": "other",
-  "Wheelchair": "other",
-  "Handcycle": "ride",
+  Snowboard: "other",
+  Snowshoe: "other",
+  Soccer: "other",
+  Tennis: "other",
+  Golf: "other",
+  Wheelchair: "other",
+  Handcycle: "ride",
 };
 
 /** Strava CSV sport string → ActivitySubType (undefined when none applies) */
 export const STRAVA_SUB_TYPE_MAP: Record<string, ActivitySubType | undefined> = {
-  "Run": undefined,
-  "TrailRun": "trail_running",
+  Run: undefined,
+  TrailRun: "trail_running",
   "Trail Run": "trail_running",
-  "VirtualRun": "virtual_run",
+  VirtualRun: "virtual_run",
   "Virtual Run": "virtual_run",
-  "Ride": undefined,
-  "VirtualRide": "virtual_ride",
+  Ride: undefined,
+  VirtualRide: "virtual_ride",
   "Virtual Ride": "virtual_ride",
-  "Swim": undefined,
-  "Hike": undefined,
-  "Walk": undefined,
-  "Workout": undefined,
-  "WeightTraining": "strength_training",
+  Swim: undefined,
+  Hike: undefined,
+  Walk: undefined,
+  Workout: undefined,
+  WeightTraining: "strength_training",
   "Weight Training": "strength_training",
-  "Yoga": "yoga",
-  "Crossfit": "crossfit",
-  "Elliptical": "elliptical",
-  "StairStepper": "stair_stepper",
+  Yoga: "yoga",
+  Crossfit: "crossfit",
+  Elliptical: "elliptical",
+  StairStepper: "stair_stepper",
   "Rock Climbing": "rock_climbing",
-  "Surfing": "surfing",
+  Surfing: "surfing",
   "Stand Up Paddling": "stand_up_paddling",
-  "Kayaking": "kayaking",
-  "Canoeing": "canoeing",
-  "Rowing": "rowing",
+  Kayaking: "kayaking",
+  Canoeing: "canoeing",
+  Rowing: "rowing",
   "Ice Skating": "ice_skating",
   "Inline Skating": "inline_skating",
   "Nordic Ski": "nordic_skiing",
   "Alpine Ski": "alpine_skiing",
   "Backcountry Ski": "backcountry_skiing",
-  "Snowboard": "snowboarding",
-  "Snowshoe": "snowshoeing",
-  "Soccer": "soccer",
-  "Tennis": "tennis",
-  "Golf": "golf",
-  "Wheelchair": "wheelchair",
-  "Handcycle": "handcycle",
-  "Other": undefined,
+  Snowboard: "snowboarding",
+  Snowshoe: "snowshoeing",
+  Soccer: "soccer",
+  Tennis: "tennis",
+  Golf: "golf",
+  Wheelchair: "wheelchair",
+  Handcycle: "handcycle",
+  Other: undefined,
 };
 
 /**
@@ -99,9 +99,7 @@ export const STRAVA_SUB_TYPE_MAP: Record<string, ActivitySubType | undefined> = 
  * @example mapStravaSport("Run")              => { type: "run", subType: undefined }
  * @example mapStravaSport("UnknownSport")     => { type: "other", subType: undefined }
  */
-export function mapStravaSport(
-  sport: string,
-): { type: ActivityType; subType?: ActivitySubType } {
+export function mapStravaSport(sport: string): { type: ActivityType; subType?: ActivitySubType } {
   const type = STRAVA_TYPE_MAP[sport] || "other";
   const subType = STRAVA_SUB_TYPE_MAP[sport];
   return { type, subType };
@@ -178,7 +176,7 @@ export const FIT_SUB_SPORT_MAP: Record<string, ActivitySubType | undefined> = {
  */
 export function mapFitSport(
   sport?: string,
-  subSport?: string,
+  subSport?: string
 ): { type: ActivityType; subType?: ActivitySubType } {
   const sportKey = (sport || "").toLowerCase();
   const subKey = (subSport || "").toLowerCase();
@@ -201,9 +199,7 @@ export function mapFitSport(
  * @example inferFromName("Afternoon Ride")           => { type: "ride", subType: undefined }
  * @example inferFromName("Morning Swim at the Pool") => { type: "swim", subType: "lap_swimming" }
  */
-export function inferFromName(
-  name: string,
-): { type: ActivityType; subType?: ActivitySubType } {
+export function inferFromName(name: string): { type: ActivityType; subType?: ActivitySubType } {
   const lower = name.toLowerCase();
 
   // ── Type ────────────────────────────────────────────────────

@@ -10,23 +10,57 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
-  Users, Key, Copy, Check, Shield, ShieldOff, Activity,
-  Target, Dumbbell, Scale, AlertTriangle, Calendar, Loader2,
-  Watch, Radio, UserCheck, Mail, Settings2, Send, FileText, Brain,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Users,
+  Key,
+  Copy,
+  Check,
+  Shield,
+  ShieldOff,
+  Activity,
+  Target,
+  Dumbbell,
+  Scale,
+  AlertTriangle,
+  Calendar,
+  Loader2,
+  Watch,
+  Radio,
+  UserCheck,
+  Mail,
+  Settings2,
+  Send,
+  FileText,
+  Brain,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { format } from "date-fns";
 import LlmSettingsSection from "@/components/admin/llm-settings";
 
 interface UserSummary {
-  id: string; email: string; name: string; role: string; createdAt: string;
-  trainingLogs: number; raceGoals: number; facilities: number;
-  bodyMetrics: number; fatigueAlerts: number;
-  latestWeight: number | null; latestWeightDate: string | null;
-  lastActivity: string | null; lastActivityName: string | null;
-  hasGarmin: boolean; hasCoros: boolean;
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+  trainingLogs: number;
+  raceGoals: number;
+  facilities: number;
+  bodyMetrics: number;
+  fatigueAlerts: number;
+  latestWeight: number | null;
+  latestWeightDate: string | null;
+  lastActivity: string | null;
+  lastActivityName: string | null;
+  hasGarmin: boolean;
+  hasCoros: boolean;
 }
 
 interface AdminData {
@@ -50,7 +84,15 @@ interface ResetLinkResult {
   email: { sent: boolean; error?: string };
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+function StatCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+}) {
   return (
     <Card className="flex-1 min-w-0">
       <CardContent className="py-3 px-4">
@@ -86,7 +128,9 @@ export default function AdminPage() {
 
   // ── Email settings state ──
   const [emailSettings, setEmailSettings] = useState<EmailSettings>({
-    resend_api_key: "", email_from: "", reset_link_expiry_hours: "4",
+    resend_api_key: "",
+    email_from: "",
+    reset_link_expiry_hours: "4",
   });
   const [emailLoading, setEmailLoading] = useState(true);
   const [emailSaving, setEmailSaving] = useState(false);
@@ -110,10 +154,15 @@ export default function AdminPage() {
   }, []);
 
   // ── Prompt settings state ──
-  const [prompts, setPrompts] = useState<Array<{
-    key: string; label: string; description: string;
-    default: string; current: string;
-  }>>([]);
+  const [prompts, setPrompts] = useState<
+    Array<{
+      key: string;
+      label: string;
+      description: string;
+      default: string;
+      current: string;
+    }>
+  >([]);
   const [promptsLoading, setPromptsLoading] = useState(true);
   const [promptsSaving, setPromptsSaving] = useState<Record<string, boolean>>({});
   const [promptsSaved, setPromptsSaved] = useState<Record<string, boolean>>({});
@@ -127,7 +176,10 @@ export default function AdminPage() {
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/users");
-      if (res.status === 403) { router.push("/dashboard"); return; }
+      if (res.status === 403) {
+        router.push("/dashboard");
+        return;
+      }
       if (!res.ok) throw new Error(t("fetchFailed"));
       setData(await res.json());
     } catch (e) {
@@ -148,7 +200,9 @@ export default function AdminPage() {
         email_from: data.email_from || "",
         reset_link_expiry_hours: data.reset_link_expiry_hours || "4",
       }));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setEmailLoading(false);
   }, []);
 
@@ -159,7 +213,9 @@ export default function AdminPage() {
         const data = await res.json();
         setPrompts(data.prompts || []);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setPromptsLoading(false);
   }, []);
 
@@ -170,7 +226,9 @@ export default function AdminPage() {
         const data = await res.json();
         if (data.engine === "v1" || data.engine === "v2") setEngine(data.engine);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setEngineLoading(false);
   }, []);
 
@@ -187,7 +245,9 @@ export default function AdminPage() {
         setEngineSaved(true);
         timeoutIds.current.add(setTimeout(() => setEngineSaved(false), 3000));
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setEngineSaving(false);
   };
 
@@ -200,8 +260,12 @@ export default function AdminPage() {
         body: JSON.stringify({ key, value }),
       });
       setPromptsSaved((p) => ({ ...p, [key]: true }));
-      timeoutIds.current.add(setTimeout(() => setPromptsSaved((p) => ({ ...p, [key]: false })), 2500));
-    } catch { /* ignore */ }
+      timeoutIds.current.add(
+        setTimeout(() => setPromptsSaved((p) => ({ ...p, [key]: false })), 2500)
+      );
+    } catch {
+      /* ignore */
+    }
     setPromptsSaving((p) => ({ ...p, [key]: false }));
   };
 
@@ -225,9 +289,15 @@ export default function AdminPage() {
         body: JSON.stringify({ userId }),
       });
       const data = await res.json();
-      setResetLinks((prev) => ({ ...prev, [userId]: { resetUrl: data.resetUrl, email: data.email } }));
+      setResetLinks((prev) => ({
+        ...prev,
+        [userId]: { resetUrl: data.resetUrl, email: data.email },
+      }));
     } catch {
-      setResetLinks((prev) => ({ ...prev, [userId]: { resetUrl: t("linkError"), email: { sent: false } } }));
+      setResetLinks((prev) => ({
+        ...prev,
+        [userId]: { resetUrl: t("linkError"), email: { sent: false } },
+      }));
     }
     setGenerating(null);
   }
@@ -242,7 +312,9 @@ export default function AdminPage() {
         body: JSON.stringify({ userId, role: newRole }),
       });
       fetchUsers();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setToggling(null);
   }
 
@@ -298,7 +370,8 @@ export default function AdminPage() {
     }
   }
 
-  if (status === "loading") return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
+  if (status === "loading")
+    return <div className="container mx-auto px-4 py-8">{common("loading")}</div>;
 
   const summary = data?.summary;
   const users = data?.users ?? [];
@@ -307,13 +380,17 @@ export default function AdminPage() {
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2"><Settings2 className="h-7 w-7" /> {t("title")}</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Settings2 className="h-7 w-7" /> {t("title")}
+          </h1>
           <p className="text-muted-foreground mt-1">{t("description")}</p>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 mb-6 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
+        <div className="p-4 mb-6 rounded-md bg-destructive/10 text-destructive text-sm">
+          {error}
+        </div>
       )}
 
       <Tabs value={tab} onValueChange={setTab}>
@@ -339,14 +416,32 @@ export default function AdminPage() {
         <TabsContent value="users">
           {/* Summary strip */}
           <div className="flex flex-wrap gap-3 mb-6">
-            <StatCard icon={<Users className="h-5 w-5" />} label={t("statLabels.totalUsers")} value={summary?.totalUsers ?? 0} />
-            <StatCard icon={<Activity className="h-5 w-5" />} label={t("statLabels.totalActivities")} value={summary?.totalActivities ?? 0} />
-            <StatCard icon={<Radio className="h-5 w-5" />} label={t("statLabels.garminUsers")} value={summary?.garminUsers ?? 0} />
-            <StatCard icon={<Watch className="h-5 w-5" />} label={t("statLabels.corosUsers")} value={summary?.corosUsers ?? 0} />
+            <StatCard
+              icon={<Users className="h-5 w-5" />}
+              label={t("statLabels.totalUsers")}
+              value={summary?.totalUsers ?? 0}
+            />
+            <StatCard
+              icon={<Activity className="h-5 w-5" />}
+              label={t("statLabels.totalActivities")}
+              value={summary?.totalActivities ?? 0}
+            />
+            <StatCard
+              icon={<Radio className="h-5 w-5" />}
+              label={t("statLabels.garminUsers")}
+              value={summary?.garminUsers ?? 0}
+            />
+            <StatCard
+              icon={<Watch className="h-5 w-5" />}
+              label={t("statLabels.corosUsers")}
+              value={summary?.corosUsers ?? 0}
+            />
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <div className="space-y-4">
               {users.map((user) => (
@@ -358,18 +453,28 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <span className="font-semibold truncate">{user.name}</span>
                           {user.role === "admin" ? (
-                            <Badge variant="default"><Shield className="h-3 w-3 mr-1" /> {t("badges.admin")}</Badge>
+                            <Badge variant="default">
+                              <Shield className="h-3 w-3 mr-1" /> {t("badges.admin")}
+                            </Badge>
                           ) : (
-                            <Badge variant="outline"><ShieldOff className="h-3 w-3 mr-1" /> {t("badges.user")}</Badge>
+                            <Badge variant="outline">
+                              <ShieldOff className="h-3 w-3 mr-1" /> {t("badges.user")}
+                            </Badge>
                           )}
                           {user.hasGarmin && (
-                            <Badge variant="secondary"><Radio className="h-3 w-3 mr-1" /> {t("badges.garmin")}</Badge>
+                            <Badge variant="secondary">
+                              <Radio className="h-3 w-3 mr-1" /> {t("badges.garmin")}
+                            </Badge>
                           )}
                           {user.hasCoros && (
-                            <Badge variant="secondary"><Watch className="h-3 w-3 mr-1" /> {t("badges.coros")}</Badge>
+                            <Badge variant="secondary">
+                              <Watch className="h-3 w-3 mr-1" /> {t("badges.coros")}
+                            </Badge>
                           )}
                           {!user.hasGarmin && !user.hasCoros && (
-                            <Badge variant="outline" className="text-muted-foreground">{t("badges.noIntegration")}</Badge>
+                            <Badge variant="outline" className="text-muted-foreground">
+                              {t("badges.noIntegration")}
+                            </Badge>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground truncate">{user.email}</p>
@@ -381,17 +486,46 @@ export default function AdminPage() {
 
                       {/* Stats */}
                       <div className="flex flex-wrap gap-3 text-xs">
-                        <Stat icon={<Activity className="h-3 w-3" />} label={t("user.activities")} value={user.trainingLogs} />
-                        <Stat icon={<Target className="h-3 w-3" />} label={t("user.goals")} value={user.raceGoals} />
-                        <Stat icon={<Dumbbell className="h-3 w-3" />} label={t("user.facilities")} value={user.facilities} />
-                        <Stat icon={<Scale className="h-3 w-3" />} label={t("user.metrics")} value={user.bodyMetrics} />
-                        <Stat icon={<AlertTriangle className="h-3 w-3" />} label={t("user.alerts")} value={user.fatigueAlerts} />
+                        <Stat
+                          icon={<Activity className="h-3 w-3" />}
+                          label={t("user.activities")}
+                          value={user.trainingLogs}
+                        />
+                        <Stat
+                          icon={<Target className="h-3 w-3" />}
+                          label={t("user.goals")}
+                          value={user.raceGoals}
+                        />
+                        <Stat
+                          icon={<Dumbbell className="h-3 w-3" />}
+                          label={t("user.facilities")}
+                          value={user.facilities}
+                        />
+                        <Stat
+                          icon={<Scale className="h-3 w-3" />}
+                          label={t("user.metrics")}
+                          value={user.bodyMetrics}
+                        />
+                        <Stat
+                          icon={<AlertTriangle className="h-3 w-3" />}
+                          label={t("user.alerts")}
+                          value={user.fatigueAlerts}
+                        />
                         {user.latestWeight && (
-                          <Stat icon={null} label={t("user.weight")} value={`${user.latestWeight} kg`} />
+                          <Stat
+                            icon={null}
+                            label={t("user.weight")}
+                            value={`${user.latestWeight} kg`}
+                          />
                         )}
                         {user.lastActivity && (
-                          <Stat icon={<Calendar className="h-3 w-3" />} label={t("user.lastActivity")}
-                            value={formatDistanceToNow(new Date(user.lastActivity), { addSuffix: true })} />
+                          <Stat
+                            icon={<Calendar className="h-3 w-3" />}
+                            label={t("user.lastActivity")}
+                            value={formatDistanceToNow(new Date(user.lastActivity), {
+                              addSuffix: true,
+                            })}
+                          />
                         )}
                       </div>
 
@@ -404,24 +538,38 @@ export default function AdminPage() {
                           onClick={() => toggleRole(user.id, user.role)}
                           title={user.role === "admin" ? t("user.demote") : t("user.promote")}
                         >
-                          {user.role === "admin"
-                            ? <ShieldOff className="h-4 w-4" />
-                            : <Shield className="h-4 w-4" />}
+                          {user.role === "admin" ? (
+                            <ShieldOff className="h-4 w-4" />
+                          ) : (
+                            <Shield className="h-4 w-4" />
+                          )}
                         </Button>
                         {generating === user.id ? (
                           <Button variant="outline" size="sm" disabled>
                             <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("user.generating")}
                           </Button>
                         ) : resetLinks[user.id]?.resetUrl ? (
-                          <Button variant="outline" size="sm" onClick={() => copyLink(resetLinks[user.id].resetUrl, user.id)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyLink(resetLinks[user.id].resetUrl, user.id)}
+                          >
                             {copied === user.id ? (
-                              <><Check className="h-3 w-3 mr-1" /> {t("user.copied")}</>
+                              <>
+                                <Check className="h-3 w-3 mr-1" /> {t("user.copied")}
+                              </>
                             ) : (
-                              <><Copy className="h-3 w-3 mr-1" /> {t("user.copyLink")}</>
+                              <>
+                                <Copy className="h-3 w-3 mr-1" /> {t("user.copyLink")}
+                              </>
                             )}
                           </Button>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => generateResetLink(user.id)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateResetLink(user.id)}
+                          >
                             <Key className="h-3 w-3 mr-1" /> {t("user.resetPw")}
                           </Button>
                         )}
@@ -437,11 +585,16 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2 text-xs">
                           {resetLinks[user.id].email.sent ? (
                             <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                              <Check className="h-3 w-3" /> {t("user.emailSent", { email: user.email })}
+                              <Check className="h-3 w-3" />{" "}
+                              {t("user.emailSent", { email: user.email })}
                             </span>
                           ) : resetLinks[user.id].email.error ? (
-                            <span className="flex items-center gap-1 text-destructive" title={resetLinks[user.id].email.error}>
-                              <AlertTriangle className="h-3 w-3" /> {t("user.emailFailed", { error: resetLinks[user.id].email.error })}
+                            <span
+                              className="flex items-center gap-1 text-destructive"
+                              title={resetLinks[user.id].email.error}
+                            >
+                              <AlertTriangle className="h-3 w-3" />{" "}
+                              {t("user.emailFailed", { error: resetLinks[user.id].email.error })}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">{t("user.noEmail")}</span>
@@ -459,15 +612,17 @@ export default function AdminPage() {
         {/* ── Email Settings Tab ── */}
         <TabsContent value="email">
           {emailLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <div className="max-w-2xl space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> {t("email.title")}</CardTitle>
-                  <CardDescription>
-                    {t("email.description")}
-                  </CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" /> {t("email.title")}
+                  </CardTitle>
+                  <CardDescription>{t("email.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -478,7 +633,9 @@ export default function AdminPage() {
                         type="password"
                         placeholder="re_..."
                         value={emailSettings.resend_api_key}
-                        onChange={(e) => setEmailSettings((p) => ({ ...p, resend_api_key: e.target.value }))}
+                        onChange={(e) =>
+                          setEmailSettings((p) => ({ ...p, resend_api_key: e.target.value }))
+                        }
                       />
                     </div>
                     <div className="space-y-2">
@@ -488,11 +645,11 @@ export default function AdminPage() {
                         type="email"
                         placeholder="noreply@yourdomain.com"
                         value={emailSettings.email_from}
-                        onChange={(e) => setEmailSettings((p) => ({ ...p, email_from: e.target.value }))}
+                        onChange={(e) =>
+                          setEmailSettings((p) => ({ ...p, email_from: e.target.value }))
+                        }
                       />
-                      <p className="text-xs text-muted-foreground">
-                        {t("email.fromDescription")}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{t("email.fromDescription")}</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reset_link_expiry">{t("email.expiryLabel")}</Label>
@@ -503,7 +660,12 @@ export default function AdminPage() {
                         max={168}
                         placeholder="4"
                         value={emailSettings.reset_link_expiry_hours}
-                        onChange={(e) => setEmailSettings((p) => ({ ...p, reset_link_expiry_hours: e.target.value }))}
+                        onChange={(e) =>
+                          setEmailSettings((p) => ({
+                            ...p,
+                            reset_link_expiry_hours: e.target.value,
+                          }))
+                        }
                       />
                       <p className="text-xs text-muted-foreground">
                         {t("email.expiryDescription")}
@@ -534,10 +696,10 @@ export default function AdminPage() {
               {/* Test email card */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> {t("email.testTitle")}</CardTitle>
-                  <CardDescription>
-                    {t("email.testDescription")}
-                  </CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <Send className="h-5 w-5" /> {t("email.testTitle")}
+                  </CardTitle>
+                  <CardDescription>{t("email.testDescription")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-end gap-3">
@@ -548,20 +710,32 @@ export default function AdminPage() {
                         type="email"
                         placeholder="you@example.com"
                         value={testEmail}
-                        onChange={(e) => { setTestEmail(e.target.value); setTestResult(null); }}
+                        onChange={(e) => {
+                          setTestEmail(e.target.value);
+                          setTestResult(null);
+                        }}
                       />
                     </div>
-                    <Button
-                      onClick={sendTestEmail}
-                      disabled={testSending || !testEmail}
-                    >
-                      {testSending ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("email.sending")}</> : t("email.sendTest")}
+                    <Button onClick={sendTestEmail} disabled={testSending || !testEmail}>
+                      {testSending ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("email.sending")}
+                        </>
+                      ) : (
+                        t("email.sendTest")
+                      )}
                     </Button>
                   </div>
 
                   {testResult && (
-                    <div className={`flex items-center gap-2 mt-3 text-sm ${testResult.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
-                      {testResult.ok ? <Check className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                    <div
+                      className={`flex items-center gap-2 mt-3 text-sm ${testResult.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}
+                    >
+                      {testResult.ok ? (
+                        <Check className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                      )}
                       <span className="whitespace-pre-wrap">{testResult.message}</span>
                     </div>
                   )}
@@ -574,7 +748,9 @@ export default function AdminPage() {
         {/* ── Prompts Tab ── */}
         <TabsContent value="prompts">
           {promptsLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <div className="max-w-3xl space-y-6">
               {prompts.map((p) => (
@@ -593,12 +769,16 @@ export default function AdminPage() {
         {/* ── Training Plan Tab ── */}
         <TabsContent value="training-plan">
           {engineLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <div className="max-w-2xl space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" /> {t("planEngine.title")}</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" /> {t("planEngine.title")}
+                  </CardTitle>
                   <CardDescription>{t("planEngine.description")}</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -607,7 +787,10 @@ export default function AdminPage() {
                       <Label htmlFor="plan-engine">{t("planEngine.label")}</Label>
                       <Select
                         value={engine}
-                        onValueChange={(v) => { setEngine(v as "v1" | "v2"); setEngineSaved(false); }}
+                        onValueChange={(v) => {
+                          setEngine(v as "v1" | "v2");
+                          setEngineSaved(false);
+                        }}
                       >
                         <SelectTrigger id="plan-engine" className="w-full">
                           <SelectValue />
@@ -628,7 +811,9 @@ export default function AdminPage() {
 
                     <Button onClick={saveEngine} disabled={engineSaving}>
                       {engineSaving ? (
-                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("planEngine.saving")}</>
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("planEngine.saving")}
+                        </>
                       ) : (
                         t("planEngine.save")
                       )}
@@ -668,7 +853,9 @@ function PromptEditorCard({
   // Depend on just those scalars (not the whole `prompt` object) so unrelated
   // prop-identity changes don't wipe in-progress edits.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setEditValue(prompt.current); }, [prompt.key, prompt.current]);
+  useEffect(() => {
+    setEditValue(prompt.current);
+  }, [prompt.key, prompt.current]);
 
   return (
     <Card>
@@ -679,7 +866,9 @@ function PromptEditorCard({
             <CardDescription>{prompt.description}</CardDescription>
           </div>
           {!isDefault && (
-            <Badge variant="secondary" className="text-xs shrink-0">{t("prompts.customized")}</Badge>
+            <Badge variant="secondary" className="text-xs shrink-0">
+              {t("prompts.customized")}
+            </Badge>
           )}
         </div>
       </CardHeader>
@@ -719,7 +908,9 @@ function PromptEditorCard({
               onClick={() => onSave(prompt.key, editValue)}
             >
               {saving ? (
-                <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("prompts.saving")}</>
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("prompts.saving")}
+                </>
               ) : (
                 <>{t("prompts.saveChanges")}</>
               )}
@@ -731,7 +922,15 @@ function PromptEditorCard({
   );
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+function Stat({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="flex items-center gap-1 text-muted-foreground whitespace-nowrap">
       {icon}

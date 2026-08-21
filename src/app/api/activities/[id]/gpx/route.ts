@@ -3,10 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateGpxXml, TrackPoint } from "@/lib/gpx-parser";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,14 +22,14 @@ export async function GET(
   if (trackPoints.length === 0) {
     return NextResponse.json(
       { error: "No track point data available for this activity" },
-      { status: 404 },
+      { status: 404 }
     );
   }
 
   const gpxXml = generateGpxXml(
     trackPoints,
     log.name || `Activity ${params.id}`,
-    log.startDate?.toISOString?.() || null,
+    log.startDate?.toISOString?.() || null
   );
 
   // Build a safe filename from the activity name

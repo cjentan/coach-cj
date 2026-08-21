@@ -17,8 +17,12 @@ export function SplitsTable({ splits, type }: { splits: Split[]; type?: string }
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">#</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("split")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("cumTime")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? trainingT("speed") : t("pace")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("hr")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {type === "ride" ? trainingT("speed") : t("pace")}
+            </th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {trainingT("hr")}
+            </th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("gain")}</th>
             <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{t("loss")}</th>
           </tr>
@@ -52,14 +56,28 @@ export function LapTable({ laps, type }: { laps: LapSummary[]; type?: string }) 
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-muted/50 text-left">
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">{t("laps")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("time")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("distance")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{type === "ride" ? trainingT("speed") : t("pace")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("avgHr")}</th>
-            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("maxHr")}</th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground w-12">
+              {t("laps")}
+            </th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {trainingT("time")}
+            </th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {trainingT("distance")}
+            </th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {type === "ride" ? trainingT("speed") : t("pace")}
+            </th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {trainingT("avgHr")}
+            </th>
+            <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+              {trainingT("maxHr")}
+            </th>
             {laps.some((l) => l.avgPower) && (
-              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">{trainingT("power")}</th>
+              <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                {trainingT("power")}
+              </th>
             )}
           </tr>
         </thead>
@@ -68,7 +86,11 @@ export function LapTable({ laps, type }: { laps: LapSummary[]; type?: string }) 
             <tr key={lap.index} className="hover:bg-muted/30 tabular-nums">
               <td className="px-3 py-1.5 text-muted-foreground">{lap.index}</td>
               <td className="px-3 py-1.5 font-medium">{formatTime(lap.durationSec)}</td>
-              <td className="px-3 py-1.5">{type === "swim" ? `${Math.round(lap.distanceM)} m` : `${(lap.distanceM / 1000).toFixed(2)} km`}</td>
+              <td className="px-3 py-1.5">
+                {type === "swim"
+                  ? `${Math.round(lap.distanceM)} m`
+                  : `${(lap.distanceM / 1000).toFixed(2)} km`}
+              </td>
               <td className="px-3 py-1.5">{formatSplitPace(lap.pace, type)}</td>
               <td className="px-3 py-1.5">{lap.avgHr ? `${lap.avgHr} bpm` : "—"}</td>
               <td className="px-3 py-1.5">{lap.maxHr ? `${lap.maxHr} bpm` : "—"}</td>

@@ -90,8 +90,8 @@ async function main(): Promise<void> {
       where: { id: row.id },
       select: { rawJson: true },
     });
-    const trackPoints = (log?.rawJson as Record<string, unknown> | null)
-      ?.trackPoints as TrackPoint[] | undefined;
+    const trackPoints = (log?.rawJson as Record<string, unknown> | null)?.trackPoints as
+      TrackPoint[] | undefined;
 
     const restHr = await restHrFor(row.userId);
     // Anchor to the user-level max HR (estimated > user-set > default), not
@@ -121,9 +121,7 @@ async function main(): Promise<void> {
         data: { workoutType },
       });
       changed++;
-      console.log(
-        `[reclassify] ${row.id}: ${row.workoutType ?? "null"} → ${workoutType}`,
-      );
+      console.log(`[reclassify] ${row.id}: ${row.workoutType ?? "null"} → ${workoutType}`);
     } catch (err) {
       failed++;
       console.error(`[reclassify] update failed for ${row.id}: ${(err as Error).message}`);
@@ -131,14 +129,12 @@ async function main(): Promise<void> {
 
     if ((i + 1) % 200 === 0 || i === rows.length - 1) {
       console.log(
-        `[reclassify] ${i + 1}/${rows.length} (${changed} changed, ${unchanged} unchanged, ${failed} failed)`,
+        `[reclassify] ${i + 1}/${rows.length} (${changed} changed, ${unchanged} unchanged, ${failed} failed)`
       );
     }
   }
 
-  console.log(
-    `[reclassify] done: ${changed} changed, ${unchanged} unchanged, ${failed} failed`,
-  );
+  console.log(`[reclassify] done: ${changed} changed, ${unchanged} unchanged, ${failed} failed`);
 }
 
 main()

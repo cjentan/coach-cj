@@ -11,14 +11,7 @@ import { TrackPoint } from "./gpx-parser";
 import { computeIntensityDistribution } from "./trackpoint-metrics";
 
 export type WorkoutType =
-  | "easy"
-  | "long_run"
-  | "intervals"
-  | "tempo"
-  | "fartlek"
-  | "recovery"
-  | "race"
-  | "cross_training";
+  "easy" | "long_run" | "intervals" | "tempo" | "fartlek" | "recovery" | "race" | "cross_training";
 
 export interface ClassifierInput {
   type: string;
@@ -60,10 +53,16 @@ export function classifyWorkoutType(input: ClassifierInput): WorkoutType | null 
 }
 
 function classifyFromZones(
-  distribution: { zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number },
+  distribution: {
+    zone1Pct: number;
+    zone2Pct: number;
+    zone3Pct: number;
+    zone4Pct: number;
+    zone5Pct: number;
+  },
   durationMinutes: number,
   type: string,
-  subType?: string | null,
+  subType?: string | null
 ): WorkoutType {
   const { zone1Pct, zone2Pct, zone3Pct, zone4Pct, zone5Pct } = distribution;
 
@@ -117,10 +116,7 @@ function classifyFromZones(
   return "easy";
 }
 
-function classifyFromSummary(
-  input: ClassifierInput,
-  durationMinutes: number,
-): WorkoutType | null {
+function classifyFromSummary(input: ClassifierInput, durationMinutes: number): WorkoutType | null {
   const { type, subType, distanceMeters, averageHr, maxHr } = input;
 
   // Very short activities → recovery
@@ -137,8 +133,8 @@ function classifyFromSummary(
     // Check HR intensity if available
     if (averageHr && maxHr && maxHr > 0) {
       const hrRatio = averageHr / maxHr;
-      if (hrRatio >= 0.90) return "race";
-      if (hrRatio >= 0.84) return "tempo";   // Z3-ish
+      if (hrRatio >= 0.9) return "race";
+      if (hrRatio >= 0.84) return "tempo"; // Z3-ish
       if (hrRatio >= 0.75) return "fartlek"; // moderate-hard blend
     }
     // Easy: shorter, moderate pace

@@ -56,9 +56,19 @@ export async function approvePlanProposalV2(
   userId: string,
   options?: ChatOptions,
   locale = "en",
-  proposalOverrides?: Record<string, unknown>,
+  proposalOverrides?: Record<string, unknown>
 ): Promise<
-  | { success: true; response: string; phases: Array<{ name: string; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> }
+  | {
+      success: true;
+      response: string;
+      phases: Array<{
+        name: string;
+        weekCount: number;
+        sessionCount: number;
+        workoutCount: number;
+        restCount: number;
+      }>;
+    }
   | { error: string; code: string }
 > {
   const flowT0 = Date.now();
@@ -85,10 +95,18 @@ export async function approvePlanProposalV2(
 
   await prisma.coachConversation.update({
     where: { id: conversationId },
-    data: { contextSnapshot: { ...(conversation.contextSnapshot as Record<string, unknown> || {}), summaryText: contextStr }, updatedAt: new Date() },
+    data: {
+      contextSnapshot: {
+        ...((conversation.contextSnapshot as Record<string, unknown>) || {}),
+        summaryText: contextStr,
+      },
+      updatedAt: new Date(),
+    },
   });
 
-  console.log(`[plan-v2] context gathered in ${Date.now() - flowT0}ms (ctx=${contextStr.length}ch)`);
+  console.log(
+    `[plan-v2] context gathered in ${Date.now() - flowT0}ms (ctx=${contextStr.length}ch)`
+  );
 
   const primaryGoal = ctx.goals[0];
   if (!primaryGoal) {
@@ -96,15 +114,15 @@ export async function approvePlanProposalV2(
   }
 
   // 3. Determine phase structure + start date (mirrors v1)
-  const overrides = proposalOverrides as {
-    proposedStartDate?: string;
-    phases?: Array<{ name: string; weeks: number }>;
-    peakVolume?: string;
-  } | undefined;
+  const overrides = proposalOverrides as
+    | {
+        proposedStartDate?: string;
+        phases?: Array<{ name: string; weeks: number }>;
+        peakVolume?: string;
+      }
+    | undefined;
 
-  const phaseStructure = overrides?.phases?.length
-    ? overrides.phases
-    : derivePhaseStructure(ctx);
+  const phaseStructure = overrides?.phases?.length ? overrides.phases : derivePhaseStructure(ctx);
 
   const proposedStartDate = overrides?.proposedStartDate;
   const planStartDate = proposedStartDate || getNextMondayStr();
@@ -128,9 +146,12 @@ export async function approvePlanProposalV2(
   }
 
   if (ctx.recentWeeks.length > 0) {
-    const weekLines = ctx.recentWeeks.map((w) =>
-      `  ${w.label}: ${(w.volumeMeters / 1000).toFixed(0)} km, ${w.elevationMeters.toFixed(0)}m vert, ${w.activityCount} activities`
-    ).join("\n");
+    const weekLines = ctx.recentWeeks
+      .map(
+        (w) =>
+          `  ${w.label}: ${(w.volumeMeters / 1000).toFixed(0)} km, ${w.elevationMeters.toFixed(0)}m vert, ${w.activityCount} activities`
+      )
+      .join("\n");
     athleteContextParts.push(`\n### Recent 4 Weeks\n${weekLines}`);
   }
 
@@ -153,7 +174,9 @@ export async function approvePlanProposalV2(
   }
 
   if (ctx.fatigue) {
-    athleteContextParts.push(`\n### Fatigue (${ctx.fatigue.severity})\n${ctx.fatigue.signals.join("\n")}`);
+    athleteContextParts.push(
+      `\n### Fatigue (${ctx.fatigue.severity})\n${ctx.fatigue.signals.join("\n")}`
+    );
   }
 
   if (ctx.dailyHealth) {
@@ -165,10 +188,19 @@ export async function approvePlanProposalV2(
   const goalContext = athleteContextParts.join("\n");
 
   const toolProgressCb = options?.onProgress
-    ? (event: Record<string, unknown>) => { options.onProgress!(event as ChatProgressEvent); }
+    ? (event: Record<string, unknown>) => {
+        options.onProgress!(event as ChatProgressEvent);
+      }
     : undefined;
 
-  const savedPhases: Array<{ name: string; phaseOrder: number; weekCount: number; sessionCount: number; workoutCount: number; restCount: number }> = [];
+  const savedPhases: Array<{
+    name: string;
+    phaseOrder: number;
+    weekCount: number;
+    sessionCount: number;
+    workoutCount: number;
+    restCount: number;
+  }> = [];
   let anyFailure: string | null = null;
 
   // 5. Macro pass — LLM-designed phase plan, with deterministic fallback
@@ -195,7 +227,11 @@ export async function approvePlanProposalV2(
   const rampByPhase = new Map<string, number[]>();
   for (const ps of phaseStructure) {
     const planned = phasePlan?.find((p) => p.name === ps.name);
-    if (planned && planned.weeklyVolumeKm.length === ps.weeks && planned.weeklyVolumeKm.every((v) => v > 0)) {
+    if (
+      planned &&
+      planned.weeklyVolumeKm.length === ps.weeks &&
+      planned.weeklyVolumeKm.every((v) => v > 0)
+    ) {
       rampByPhase.set(ps.name, planned.weeklyVolumeKm);
     } else {
       rampByPhase.set(ps.name, fallbackRamp.get(ps.name) ?? []);
@@ -209,7 +245,9 @@ export async function approvePlanProposalV2(
       : `Phase plan set from athlete data: ${phaseStructure.map((p) => `${p.name} (${p.weeks}w)`).join(", ")}`,
   });
 
-  console.log(`[plan-v2] macro pass done in ${Date.now() - flowT0}ms — source=${phasePlan ? "llm" : "deterministic-fallback"}`);
+  console.log(
+    `[plan-v2] macro pass done in ${Date.now() - flowT0}ms — source=${phasePlan ? "llm" : "deterministic-fallback"}`
+  );
 
   // 6. Micro pass — one week per LLM call
   let currentStartDate = new Date(startDate);
@@ -270,10 +308,14 @@ export async function approvePlanProposalV2(
       if (!weekData) {
         anyFailure = `Failed to generate week ${weekNumber} of ${ps.name} phase. Try again.`;
         phaseFailed = true;
-        console.error(`[plan-v2] phase=${ps.name} week ${weekNumber}/${ps.weeks} FAILED after ${Date.now() - weekT0}ms — ${anyFailure}`);
+        console.error(
+          `[plan-v2] phase=${ps.name} week ${weekNumber}/${ps.weeks} FAILED after ${Date.now() - weekT0}ms — ${anyFailure}`
+        );
         break;
       }
-      console.log(`[plan-v2] phase=${ps.name} week ${weekNumber}/${ps.weeks} OK in ${Date.now() - weekT0}ms (${(weekData.sessions as unknown[] | undefined)?.length ?? "?"} sessions)`);
+      console.log(
+        `[plan-v2] phase=${ps.name} week ${weekNumber}/${ps.weeks} OK in ${Date.now() - weekT0}ms (${(weekData.sessions as unknown[] | undefined)?.length ?? "?"} sessions)`
+      );
 
       // Force server-owned identity — the LLM can never drift the DB upsert key.
       weekData.weekStart = weekStartStr;
@@ -293,13 +335,17 @@ export async function approvePlanProposalV2(
       phaseName: `${ps.name} Phase`,
     } as ToolCallEvent);
 
-    const saveResult = await executeCreateTrainingPhase(userId, {
-      phaseName: `${ps.name} Phase`,
-      phaseGoal: generatePhaseGoal(ps.name),
-      raceGoalId: primaryGoal.id,
-      phaseOrder,
-      weeks: phaseWeeks,
-    }, toolProgressCb);
+    const saveResult = await executeCreateTrainingPhase(
+      userId,
+      {
+        phaseName: `${ps.name} Phase`,
+        phaseGoal: generatePhaseGoal(ps.name),
+        raceGoalId: primaryGoal.id,
+        phaseOrder,
+        weeks: phaseWeeks,
+      },
+      toolProgressCb
+    );
 
     if (!saveResult.success) {
       anyFailure = saveResult.message;
@@ -342,7 +388,9 @@ export async function approvePlanProposalV2(
     },
   });
 
-  const phaseSummary = savedPhases.map(p => `${p.name} (${p.weekCount}w, ${p.workoutCount} workouts + ${p.restCount} rest)`).join(", ");
+  const phaseSummary = savedPhases
+    .map((p) => `${p.name} (${p.weekCount}w, ${p.workoutCount} workouts + ${p.restCount} rest)`)
+    .join(", ");
   const finalText = `Your training plan is ready! ${phaseSummary}`;
 
   console.log(`[plan-v2] SUCCESS in ${Date.now() - flowT0}ms — ${phaseSummary}`);
@@ -408,19 +456,25 @@ Rules:
 - Base the volumes on the athlete's current volume (~${currentVolumeKm} km/wk), the race distance, and the target date above.`;
 
   const t0 = Date.now();
-  const raw = await ask(systemPrompt, "Generate the phase plan JSON now. Output ONLY the JSON object. No other text.", {
-    temperature: 0.2,
-    maxTokens: 4096,
-    jsonMode: true,
-    apiKey: llmConfig.apiKey,
-    baseUrl: llmConfig.baseUrl,
-    model: llmConfig.model,
-    signal,
-    thinking: "disabled",
-  });
+  const raw = await ask(
+    systemPrompt,
+    "Generate the phase plan JSON now. Output ONLY the JSON object. No other text.",
+    {
+      temperature: 0.2,
+      maxTokens: 4096,
+      jsonMode: true,
+      apiKey: llmConfig.apiKey,
+      baseUrl: llmConfig.baseUrl,
+      model: llmConfig.model,
+      signal,
+      thinking: "disabled",
+    }
+  );
 
   if (!raw) {
-    console.error(`[plan-v2] macro pass FAILED in ${Date.now() - t0}ms (LLM returned null) — falling back to deterministic ramp`);
+    console.error(
+      `[plan-v2] macro pass FAILED in ${Date.now() - t0}ms (LLM returned null) — falling back to deterministic ramp`
+    );
     return null;
   }
 
@@ -428,17 +482,21 @@ Rules:
     const parsed = JSON.parse(sanitizeJsonText(raw));
     const phases = parsed.phases as PhasePlanPhase[] | undefined;
     const valid = validatePhasePlan(phases, phaseStructure);
-    console.log(`[plan-v2] macro pass ${valid ? "OK" : "INVALID"} in ${Date.now() - t0}ms (${raw.length}ch, ${phases?.length ?? 0} phases)`);
+    console.log(
+      `[plan-v2] macro pass ${valid ? "OK" : "INVALID"} in ${Date.now() - t0}ms (${raw.length}ch, ${phases?.length ?? 0} phases)`
+    );
     return valid ? phases : null;
   } catch {
-    console.error(`[plan-v2] macro pass PARSE_FAILED in ${Date.now() - t0}ms (${raw.length}ch) — falling back to deterministic ramp`);
+    console.error(
+      `[plan-v2] macro pass PARSE_FAILED in ${Date.now() - t0}ms (${raw.length}ch) — falling back to deterministic ramp`
+    );
     return null;
   }
 }
 
 function validatePhasePlan(
   phases: PhasePlanPhase[] | undefined,
-  structure: Array<{ name: string; weeks: number }>,
+  structure: Array<{ name: string; weeks: number }>
 ): phases is PhasePlanPhase[] {
   if (!Array.isArray(phases) || phases.length !== structure.length) return false;
   const byName = new Map(phases.map((p) => [p.name, p]));
@@ -468,12 +526,13 @@ function validatePhasePlan(
 function computeDeterministicRamp(
   ctx: TrainingContext,
   primaryGoal: { distanceMeters: number },
-  phaseStructure: Array<{ name: string; weeks: number }>,
+  phaseStructure: Array<{ name: string; weeks: number }>
 ): Map<string, number[]> {
   const distanceKm = primaryGoal.distanceMeters ? primaryGoal.distanceMeters / 1000 : 0;
   const minimumVolumeKm = distanceKm > 0 ? Math.max(20, Math.round(distanceKm * 0.5)) : 20;
   const effectiveStartKm = Math.max(ctx.longTermVolumeKm, minimumVolumeKm);
-  const peakMultiplier = distanceKm < 21 ? 1.5 : distanceKm < 42 ? 1.6 : distanceKm < 80 ? 1.7 : 2.0;
+  const peakMultiplier =
+    distanceKm < 21 ? 1.5 : distanceKm < 42 ? 1.6 : distanceKm < 80 ? 1.7 : 2.0;
   const effectivePeakKm = Math.round(effectiveStartKm * peakMultiplier);
   const midKm = Math.round(effectiveStartKm + (effectivePeakKm - effectiveStartKm) * 0.6);
 
@@ -527,9 +586,18 @@ async function askForSingleWeek(args: {
   signal?: AbortSignal;
 }): Promise<Record<string, unknown> | null> {
   const {
-    goalContext, phaseName, phaseOrder, phaseTotal, phaseGoal,
-    weekNumber, weekStart, expectedKm, prevWeekSummary, peakVolumeHint,
-    llmConfig, signal,
+    goalContext,
+    phaseName,
+    phaseOrder,
+    phaseTotal,
+    phaseGoal,
+    weekNumber,
+    weekStart,
+    expectedKm,
+    prevWeekSummary,
+    peakVolumeHint,
+    llmConfig,
+    signal,
   } = args;
 
   const systemPrompt = `You are a training-plan designer. Output ONLY valid JSON (no markdown, no code fences).
@@ -579,7 +647,7 @@ Design rules:
 
   const run = async (
     prompt: string,
-    temperature: number,
+    temperature: number
   ): Promise<{ week: Record<string, unknown> | null; violation: string }> => {
     const t0 = Date.now();
     const raw = await ask(systemPrompt, prompt, {
@@ -593,24 +661,33 @@ Design rules:
       thinking: "disabled",
     });
     if (!raw) {
-      console.error(`[plan-v2] week ${weekNumber}/${phaseName} LLM call FAILED (null) in ${Date.now() - t0}ms`);
+      console.error(
+        `[plan-v2] week ${weekNumber}/${phaseName} LLM call FAILED (null) in ${Date.now() - t0}ms`
+      );
       return { week: null, violation: "The LLM returned no response." };
     }
     const parsed = parseSingleWeek(raw);
     const ok = !parsed.violation && parsed.week;
-    console.log(`[plan-v2] week ${weekNumber}/${phaseName} LLM call ${ok ? "OK" : "INVALID"} in ${Date.now() - t0}ms (${raw.length}ch)${parsed.violation ? ` — ${parsed.violation}` : ""}`);
+    console.log(
+      `[plan-v2] week ${weekNumber}/${phaseName} LLM call ${ok ? "OK" : "INVALID"} in ${Date.now() - t0}ms (${raw.length}ch)${parsed.violation ? ` — ${parsed.violation}` : ""}`
+    );
     if (parsed.violation && parsed.week) {
-      console.log(`[plan-v2] week ${weekNumber}/${phaseName} violating week: ${JSON.stringify(parsed.week).slice(0, 900)}`);
+      console.log(
+        `[plan-v2] week ${weekNumber}/${phaseName} violating week: ${JSON.stringify(parsed.week).slice(0, 900)}`
+      );
     }
     return parsed;
   };
 
-  const first = await run("Generate the week JSON now. Output ONLY the JSON object. No other text.", 0.3);
+  const first = await run(
+    "Generate the week JSON now. Output ONLY the JSON object. No other text.",
+    0.3
+  );
   if (first.week && !first.violation) return first.week;
 
   const retry = await run(
     `Your previous response was rejected: ${first.violation}\nOutput ONLY a JSON object with exactly the fields above, fixing that problem. No other text.`,
-    0.2,
+    0.2
   );
   if (retry.week && !retry.violation) return retry.week;
 
@@ -619,7 +696,9 @@ Design rules:
   // JSON after both attempts still fails (nothing to repair).
   if (retry.week) {
     const repaired = repairWeekTerrain(retry.week);
-    console.warn(`[plan-v2] week ${weekNumber}/${phaseName} terrain constraint violated after retry — applying deterministic repair.`);
+    console.warn(
+      `[plan-v2] week ${weekNumber}/${phaseName} terrain constraint violated after retry — applying deterministic repair.`
+    );
     return repaired;
   }
   return null;
@@ -658,7 +737,9 @@ function parseSingleWeek(raw: string): { week: Record<string, unknown> | null; v
       }
       const dow = (s as { dayOfWeek?: unknown }).dayOfWeek;
       if (typeof dow !== "number" || dow < 0 || dow > 6 || seen.has(dow)) {
-        return fail("The response had duplicate or out-of-range dayOfWeek values (need 0-6, each exactly once).");
+        return fail(
+          "The response had duplicate or out-of-range dayOfWeek values (need 0-6, each exactly once)."
+        );
       }
       seen.add(dow);
     }
@@ -732,7 +813,11 @@ function repairWeekTerrain(week: Record<string, unknown>): Record<string, unknow
   // so the weekday slot gets a road/recovery run and the trail session moves to
   // the weekend where it's allowed.
   const weekendIdx = out.findIndex(
-    (s, i) => i !== offenderIdx && s.type === "run" && (s.dayOfWeek === 6 || s.dayOfWeek === 0) && !TRAIL_RE.test(String(s.description ?? ""))
+    (s, i) =>
+      i !== offenderIdx &&
+      s.type === "run" &&
+      (s.dayOfWeek === 6 || s.dayOfWeek === 0) &&
+      !TRAIL_RE.test(String(s.description ?? ""))
   );
 
   if (weekendIdx !== -1) {

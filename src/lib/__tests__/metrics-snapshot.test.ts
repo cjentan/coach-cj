@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { snapshotWeek } from '../metrics-snapshot';
-import { getWeekStart } from '../utils';
-import { buildTrainingLog, buildRaceGoal, buildBodyMetric } from '@/test/factories';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { snapshotWeek } from "../metrics-snapshot";
+import { getWeekStart } from "../utils";
+import { buildTrainingLog, buildRaceGoal, buildBodyMetric } from "@/test/factories";
 
 const mockPrisma = vi.hoisted(() => ({
   trainingLog: { findMany: vi.fn(), findFirst: vi.fn() },
@@ -13,11 +13,11 @@ const mockPrisma = vi.hoisted(() => ({
   weeklyAssessment: { upsert: vi.fn() },
 }));
 
-vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
-describe('snapshotWeek', () => {
-  const userId = 'test-user';
-  const weekStart = new Date('2025-01-13T00:00:00Z');
+describe("snapshotWeek", () => {
+  const userId = "test-user";
+  const weekStart = new Date("2025-01-13T00:00:00Z");
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,11 +48,21 @@ describe('snapshotWeek', () => {
     return mockPrisma.weeklyAssessment.upsert.mock.calls[0]?.[0] as any;
   }
 
-  it('computes and persists a weekly snapshot', async () => {
+  it("computes and persists a weekly snapshot", async () => {
     mockData({
       weekLogs: [
-        buildTrainingLog({ durationSeconds: 3600, distanceMeters: 10000, elevationGainMeters: 100, tss: 50 }),
-        buildTrainingLog({ durationSeconds: 1800, distanceMeters: 5000, elevationGainMeters: 50, tss: 25 }),
+        buildTrainingLog({
+          durationSeconds: 3600,
+          distanceMeters: 10000,
+          elevationGainMeters: 100,
+          tss: 50,
+        }),
+        buildTrainingLog({
+          durationSeconds: 1800,
+          distanceMeters: 5000,
+          elevationGainMeters: 50,
+          tss: 25,
+        }),
       ],
       pmcLogs: Array.from({ length: 10 }, (_, i) => ({
         startDate: new Date(weekStart.getTime() - i * 86400000),
@@ -75,7 +85,7 @@ describe('snapshotWeek', () => {
     expect(upsert.create.readinessScore).toBeGreaterThanOrEqual(0);
     expect(upsert.create.readinessScore).toBeLessThanOrEqual(100);
     expect(upsert.create.acuteTrainingLoad).toEqual(
-      Math.round(upsert.create.acuteTrainingLoad * 10) / 10,
+      Math.round(upsert.create.acuteTrainingLoad * 10) / 10
     );
     expect(upsert.create.fatigueScore).toBe(75);
     expect(upsert.create.goalProgressPct).not.toBeNull();
@@ -85,24 +95,24 @@ describe('snapshotWeek', () => {
     expect(upsert.create.rawData.avgHr).toBe(150);
   });
 
-  it('calls upsert', async () => {
+  it("calls upsert", async () => {
     mockData({});
     await snapshotWeek(userId, weekStart);
     expect(mockPrisma.weeklyAssessment.upsert).toHaveBeenCalledTimes(1);
   });
 
-  it('handles empty week gracefully', async () => {
+  it("handles empty week gracefully", async () => {
     mockData({});
     await snapshotWeek(userId, weekStart);
     const upsert = getUpsertCall();
     expect(upsert.create.weeklyVolumeMeters).toBe(0);
     expect(upsert.create.weeklyDurationSeconds).toBe(0);
     expect(upsert.create.rawData.weeklyCount).toBe(0);
-    expect(upsert.create.rawData.fatigueSeverity).toBe('low');
+    expect(upsert.create.rawData.fatigueSeverity).toBe("low");
     expect(upsert.create.readinessScore).toBeGreaterThanOrEqual(0);
   });
 
-  it('handles no active goals', async () => {
+  it("handles no active goals", async () => {
     mockData({ goals: [] });
     await snapshotWeek(userId, weekStart);
     const upsert = getUpsertCall();
@@ -110,31 +120,36 @@ describe('snapshotWeek', () => {
     expect(upsert.create.rawData.activeGoals).toBe(0);
   });
 
-  it('handles no body metrics', async () => {
+  it("handles no body metrics", async () => {
     mockData({ bodyMetrics: [] });
     await snapshotWeek(userId, weekStart);
     const upsert = getUpsertCall();
     expect(upsert.create.rawData.latestWeight).toBeNull();
   });
 
-  it('uses trackpoint-aware TSS when rawJson has trackPoints', async () => {
+  it("uses trackpoint-aware TSS when rawJson has trackPoints", async () => {
     mockData({
-      weekLogs: [buildTrainingLog({
-        tss: null, averageHr: 150, maxHr: 180, durationSeconds: 3600,
-        rawJson: { trackPoints: [{ hr: 140, power: 200, speed: 3.5, distance: 1000 }] } as any,
-      })],
+      weekLogs: [
+        buildTrainingLog({
+          tss: null,
+          averageHr: 150,
+          maxHr: 180,
+          durationSeconds: 3600,
+          rawJson: { trackPoints: [{ hr: 140, power: 200, speed: 3.5, distance: 1000 }] } as any,
+        }),
+      ],
     });
     await snapshotWeek(userId, weekStart);
     expect(getUpsertCall().create.fatigueScore).toBeGreaterThan(0);
   });
 
-  it('falls back to estimateTss', async () => {
+  it("falls back to estimateTss", async () => {
     mockData({ weekLogs: [buildTrainingLog({ tss: null, durationSeconds: 3600, rawJson: null })] });
     await snapshotWeek(userId, weekStart);
     expect(getUpsertCall().create.fatigueScore).toBe(50);
   });
 
-  it('computes average HR from non-null values', async () => {
+  it("computes average HR from non-null values", async () => {
     mockData({
       weekLogs: [
         buildTrainingLog({ averageHr: 140 }),
@@ -146,26 +161,26 @@ describe('snapshotWeek', () => {
     expect(getUpsertCall().create.rawData.avgHr).toBe(150);
   });
 
-  it('sets avgHr null when no HR data', async () => {
+  it("sets avgHr null when no HR data", async () => {
     mockData({ weekLogs: [buildTrainingLog({ averageHr: null })] });
     await snapshotWeek(userId, weekStart);
     expect(getUpsertCall().create.rawData.avgHr).toBeNull();
   });
 
-  it('handles multiple active goals', async () => {
+  it("handles multiple active goals", async () => {
     mockData({
       weekLogs: [buildTrainingLog({ distanceMeters: 10000 })],
       goals: [
-        buildRaceGoal({ id: 'goal-a', priority: 'A' as any, distanceMeters: 42195 }),
-        buildRaceGoal({ id: 'goal-b', priority: 'B' as any, distanceMeters: 21098 }),
+        buildRaceGoal({ id: "goal-a", priority: "A" as any, distanceMeters: 42195 }),
+        buildRaceGoal({ id: "goal-b", priority: "B" as any, distanceMeters: 21098 }),
       ],
     });
     await snapshotWeek(userId, weekStart);
-    expect(getUpsertCall().create.goalProgressPct).toHaveProperty('goal-a');
-    expect(getUpsertCall().create.goalProgressPct).toHaveProperty('goal-b');
+    expect(getUpsertCall().create.goalProgressPct).toHaveProperty("goal-a");
+    expect(getUpsertCall().create.goalProgressPct).toHaveProperty("goal-b");
   });
 
-  it('excludes merged activities from query', async () => {
+  it("excludes merged activities from query", async () => {
     mockData({});
     await snapshotWeek(userId, weekStart);
     const query = mockPrisma.trainingLog.findMany.mock.calls[0]?.[0] as any;
@@ -173,7 +188,7 @@ describe('snapshotWeek', () => {
     expect(query.where.startDate.gte).toBeDefined();
   });
 
-  it('generates fatigue signals for high TSS', async () => {
+  it("generates fatigue signals for high TSS", async () => {
     mockData({
       weekLogs: [
         buildTrainingLog({ tss: 300, durationSeconds: 7200 }),
@@ -186,7 +201,7 @@ describe('snapshotWeek', () => {
     expect(upsert.create.recommendations.length).toBeGreaterThan(0);
   });
 
-  it('has both create and update paths', async () => {
+  it("has both create and update paths", async () => {
     mockData({});
     await snapshotWeek(userId, weekStart);
     const upsert = getUpsertCall();

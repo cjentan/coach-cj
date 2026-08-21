@@ -25,7 +25,11 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 hidden md:block">
       <div className="mx-auto flex h-14 items-center justify-between px-4 max-w-6xl">
-        <Link href={session?.user ? "/dashboard" : "/"} className="flex items-center gap-2 font-bold text-lg shrink-0" onClick={() => setMenuOpen(false)}>
+        <Link
+          href={session?.user ? "/dashboard" : "/"}
+          className="flex items-center gap-2 font-bold text-lg shrink-0"
+          onClick={() => setMenuOpen(false)}
+        >
           <Activity className="h-5 w-5 text-primary" />
           <span>Coach</span>
         </Link>
@@ -35,28 +39,51 @@ export function Navbar() {
           <>
             <nav className="hidden md:flex items-center gap-1 lg:gap-3">
               {NAV_LINKS.map((l) => (
-                <Link key={l.href} href={l.href} className="text-xs lg:text-sm font-medium hover:text-primary transition-colors whitespace-nowrap">
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="text-xs lg:text-sm font-medium hover:text-primary transition-colors whitespace-nowrap"
+                >
                   {l.label}
                 </Link>
               ))}
               {isAdmin && (
-                <Link href="/admin" className="text-xs lg:text-sm font-medium hover:text-primary transition-colors flex items-center gap-1">
+                <Link
+                  href="/admin"
+                  className="text-xs lg:text-sm font-medium hover:text-primary transition-colors flex items-center gap-1"
+                >
                   <Shield className="h-3 w-3" /> {t("admin")}
                 </Link>
               )}
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => signOut({ redirectTo: "/" })}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => signOut({ redirectTo: "/" })}
+              >
                 {t("signOut")}
               </Button>
             </nav>
             {/* Mobile hamburger */}
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           </>
         ) : (
           <nav className="flex items-center gap-2">
-            <Link href="/auth/signin"><Button variant="ghost" size="sm">{t("signIn")}</Button></Link>
-            <Link href="/auth/signup"><Button size="sm">{t("getStarted")}</Button></Link>
+            <Link href="/auth/signin">
+              <Button variant="ghost" size="sm">
+                {t("signIn")}
+              </Button>
+            </Link>
+            <Link href="/auth/signup">
+              <Button size="sm">{t("getStarted")}</Button>
+            </Link>
           </nav>
         )}
       </div>
@@ -76,11 +103,20 @@ export function Navbar() {
               </Link>
             ))}
             {isAdmin && (
-              <Link href="/admin" className="py-2.5 text-sm font-medium hover:text-primary transition-colors flex items-center gap-1 border-b" onClick={() => setMenuOpen(false)}>
+              <Link
+                href="/admin"
+                className="py-2.5 text-sm font-medium hover:text-primary transition-colors flex items-center gap-1 border-b"
+                onClick={() => setMenuOpen(false)}
+              >
                 <Shield className="h-3 w-3" /> {t("admin")}
               </Link>
             )}
-            <Button variant="ghost" size="sm" className="justify-start px-0 mt-1 text-sm" onClick={() => signOut({ redirectTo: "/" })}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start px-0 mt-1 text-sm"
+              onClick={() => signOut({ redirectTo: "/" })}
+            >
               {t("signOut")}
             </Button>
           </nav>

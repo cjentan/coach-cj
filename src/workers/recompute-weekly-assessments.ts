@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     } catch (err) {
       failed++;
       console.error(
-        `[recompute-weekly] failed for ${userId} @ ${weekStartDate.toISOString()}: ${(err as Error).message}`,
+        `[recompute-weekly] failed for ${userId} @ ${weekStartDate.toISOString()}: ${(err as Error).message}`
       );
       continue;
     }
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
       `[recompute-weekly] ${weekStartDate.toISOString().slice(0, 10)}: ` +
         `fatigue ${before?.fatigueScore ?? "null"}→${after?.fatigueScore ?? "null"}, ` +
         `readiness ${before?.readinessScore ?? "null"}→${after?.readinessScore ?? "null"}, ` +
-        `atl ${before?.acuteTrainingLoad ?? "null"}→${after?.acuteTrainingLoad ?? "null"}`,
+        `atl ${before?.acuteTrainingLoad ?? "null"}→${after?.acuteTrainingLoad ?? "null"}`
     );
 
     if ((i + 1) % 20 === 0 || i === groups.length - 1) {

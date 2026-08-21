@@ -3,10 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseActivityFile } from "@/lib/gpx-parser";
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,12 +39,10 @@ export async function POST(
     const parsed = parseActivityFile(text, file.name);
     if (parsed) {
       const points = parsed.trackPoints || [];
-      const minEle = points.length > 0
-        ? Math.min(...points.filter((p) => p.ele != null).map((p) => p.ele!))
-        : 0;
-      const maxEle = points.length > 0
-        ? Math.max(...points.filter((p) => p.ele != null).map((p) => p.ele!))
-        : 0;
+      const minEle =
+        points.length > 0 ? Math.min(...points.filter((p) => p.ele != null).map((p) => p.ele!)) : 0;
+      const maxEle =
+        points.length > 0 ? Math.max(...points.filter((p) => p.ele != null).map((p) => p.ele!)) : 0;
 
       // Build simplified course points with cumulative distance
       let cumDistance = 0;
@@ -80,12 +75,10 @@ export async function POST(
     const parsed = activities[0];
     if (parsed) {
       const points = parsed.trackPoints || [];
-      const minEle = points.length > 0
-        ? Math.min(...points.filter((p) => p.ele != null).map((p) => p.ele!))
-        : 0;
-      const maxEle = points.length > 0
-        ? Math.max(...points.filter((p) => p.ele != null).map((p) => p.ele!))
-        : 0;
+      const minEle =
+        points.length > 0 ? Math.min(...points.filter((p) => p.ele != null).map((p) => p.ele!)) : 0;
+      const maxEle =
+        points.length > 0 ? Math.max(...points.filter((p) => p.ele != null).map((p) => p.ele!)) : 0;
 
       let cumDistance = 0;
       const simplifiedPoints = points

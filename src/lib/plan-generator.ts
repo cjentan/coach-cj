@@ -57,24 +57,34 @@ export function generateWeeklyPlan(input: PlanInput): PlanOutput {
     : 1000;
 
   // Analyze trajectory
-  const avgVolume = input.recentVolumeByWeek.length > 0
-    ? input.recentVolumeByWeek.reduce((a, b) => a + b, 0) / input.recentVolumeByWeek.length
-    : 0;
+  const avgVolume =
+    input.recentVolumeByWeek.length > 0
+      ? input.recentVolumeByWeek.reduce((a, b) => a + b, 0) / input.recentVolumeByWeek.length
+      : 0;
 
-  const avgElevation = input.recentElevationByWeek.length > 0
-    ? input.recentElevationByWeek.reduce((a, b) => a + b, 0) / input.recentElevationByWeek.length
-    : 0;
+  const avgElevation =
+    input.recentElevationByWeek.length > 0
+      ? input.recentElevationByWeek.reduce((a, b) => a + b, 0) / input.recentElevationByWeek.length
+      : 0;
 
-  const volumeRegression = input.recentVolumeByWeek.length >= 3
-    ? computeLinearRegression(input.recentVolumeByWeek)
-    : { slope: 0, intercept: avgVolume, r2: 0 };
+  const volumeRegression =
+    input.recentVolumeByWeek.length >= 3
+      ? computeLinearRegression(input.recentVolumeByWeek)
+      : { slope: 0, intercept: avgVolume, r2: 0 };
 
   const volumeGap = requiredWeeklyVolume - avgVolume;
   const elevationGap = requiredWeeklyElevation - avgElevation;
 
   // Handle fatigue override
   const isFatigued = input.fatigueSeverity === "high" || input.fatigueSeverity === "critical";
-  const recoveryFactor = input.fatigueSeverity === "critical" ? 0.4 : input.fatigueSeverity === "high" ? 0.5 : input.fatigueSeverity === "medium" ? 0.7 : 1.0;
+  const recoveryFactor =
+    input.fatigueSeverity === "critical"
+      ? 0.4
+      : input.fatigueSeverity === "high"
+        ? 0.5
+        : input.fatigueSeverity === "medium"
+          ? 0.7
+          : 1.0;
 
   const targetVolume = Math.round(requiredWeeklyVolume * recoveryFactor);
   const targetElevation = Math.round(requiredWeeklyElevation * recoveryFactor);
@@ -111,17 +121,21 @@ export function generateWeeklyPlan(input: PlanInput): PlanOutput {
       description = "Long run";
       targetDist = Math.round(Math.min(remainingVolume * 0.4, 27000));
       targetVert = Math.round(remainingElevation * 0.35);
-    } else if (!isFatigued && sessions.filter(s => s.type === "intervals").length === 0) {
+    } else if (!isFatigued && sessions.filter((s) => s.type === "intervals").length === 0) {
       type = "intervals";
       description = "Speedwork / intervals";
       targetDist = Math.round(Math.min(baseVolumePerDay, 12000));
       targetVert = 0;
-    } else if (!isFatigued && remainingElevation > 200 && sessions.filter(s => s.type === "hill_repeats").length === 0) {
+    } else if (
+      !isFatigued &&
+      remainingElevation > 200 &&
+      sessions.filter((s) => s.type === "hill_repeats").length === 0
+    ) {
       type = "hill_repeats";
       description = "Hill repeats";
       targetDist = Math.round(Math.min(remainingVolume * 0.2, 15000));
       targetVert = Math.round(Math.min(remainingElevation * 0.25, 800));
-    } else if (!isFatigued && sessions.filter(s => s.type === "tempo").length === 0) {
+    } else if (!isFatigued && sessions.filter((s) => s.type === "tempo").length === 0) {
       type = "tempo";
       description = "Tempo run";
       targetDist = Math.round(Math.min(baseVolumePerDay, 16000));
@@ -137,9 +151,10 @@ export function generateWeeklyPlan(input: PlanInput): PlanOutput {
     remainingElevation -= targetVert;
 
     // Estimate duration based on pace (~5:00/km = 200 m/min for runs, fixed for others)
-    const targetDuration = type === "intervals" || type === "hill_repeats"
-      ? 3600
-      : Math.max(1800, Math.round((targetDist / 200) * 60));
+    const targetDuration =
+      type === "intervals" || type === "hill_repeats"
+        ? 3600
+        : Math.max(1800, Math.round((targetDist / 200) * 60));
 
     sessions.push({
       dayOfWeek,
@@ -167,25 +182,35 @@ export function generateWeeklyPlan(input: PlanInput): PlanOutput {
 
   // Generate adjustments
   if (volumeGap > 5000) {
-    adjustments.push(`↑ Target volume ${Math.round(volumeGap / 1000)}km above last week — you're behind on volume for ${primaryGoal?.name || "your goal"}`);
+    adjustments.push(
+      `↑ Target volume ${Math.round(volumeGap / 1000)}km above last week — you're behind on volume for ${primaryGoal?.name || "your goal"}`
+    );
   }
   if (elevationGap > 500) {
-    adjustments.push(`↑ Elevation target +${Math.round(elevationGap)}m — vert is below target for the race profile`);
+    adjustments.push(
+      `↑ Elevation target +${Math.round(elevationGap)}m — vert is below target for the race profile`
+    );
   }
   if (isFatigued) {
-    adjustments.push(`↓ Volume reduced to ${Math.round(recoveryFactor * 100)}% — fatigue detected, prioritizing recovery`);
+    adjustments.push(
+      `↓ Volume reduced to ${Math.round(recoveryFactor * 100)}% — fatigue detected, prioritizing recovery`
+    );
   }
   if (input.consistencyScore < 0.7) {
-    adjustments.push(`➕ Focus on consistency — you hit ${Math.round(input.consistencyScore * 100)}% of planned sessions last week`);
+    adjustments.push(
+      `➕ Focus on consistency — you hit ${Math.round(input.consistencyScore * 100)}% of planned sessions last week`
+    );
   }
   if (volumeRegression.slope > 500 && volumeRegression.r2 > 0.5) {
-    adjustments.push(`📈 Volume trending up (+${Math.round(volumeRegression.slope / 1000)}km/week) — ensure ramp rate stays below 10%`);
+    adjustments.push(
+      `📈 Volume trending up (+${Math.round(volumeRegression.slope / 1000)}km/week) — ensure ramp rate stays below 10%`
+    );
   }
 
   const trajectoryAssessment = primaryGoal
     ? `${Math.round(avgVolume / 1000)}km/week avg vs ${Math.round(requiredWeeklyVolume / 1000)}km/week target. ` +
-      `Ramp: ${volumeRegression.slope > 0 ? '+' : ''}${Math.round(volumeRegression.slope / 1000)}km/week. ` +
-      `${volumeGap > 0 ? `Behind by ${Math.round(volumeGap / 1000)}km/week.` : 'On track for volume.'}`
+      `Ramp: ${volumeRegression.slope > 0 ? "+" : ""}${Math.round(volumeRegression.slope / 1000)}km/week. ` +
+      `${volumeGap > 0 ? `Behind by ${Math.round(volumeGap / 1000)}km/week.` : "On track for volume."}`
     : "No active goals set.";
 
   return {

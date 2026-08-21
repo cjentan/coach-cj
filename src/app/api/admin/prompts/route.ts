@@ -32,7 +32,8 @@ export async function GET() {
       {
         key: PROMPT_KEYS.ANALYZE,
         label: "Analysis Prompt",
-        description: "Used when the athlete clicks Analyze. Returns JSON with analysis + suggestions.",
+        description:
+          "Used when the athlete clicks Analyze. Returns JSON with analysis + suggestions.",
         default: ANALYZE_SYSTEM_PROMPT,
         current: overrides.get(PROMPT_KEYS.ANALYZE) ?? ANALYZE_SYSTEM_PROMPT,
       },

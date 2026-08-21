@@ -24,7 +24,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const { effective: maxHr, source: maxHrSource } = maxHrInfo;
 
   const url = new URL(req.url);
-  if (url.searchParams.get("neighbors") === "true" || url.searchParams.get("neighbors") === "full") {
+  if (
+    url.searchParams.get("neighbors") === "true" ||
+    url.searchParams.get("neighbors") === "full"
+  ) {
     const wantFull = url.searchParams.get("neighbors") === "full";
     const neighborSelect = wantFull
       ? undefined // full object
@@ -42,9 +45,23 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       }),
     ]);
     if (wantFull) {
-      return NextResponse.json({ log, restingHr, maxHr, maxHrSource, prev: prev || null, next: next || null });
+      return NextResponse.json({
+        log,
+        restingHr,
+        maxHr,
+        maxHrSource,
+        prev: prev || null,
+        next: next || null,
+      });
     }
-    return NextResponse.json({ log, restingHr, maxHr, maxHrSource, prevId: prev?.id || null, nextId: next?.id || null });
+    return NextResponse.json({
+      log,
+      restingHr,
+      maxHr,
+      maxHrSource,
+      prevId: prev?.id || null,
+      nextId: next?.id || null,
+    });
   }
 
   return NextResponse.json({ ...log, restingHr, maxHr, maxHrSource });
@@ -55,12 +72,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const parsed = z.object({
-    remarks: z.string().nullable().optional(),
-    isRace: z.boolean().optional(),
-    clearAnalysis: z.boolean().optional(),
-    coachAnalysis: z.string().max(30000).nullable().optional(),
-  }).safeParse(body);
+  const parsed = z
+    .object({
+      remarks: z.string().nullable().optional(),
+      isRace: z.boolean().optional(),
+      clearAnalysis: z.boolean().optional(),
+      coachAnalysis: z.string().max(30000).nullable().optional(),
+    })
+    .safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
 
   const updateData: Record<string, unknown> = {};

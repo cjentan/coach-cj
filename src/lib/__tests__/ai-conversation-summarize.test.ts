@@ -1,20 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { summarizeConversation } from '../ai-conversation';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { summarizeConversation } from "../ai-conversation";
 
 const mockPrisma = vi.hoisted(() => {
   const modelMethods = [
-    'findMany',
-    'findUnique',
-    'findFirst',
-    'create',
-    'createMany',
-    'update',
-    'updateMany',
-    'upsert',
-    'delete',
-    'deleteMany',
-    'count',
-    'aggregate',
+    "findMany",
+    "findUnique",
+    "findFirst",
+    "create",
+    "createMany",
+    "update",
+    "updateMany",
+    "upsert",
+    "delete",
+    "deleteMany",
+    "count",
+    "aggregate",
   ];
   const makeMockModel = () => {
     const model: Record<string, ReturnType<typeof vi.fn>> = {};
@@ -31,7 +31,7 @@ const mockPrisma = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
+vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
 const mockLlm = vi.hoisted(() => ({
   ask: vi.fn(),
@@ -39,19 +39,19 @@ const mockLlm = vi.hoisted(() => ({
   isLlmConfigured: vi.fn(),
 }));
 
-vi.mock('@/lib/llm', () => mockLlm);
+vi.mock("@/lib/llm", () => mockLlm);
 
 const mockPrompts = vi.hoisted(() => ({
   resolvePrompt: vi.fn(),
   getLanguageInstruction: vi.fn(),
-  PROMPT_KEYS: { SUMMARIZE: 'coach_summarize_prompt' },
+  PROMPT_KEYS: { SUMMARIZE: "coach_summarize_prompt" },
 }));
 
-vi.mock('@/lib/coach-prompts', () => mockPrompts);
+vi.mock("@/lib/coach-prompts", () => mockPrompts);
 
-const conversationId = 'conv-123';
-const userId = 'user-1';
-const summaryText = 'Condensed coach note';
+const conversationId = "conv-123";
+const userId = "user-1";
+const summaryText = "Condensed coach note";
 
 function mockConversation(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,25 +59,30 @@ function mockConversation(overrides: Record<string, unknown> = {}) {
     userId,
     // Mirrors the real query, which filters system markers out at the DB level
     messages: [
-      { id: 'm1', role: 'user', content: 'Hello coach', createdAt: new Date() },
-      { id: 'm2', role: 'assistant', content: 'Here is your plan', createdAt: new Date() },
+      { id: "m1", role: "user", content: "Hello coach", createdAt: new Date() },
+      { id: "m2", role: "assistant", content: "Here is your plan", createdAt: new Date() },
     ],
     suggestions: [],
     ...overrides,
   };
 }
 
-describe('summarizeConversation', () => {
+describe("summarizeConversation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.$transaction.mockImplementation((ops: unknown[]) => Promise.resolve(ops));
-    mockLlm.resolveUserLlmConfig.mockResolvedValue({ apiKey: 'key', baseUrl: 'url', model: 'model', provider: 'custom' });
+    mockLlm.resolveUserLlmConfig.mockResolvedValue({
+      apiKey: "key",
+      baseUrl: "url",
+      model: "model",
+      provider: "custom",
+    });
     mockLlm.isLlmConfigured.mockReturnValue(true);
-    mockPrompts.resolvePrompt.mockResolvedValue('Summarize system prompt');
-    mockPrompts.getLanguageInstruction.mockReturnValue('');
+    mockPrompts.resolvePrompt.mockResolvedValue("Summarize system prompt");
+    mockPrompts.getLanguageInstruction.mockReturnValue("");
   });
 
-  it('replaces all conversation messages with a single summary message', async () => {
+  it("replaces all conversation messages with a single summary message", async () => {
     mockPrisma.coachConversation.findUnique.mockResolvedValue(mockConversation());
     mockLlm.ask.mockResolvedValue(summaryText);
 
@@ -88,8 +93,8 @@ describe('summarizeConversation', () => {
     // Thread sent to the LLM contains the non-system messages only
     expect(mockLlm.ask).toHaveBeenCalledTimes(1);
     const [, thread] = mockLlm.ask.mock.calls[0];
-    expect(thread).toContain('Athlete: Hello coach');
-    expect(thread).toContain('Coach: Here is your plan');
+    expect(thread).toContain("Athlete: Hello coach");
+    expect(thread).toContain("Coach: Here is your plan");
 
     // Old messages deleted, summary message created, conversation touched — in one transaction
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
@@ -101,7 +106,7 @@ describe('summarizeConversation', () => {
       data: {
         id: `summary-${conversationId}`,
         conversationId,
-        role: 'assistant',
+        role: "assistant",
         content: summaryText,
       },
     });
@@ -112,26 +117,26 @@ describe('summarizeConversation', () => {
     });
   });
 
-  it('returns LLM_FAILED and leaves messages untouched when the LLM returns nothing', async () => {
+  it("returns LLM_FAILED and leaves messages untouched when the LLM returns nothing", async () => {
     mockPrisma.coachConversation.findUnique.mockResolvedValue(mockConversation());
     mockLlm.ask.mockResolvedValue(null);
 
     const result = await summarizeConversation(conversationId, userId);
 
-    expect(result).toEqual({ error: 'LLM returned no response.', code: 'LLM_FAILED' });
+    expect(result).toEqual({ error: "LLM returned no response.", code: "LLM_FAILED" });
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     expect(mockPrisma.coachMessage.deleteMany).not.toHaveBeenCalled();
     expect(mockPrisma.coachMessage.create).not.toHaveBeenCalled();
   });
 
-  it('rejects when the conversation belongs to another user', async () => {
+  it("rejects when the conversation belongs to another user", async () => {
     mockPrisma.coachConversation.findUnique.mockResolvedValue(
-      mockConversation({ userId: 'someone-else' }),
+      mockConversation({ userId: "someone-else" })
     );
 
     const result = await summarizeConversation(conversationId, userId);
 
-    expect(result).toEqual({ error: 'Conversation not found.', code: 'NOT_FOUND' });
+    expect(result).toEqual({ error: "Conversation not found.", code: "NOT_FOUND" });
     expect(mockLlm.ask).not.toHaveBeenCalled();
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });

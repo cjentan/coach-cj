@@ -33,7 +33,10 @@ const ATL_TC = 7;
  * `localDateStr`) when the input dates are bucketed by the user's timezone so
  * the series extends to the user's today.
  */
-export function fillDailyTss(input: { date: string; tss: number }[], todayKey?: string): { date: string; tss: number }[] {
+export function fillDailyTss(
+  input: { date: string; tss: number }[],
+  todayKey?: string
+): { date: string; tss: number }[] {
   if (input.length === 0) return [];
 
   const startDate = new Date(input[0].date);
@@ -54,7 +57,11 @@ export function fillDailyTss(input: { date: string; tss: number }[], todayKey?: 
   return filled;
 }
 
-export function computePMC(dailyTss: DailyTss[], initialCtl: number = 30, initialAtl: number = 30): PmcResult[] {
+export function computePMC(
+  dailyTss: DailyTss[],
+  initialCtl: number = 30,
+  initialAtl: number = 30
+): PmcResult[] {
   if (dailyTss.length === 0) return [];
 
   const sorted = [...dailyTss].sort(

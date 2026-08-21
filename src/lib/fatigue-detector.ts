@@ -27,7 +27,14 @@ interface InputData {
   // Trackpoint-derived signals (optional — only when rich data is available)
   avgDecouplingPct?: number | null;
   efTrend?: { weekStart: string; ef: number }[] | null;
-  intensityDistribution?: { zone1Pct: number; zone2Pct: number; zone3Pct: number; zone4Pct: number; zone5Pct: number; distributionType: string } | null;
+  intensityDistribution?: {
+    zone1Pct: number;
+    zone2Pct: number;
+    zone3Pct: number;
+    zone4Pct: number;
+    zone5Pct: number;
+    distributionType: string;
+  } | null;
 }
 
 export function detectFatigue(data: InputData): FatigueResult {
@@ -56,7 +63,14 @@ export function detectFatigue(data: InputData): FatigueResult {
     signal: "TSB Duration",
     value: consecutiveNegativeTsb,
     threshold: 14,
-    contribution: consecutiveNegativeTsb > 21 ? 1.0 : consecutiveNegativeTsb > 14 ? 0.6 : consecutiveNegativeTsb > 7 ? 0.3 : 0,
+    contribution:
+      consecutiveNegativeTsb > 21
+        ? 1.0
+        : consecutiveNegativeTsb > 14
+          ? 0.6
+          : consecutiveNegativeTsb > 7
+            ? 0.3
+            : 0,
   });
 
   // Signal 3: Resting HR Drift
@@ -64,7 +78,8 @@ export function detectFatigue(data: InputData): FatigueResult {
     const recent = data.restingHrHistory.slice(-3);
     const older = data.restingHrHistory.slice(-14, -3);
     const recentAvg = recent.reduce((a, b) => a + b.value, 0) / recent.length;
-    const olderAvg = older.length > 0 ? older.reduce((a, b) => a + b.value, 0) / older.length : recentAvg;
+    const olderAvg =
+      older.length > 0 ? older.reduce((a, b) => a + b.value, 0) / older.length : recentAvg;
     const drift = recentAvg - olderAvg;
     signals.push({
       signal: "Resting HR Drift",
@@ -163,7 +178,7 @@ export function detectFatigue(data: InputData): FatigueResult {
     "TSB Depth": 0.22,
     "TSB Duration": 0.18,
     "Resting HR Drift": 0.15,
-    "Exercise HR Drift": 0.10,
+    "Exercise HR Drift": 0.1,
     "Training Monotony": 0.08,
     "Training Strain": 0.08,
     "Weight Drift (7-day)": 0.04,
@@ -186,19 +201,23 @@ export function detectFatigue(data: InputData): FatigueResult {
 
   if (score >= 60) {
     severity = "critical";
-    recommendation = "CRITICAL FATIGUE: Multiple signals indicate severe overtraining risk. Take a full rest week immediately. Resume with 40% volume next week. Consider consulting a sports physician if resting HR remains elevated.";
+    recommendation =
+      "CRITICAL FATIGUE: Multiple signals indicate severe overtraining risk. Take a full rest week immediately. Resume with 40% volume next week. Consider consulting a sports physician if resting HR remains elevated.";
     restDays = 7;
   } else if (score >= 35) {
     severity = "high";
-    recommendation = "HIGH FATIGUE: Your body is showing significant stress. Take 2-4 rest days, then resume at 50-60% of normal volume. Focus on sleep and nutrition. Re-evaluate next week.";
+    recommendation =
+      "HIGH FATIGUE: Your body is showing significant stress. Take 2-4 rest days, then resume at 50-60% of normal volume. Focus on sleep and nutrition. Re-evaluate next week.";
     restDays = 3;
   } else if (score >= 18) {
     severity = "medium";
-    recommendation = "MODERATE FATIGUE: Some fatigue signals detected. Consider reducing volume by 30-40% this week. Prioritize easy efforts over intensity. Monitor how you feel.";
+    recommendation =
+      "MODERATE FATIGUE: Some fatigue signals detected. Consider reducing volume by 30-40% this week. Prioritize easy efforts over intensity. Monitor how you feel.";
     restDays = 2;
   } else {
     severity = "low";
-    recommendation = "Low fatigue — you're managing your training load well. Continue at current levels but stay aware of any unusual soreness or elevated morning HR.";
+    recommendation =
+      "Low fatigue — you're managing your training load well. Continue at current levels but stay aware of any unusual soreness or elevated morning HR.";
     restDays = 0;
   }
 

@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 
 async function getOwned(id: string) {
   const session = await auth();
-  if (!session?.user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  if (!session?.user)
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   const item = await prisma.bodyMetric.findUnique({ where: { id, userId: session.user.id } });
   if (!item) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
   return { item };

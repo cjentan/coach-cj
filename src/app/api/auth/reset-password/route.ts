@@ -11,7 +11,11 @@ const resetSchema = z.object({
 export async function POST(req: Request) {
   const body = await req.json();
   const parsed = resetSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "Token and password (min 8 chars) required" }, { status: 400 });
+  if (!parsed.success)
+    return NextResponse.json(
+      { error: "Token and password (min 8 chars) required" },
+      { status: 400 }
+    );
 
   const user = await prisma.user.findFirst({
     where: {
@@ -21,7 +25,10 @@ export async function POST(req: Request) {
   });
 
   if (!user) {
-    return NextResponse.json({ error: "Invalid or expired reset token. Request a new link from your admin." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid or expired reset token. Request a new link from your admin." },
+      { status: 400 }
+    );
   }
 
   const passwordHash = await hash(parsed.data.password, 12);

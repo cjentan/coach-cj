@@ -15,10 +15,7 @@ export async function POST(req: Request) {
     const parsed = signupSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
     const { name, email, password } = parsed.data;
@@ -39,9 +36,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

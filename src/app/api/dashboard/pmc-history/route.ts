@@ -116,7 +116,7 @@ export async function GET(request: Request) {
   const npMaxByDate: Record<string, number> = {};
   for (const log of logs) {
     const dateKey = localDateStr(log.startDate, tzOffset);
-    const tss = log.tss || Math.round(log.durationSeconds / 3600 * 50);
+    const tss = log.tss || Math.round((log.durationSeconds / 3600) * 50);
     tssByDate[dateKey] = (tssByDate[dateKey] || 0) + tss;
     if (log.efficiencyFactor != null) {
       efSumByDate[dateKey] = (efSumByDate[dateKey] || 0) + log.efficiencyFactor;
@@ -179,9 +179,10 @@ export async function GET(request: Request) {
   interpolateGaps(series, "decoupling");
 
   // Trim to the requested display window so CTL has stabilized before it
-  const trimmed = displayDays < computeDays && series.length > displayDays
-    ? series.slice(series.length - displayDays)
-    : series;
+  const trimmed =
+    displayDays < computeDays && series.length > displayDays
+      ? series.slice(series.length - displayDays)
+      : series;
 
   return NextResponse.json({ days: displayDays, series: trimmed });
 }

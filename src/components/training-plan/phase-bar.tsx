@@ -27,7 +27,7 @@ export function PhaseBar({ phases, currentMonth, onPhaseClick }: PhaseBarProps) 
         isWithinInterval(currentMonthStart, {
           start: parseISO(p.weekStart),
           end: parseISO(p.weekEnd),
-        }),
+        })
       )
       .map((p) => p.name);
   }, [phases, currentMonthStart]);
@@ -35,19 +35,14 @@ export function PhaseBar({ phases, currentMonth, onPhaseClick }: PhaseBarProps) 
   // Auto-scroll the active phase button into view
   useEffect(() => {
     if (!barRef.current || activePhaseNames.length === 0) return;
-    const activeBtn = barRef.current.querySelector<HTMLButtonElement>(
-      "[data-active=true]",
-    );
+    const activeBtn = barRef.current.querySelector<HTMLButtonElement>("[data-active=true]");
     activeBtn?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [activePhaseNames]);
 
   if (phases.length === 0) return null;
 
   return (
-    <div
-      ref={barRef}
-      className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin"
-    >
+    <div ref={barRef} className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
       {phases.map((phase) => {
         const isActive = activePhaseNames.includes(phase.name);
 
@@ -91,10 +86,7 @@ const PhaseButton = memo(function PhaseButton({
         color: isActive ? phase.color : "var(--muted-foreground)",
       }}
     >
-      <span
-        className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: phase.color }}
-      />
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: phase.color }} />
       <span>{phase.name}</span>
       <span className="opacity-60">
         {startLabel} &ndash; {endLabel}

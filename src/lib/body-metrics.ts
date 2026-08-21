@@ -24,10 +24,7 @@ export interface WeightResult {
  * 4. Edge carry — only one side has data, use it (up to 30 days)
  * 5. No data → returns null
  */
-export async function getWeightAtDate(
-  userId: string,
-  date: Date,
-): Promise<WeightResult | null> {
+export async function getWeightAtDate(userId: string, date: Date): Promise<WeightResult | null> {
   const dateStr = date.toISOString().split("T")[0];
 
   // Fetch body metrics in a wide window around the target date
@@ -46,9 +43,7 @@ export async function getWeightAtDate(
   if (metrics.length === 0) return null;
 
   // 1. Exact match
-  const exact = metrics.find(
-    (m) => m.recordedAt.toISOString().split("T")[0] === dateStr,
-  );
+  const exact = metrics.find((m) => m.recordedAt.toISOString().split("T")[0] === dateStr);
   if (exact) {
     return { weightKg: exact.weightKg, source: "exact", gapDays: 0 };
   }
@@ -99,26 +94,25 @@ export async function getWeightAtDate(
     const afterTime = after.recordedAt.getTime();
     const totalSpan = (afterTime - beforeTime) / 86400000;
     const fraction = (targetTime - beforeTime) / 86400000 / totalSpan;
-    const interpolated =
-      before.weightKg + (after.weightKg - before.weightKg) * fraction;
+    const interpolated = before.weightKg + (after.weightKg - before.weightKg) * fraction;
 
     return {
       weightKg: Math.round(interpolated * 10) / 10,
       source: "interpolated",
       gapDays: Math.round(
-        Math.min(
-          Math.abs(beforeTime - targetTime),
-          Math.abs(afterTime - targetTime),
-        ) / 86400000,
+        Math.min(Math.abs(beforeTime - targetTime), Math.abs(afterTime - targetTime)) / 86400000
       ),
     };
   }
 
   // 4. Edge carry (up to 30 days)
-  const closest = metrics.reduce((best, m) => {
-    const gap = Math.abs(m.recordedAt.getTime() - targetTime) / 86400000;
-    return gap < best.gap ? { metric: m, gap } : best;
-  }, { metric: metrics[0], gap: Infinity });
+  const closest = metrics.reduce(
+    (best, m) => {
+      const gap = Math.abs(m.recordedAt.getTime() - targetTime) / 86400000;
+      return gap < best.gap ? { metric: m, gap } : best;
+    },
+    { metric: metrics[0], gap: Infinity }
+  );
 
   if (closest.gap <= 30) {
     return {
@@ -225,7 +219,12 @@ export async function getEffectiveMaxHr(userId: string): Promise<number> {
 export async function getMaxHrInfo(userId: string): Promise<MaxHrInfo> {
   const estimated = await getEstimatedMaxHr(userId);
   if (estimated != null) {
-    return { effective: estimated, source: "estimated", userSet: await getUserSetMaxHr(userId), estimated };
+    return {
+      effective: estimated,
+      source: "estimated",
+      userSet: await getUserSetMaxHr(userId),
+      estimated,
+    };
   }
 
   const userSet = await getUserSetMaxHr(userId);

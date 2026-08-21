@@ -7,10 +7,7 @@ import { usePathname } from "@/i18n/routing";
 import { MessageCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CoachChat from "@/components/coach/coach-chat";
-import {
-  type PageContext,
-  detectPageContext,
-} from "@/lib/page-context";
+import { type PageContext, detectPageContext } from "@/lib/page-context";
 import { COACH_CHAT_EVENTS } from "@/lib/coach-chat-events";
 
 export default function FloatingCoachButton() {
@@ -64,8 +61,7 @@ export default function FloatingCoachButton() {
       handleOpen();
     };
     window.addEventListener(COACH_CHAT_EVENTS.OPEN, handler as EventListener);
-    return () =>
-      window.removeEventListener(COACH_CHAT_EVENTS.OPEN, handler as EventListener);
+    return () => window.removeEventListener(COACH_CHAT_EVENTS.OPEN, handler as EventListener);
   }, [handleOpen]);
 
   // Don't render while auth is loading or not authenticated

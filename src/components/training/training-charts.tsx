@@ -3,9 +3,17 @@
 import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import {
-  AreaChart, Area, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceArea, ComposedChart,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceArea,
+  ComposedChart,
 } from "recharts";
 import { formatTime as fmtTime } from "@/lib/trackpoint-charts";
 import { hrZoneBoundaryBpm } from "@/lib/trackpoint-metrics";
@@ -75,14 +83,29 @@ export function ElevationChart({ data }: { data: { distance: number; ele: number
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
-            <YAxis tick={{ fontSize: 10 }} width={36} tickFormatter={(v: number) => formatEleAxis(v)} />
+            <XAxis
+              dataKey="distance"
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v: number) => formatDistAxis(v)}
+            />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              width={36}
+              tickFormatter={(v: number) => formatEleAxis(v)}
+            />
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(v: number) => formatDistTooltip(v)}
               formatter={(v: number) => [formatEleTooltip(v), t("seriesElevation")]}
             />
-            <Area type="monotone" dataKey="ele" stroke="#8b5cf6" fill="url(#eleGrad)" strokeWidth={1.5} dot={false} />
+            <Area
+              type="monotone"
+              dataKey="ele"
+              stroke="#8b5cf6"
+              fill="url(#eleGrad)"
+              strokeWidth={1.5}
+              dot={false}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -92,7 +115,11 @@ export function ElevationChart({ data }: { data: { distance: number; ele: number
 
 // ─── Heart Rate Chart with Zone Bands ────────────────────────
 
-export function HrChart({ data, maxHr, restHr }: {
+export function HrChart({
+  data,
+  maxHr,
+  restHr,
+}: {
   data: { distance: number; hr: number }[];
   maxHr: number;
   restHr?: number | null;
@@ -100,10 +127,10 @@ export function HrChart({ data, maxHr, restHr }: {
   const t = useTranslations("activities.detail");
   // Zone bands use Karvonen (HR reserve) when a resting HR is available,
   // falling back to % of max HR — matching the rest of the app.
-  const z1 = hrZoneBoundaryBpm(maxHr, 0.60, restHr) ?? Math.round(maxHr * 0.60);
-  const z2 = hrZoneBoundaryBpm(maxHr, 0.70, restHr) ?? Math.round(maxHr * 0.70);
-  const z3 = hrZoneBoundaryBpm(maxHr, 0.80, restHr) ?? Math.round(maxHr * 0.80);
-  const z4 = hrZoneBoundaryBpm(maxHr, 0.90, restHr) ?? Math.round(maxHr * 0.90);
+  const z1 = hrZoneBoundaryBpm(maxHr, 0.6, restHr) ?? Math.round(maxHr * 0.6);
+  const z2 = hrZoneBoundaryBpm(maxHr, 0.7, restHr) ?? Math.round(maxHr * 0.7);
+  const z3 = hrZoneBoundaryBpm(maxHr, 0.8, restHr) ?? Math.round(maxHr * 0.8);
+  const z4 = hrZoneBoundaryBpm(maxHr, 0.9, restHr) ?? Math.round(maxHr * 0.9);
 
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
@@ -112,7 +139,11 @@ export function HrChart({ data, maxHr, restHr }: {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
+            <XAxis
+              dataKey="distance"
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v: number) => formatDistAxis(v)}
+            />
             <YAxis tick={{ fontSize: 10 }} width={32} domain={["dataMin - 5", "dataMax + 5"]} />
             <Tooltip
               contentStyle={tooltipStyle}
@@ -125,7 +156,15 @@ export function HrChart({ data, maxHr, restHr }: {
             <ReferenceArea y1={z2} y2={z3} fill="#f59e0b" fillOpacity={0.06} />
             <ReferenceArea y1={z3} y2={z4} fill="#ef4444" fillOpacity={0.06} />
             <ReferenceArea y1={z4} y2={maxHr + 10} fill="#a855f7" fillOpacity={0.06} />
-            <Area type="monotone" dataKey="hr" stroke="#ef4444" fill="#ef4444" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+            <Area
+              type="monotone"
+              dataKey="hr"
+              stroke="#ef4444"
+              fill="#ef4444"
+              fillOpacity={0.12}
+              strokeWidth={1.5}
+              dot={false}
+            />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -150,8 +189,17 @@ export function HrChart({ data, maxHr, restHr }: {
 
 // ─── HR Zone Breakdown Bar ───────────────────────────────────
 
-export function HrZoneBar({ zones }: {
-  zones: { zone: number; label: string; pct: number; timeMin: number; lowerBpm: number; upperBpm: number }[];
+export function HrZoneBar({
+  zones,
+}: {
+  zones: {
+    zone: number;
+    label: string;
+    pct: number;
+    timeMin: number;
+    lowerBpm: number;
+    upperBpm: number;
+  }[];
 }) {
   const t = useTranslations("activities.detail");
   const zoneColors = ["#6b7280", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7"];
@@ -163,7 +211,9 @@ export function HrZoneBar({ zones }: {
           <div key={z.zone}>
             <div className="flex justify-between text-xs mb-0.5">
               <span className="text-muted-foreground">{z.label}</span>
-              <span className="font-medium tabular-nums">{z.pct}% · {fmtTime(z.timeMin * 60)}</span>
+              <span className="font-medium tabular-nums">
+                {z.pct}% · {fmtTime(z.timeMin * 60)}
+              </span>
             </div>
             <div className="w-full bg-muted rounded-full h-3">
               <div
@@ -189,8 +239,16 @@ export function PaceChart({ data }: { data: { distance: number; pace: number }[]
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
-            <YAxis tick={{ fontSize: 10 }} width={40} reversed domain={["dataMin - 0.5", "dataMax + 0.5"]}
+            <XAxis
+              dataKey="distance"
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v: number) => formatDistAxis(v)}
+            />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              width={40}
+              reversed
+              domain={["dataMin - 0.5", "dataMax + 0.5"]}
               tickFormatter={(v: number) => formatPaceVal(v)}
             />
             <Tooltip
@@ -208,7 +266,11 @@ export function PaceChart({ data }: { data: { distance: number; pace: number }[]
 
 // ─── Power Chart ─────────────────────────────────────────────
 
-export function PowerChart({ data }: { data: { timeSec: number; power: number; smoothedPower: number }[] }) {
+export function PowerChart({
+  data,
+}: {
+  data: { timeSec: number; power: number; smoothedPower: number }[];
+}) {
   const t = useTranslations("activities.detail");
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
@@ -217,21 +279,37 @@ export function PowerChart({ data }: { data: { timeSec: number; power: number; s
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="timeSec" tick={{ fontSize: 10 }} tickFormatter={(v: number) => fmtTime(v)} />
+            <XAxis
+              dataKey="timeSec"
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v: number) => fmtTime(v)}
+            />
             <YAxis tick={{ fontSize: 10 }} width={36} tickFormatter={(v: number) => `${v}W`} />
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(v: number) => fmtTime(v)}
               formatter={(v: number) => [`${v} W`, t("seriesPower")]}
             />
-            <Area type="monotone" dataKey="power" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.08} strokeWidth={0.5} dot={false} />
-            <Line type="monotone" dataKey="smoothedPower" stroke="#f59e0b" strokeWidth={2} dot={false} />
+            <Area
+              type="monotone"
+              dataKey="power"
+              stroke="#f59e0b"
+              fill="#f59e0b"
+              fillOpacity={0.08}
+              strokeWidth={0.5}
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="smoothedPower"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              dot={false}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1">
-        {t("rawSmoothedLabel")}
-      </p>
+      <p className="text-[10px] text-muted-foreground mt-1">{t("rawSmoothedLabel")}</p>
     </div>
   );
 }
@@ -247,31 +325,53 @@ export function GapChart({ data }: { data: { distance: number; pace: number; gap
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatDistAxis(v)} />
-            <YAxis tick={{ fontSize: 10 }} width={40} reversed domain={["dataMin - 0.5", "dataMax + 0.5"]}
+            <XAxis
+              dataKey="distance"
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v: number) => formatDistAxis(v)}
+            />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              width={40}
+              reversed
+              domain={["dataMin - 0.5", "dataMax + 0.5"]}
               tickFormatter={(v: number) => formatPaceVal(v)}
             />
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={(v: number) => formatDistTooltip(v)}
-              formatter={(v: number, name: string) => [`${formatPaceVal(v)} ${paceUnit()}`, name === "gap" ? t("seriesGap") : t("seriesActualPace")]}
+              formatter={(v: number, name: string) => [
+                `${formatPaceVal(v)} ${paceUnit()}`,
+                name === "gap" ? t("seriesGap") : t("seriesActualPace"),
+              ]}
             />
-            <Line type="monotone" dataKey="pace" stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 3" dot={false} />
+            <Line
+              type="monotone"
+              dataKey="pace"
+              stroke="#94a3b8"
+              strokeWidth={1}
+              strokeDasharray="4 3"
+              dot={false}
+            />
             <Line type="monotone" dataKey="gap" stroke="#10b981" strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1">
-        {t("dashedSolidLabel")}
-      </p>
+      <p className="text-[10px] text-muted-foreground mt-1">{t("dashedSolidLabel")}</p>
     </div>
   );
 }
 
 // ─── VAM Card ────────────────────────────────────────────────
 
-export function VamCard({ totalGain, vamTotal, peakVam30min }: {
-  totalGain: number; vamTotal: number; peakVam30min: number;
+export function VamCard({
+  totalGain,
+  vamTotal,
+  peakVam30min,
+}: {
+  totalGain: number;
+  vamTotal: number;
+  peakVam30min: number;
 }) {
   const t = useTranslations("activities.detail");
   return (
@@ -312,24 +412,66 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { key: "ele",  label: "Elevation", color: "#8b5cf6", unit: "m",       yAxisId: "ele",   orientation: "left" },
-  { key: "hr",   label: "Heart Rate",color: "#ef4444", unit: "bpm",     yAxisId: "hr",    orientation: "left" },
-  { key: "pace", label: "Pace",      color: "#0ea5e9", unit: "/km",    yAxisId: "pace",  orientation: "right", reversed: true,
-    formatValue: (v) => formatPaceVal(v) },
-  { key: "gap",  label: "GAP",       color: "#10b981", unit: "/km",    yAxisId: "gap",   orientation: "right", reversed: true,
-    formatValue: (v) => formatPaceVal(v) },
-  { key: "power",label: "Power",     color: "#f59e0b", unit: "W",       yAxisId: "power", orientation: "right" },
+  {
+    key: "ele",
+    label: "Elevation",
+    color: "#8b5cf6",
+    unit: "m",
+    yAxisId: "ele",
+    orientation: "left",
+  },
+  {
+    key: "hr",
+    label: "Heart Rate",
+    color: "#ef4444",
+    unit: "bpm",
+    yAxisId: "hr",
+    orientation: "left",
+  },
+  {
+    key: "pace",
+    label: "Pace",
+    color: "#0ea5e9",
+    unit: "/km",
+    yAxisId: "pace",
+    orientation: "right",
+    reversed: true,
+    formatValue: (v) => formatPaceVal(v),
+  },
+  {
+    key: "gap",
+    label: "GAP",
+    color: "#10b981",
+    unit: "/km",
+    yAxisId: "gap",
+    orientation: "right",
+    reversed: true,
+    formatValue: (v) => formatPaceVal(v),
+  },
+  {
+    key: "power",
+    label: "Power",
+    color: "#f59e0b",
+    unit: "W",
+    yAxisId: "power",
+    orientation: "right",
+  },
 ];
 
 /** Format a metric's value for the tooltip (units-aware). */
 function formatTooltipValue(m: MetricDef, v: number): string {
   switch (m.key) {
-    case "ele": return formatEleTooltip(v);
-    case "hr": return `${Math.round(v)} bpm`;
+    case "ele":
+      return formatEleTooltip(v);
+    case "hr":
+      return `${Math.round(v)} bpm`;
     case "pace":
-    case "gap": return `${formatPaceVal(v)} ${paceUnit()}`;
-    case "power": return `${Math.round(v)} W`;
-    default: return String(v);
+    case "gap":
+      return `${formatPaceVal(v)} ${paceUnit()}`;
+    case "power":
+      return `${Math.round(v)} W`;
+    default:
+      return String(v);
   }
 }
 
@@ -339,7 +481,11 @@ function formatXAxis(value: number, mode: XAxisMode): string {
   return fmtTime(value);
 }
 
-export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
+export function CombinedMetricsChart({
+  distanceData,
+  timeData,
+  maxHr,
+}: {
   distanceData: CombinedDataPoint[];
   timeData: CombinedDataPoint[];
   maxHr?: number;
@@ -353,7 +499,11 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
     power: t("seriesPower"),
   };
   const [visible, setVisible] = useState<Record<MetricKey, boolean>>({
-    ele: true, hr: true, pace: true, gap: true, power: true,
+    ele: true,
+    hr: true,
+    pace: true,
+    gap: true,
+    power: true,
   });
   const [xAxisMode, setXAxisMode] = useState<XAxisMode>("distance");
   const data = xAxisMode === "distance" ? distanceData : timeData;
@@ -367,7 +517,13 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
   // domain, while `hide` skips rendering and frees their reserved width. The
   // custom tooltip carries the actual values, so axes are orientation refs only.
   const leftAxisKey: MetricKey | null = visible.hr ? "hr" : visible.ele ? "ele" : null;
-  const rightAxisKey: MetricKey | null = visible.pace ? "pace" : visible.power ? "power" : visible.gap ? "gap" : null;
+  const rightAxisKey: MetricKey | null = visible.pace
+    ? "pace"
+    : visible.power
+      ? "power"
+      : visible.gap
+        ? "gap"
+        : null;
 
   // Compute Y-axis domains
   function domain(key: MetricKey): [number, number] {
@@ -395,7 +551,9 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                   ? "text-foreground border"
                   : "text-muted-foreground border border-dashed opacity-50"
               }`}
-              style={visible[m.key] ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}}
+              style={
+                visible[m.key] ? { borderColor: m.color, backgroundColor: `${m.color}14` } : {}
+              }
             >
               <span className="inline-block w-2 h-2 rounded-full" style={{ background: m.color }} />
               {metricLabels[m.key]}
@@ -407,7 +565,9 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
           <button
             onClick={() => setXAxisMode("distance")}
             className={`px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors ${
-              xAxisMode === "distance" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              xAxisMode === "distance"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {t("xAxisDistance")}
@@ -415,7 +575,9 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
           <button
             onClick={() => setXAxisMode("time")}
             className={`px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors ${
-              xAxisMode === "time" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              xAxisMode === "time"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {t("xAxisTime")}
@@ -517,14 +679,23 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                         const m = METRICS.find((mm) => mm.key === (isSmoothed ? "power" : name));
                         return (
                           <div key={name} className="flex items-center gap-2">
-                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: m?.color ?? entry.color }} />
+                            <span
+                              className="inline-block w-2 h-2 rounded-full shrink-0"
+                              style={{ background: m?.color ?? entry.color }}
+                            />
                             <span className="text-muted-foreground">
-                              {isSmoothed ? t("seriesPowerSmoothed") : m ? metricLabels[m.key] : name}
+                              {isSmoothed
+                                ? t("seriesPowerSmoothed")
+                                : m
+                                  ? metricLabels[m.key]
+                                  : name}
                             </span>
                             <span className="ml-auto font-medium tabular-nums">
                               {isSmoothed
                                 ? `${Math.round(entry.value)} W`
-                                : m ? formatTooltipValue(m, entry.value as number) : String(entry.value)}
+                                : m
+                                  ? formatTooltipValue(m, entry.value as number)
+                                  : String(entry.value)}
                             </span>
                           </div>
                         );
@@ -544,30 +715,77 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
                     <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <Area yAxisId="ele" type="monotone" dataKey="ele" stroke="#8b5cf6" fill="url(#combEleGrad)" strokeWidth={1.5} dot={false} />
+                <Area
+                  yAxisId="ele"
+                  type="monotone"
+                  dataKey="ele"
+                  stroke="#8b5cf6"
+                  fill="url(#combEleGrad)"
+                  strokeWidth={1.5}
+                  dot={false}
+                />
               </>
             )}
 
             {/* HR area */}
             {visible.hr && (
-              <Area yAxisId="hr" type="monotone" dataKey="hr" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={1.5} dot={false} />
+              <Area
+                yAxisId="hr"
+                type="monotone"
+                dataKey="hr"
+                stroke="#ef4444"
+                fill="#ef4444"
+                fillOpacity={0.1}
+                strokeWidth={1.5}
+                dot={false}
+              />
             )}
 
             {/* Pace line */}
             {visible.pace && (
-              <Line yAxisId="pace" type="monotone" dataKey="pace" stroke="#0ea5e9" strokeWidth={1.5} dot={false} />
+              <Line
+                yAxisId="pace"
+                type="monotone"
+                dataKey="pace"
+                stroke="#0ea5e9"
+                strokeWidth={1.5}
+                dot={false}
+              />
             )}
 
             {/* GAP line */}
             {visible.gap && (
-              <Line yAxisId="gap" type="monotone" dataKey="gap" stroke="#10b981" strokeWidth={1.5} dot={false} />
+              <Line
+                yAxisId="gap"
+                type="monotone"
+                dataKey="gap"
+                stroke="#10b981"
+                strokeWidth={1.5}
+                dot={false}
+              />
             )}
 
             {/* Power: thin raw + thick smoothed */}
             {visible.power && (
               <>
-                <Area yAxisId="power" type="monotone" dataKey="power" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.06} strokeWidth={0.5} dot={false} />
-                <Line yAxisId="power" type="monotone" dataKey="smoothedPower" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                <Area
+                  yAxisId="power"
+                  type="monotone"
+                  dataKey="power"
+                  stroke="#f59e0b"
+                  fill="#f59e0b"
+                  fillOpacity={0.06}
+                  strokeWidth={0.5}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="power"
+                  type="monotone"
+                  dataKey="smoothedPower"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </>
             )}
           </ComposedChart>
@@ -576,9 +794,7 @@ export function CombinedMetricsChart({ distanceData, timeData, maxHr }: {
 
       {/* Legend hint */}
       {visible.pace && visible.gap && (
-        <p className="text-[10px] text-muted-foreground mt-1">
-          {t("paceGapLegend")}
-        </p>
+        <p className="text-[10px] text-muted-foreground mt-1">{t("paceGapLegend")}</p>
       )}
     </div>
   );

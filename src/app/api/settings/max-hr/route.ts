@@ -26,7 +26,10 @@ export async function PUT(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = maxHrSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "maxHr must be an integer between 30 and 220" }, { status: 400 });
+    return NextResponse.json(
+      { error: "maxHr must be an integer between 30 and 220" },
+      { status: 400 }
+    );
   }
 
   await prisma.user.update({

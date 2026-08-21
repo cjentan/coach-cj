@@ -57,7 +57,10 @@ function redistributePhases(
 ): PhaseProposal[] {
   if (origPhases.length === 0) return origPhases;
   const safeTotal = Math.max(origPhases.length, newTotal);
-  const origSum = Math.max(origTotal, origPhases.reduce((s, p) => s + p.weeks, 0));
+  const origSum = Math.max(
+    origTotal,
+    origPhases.reduce((s, p) => s + p.weeks, 0)
+  );
 
   // Proportional allocation from original
   const result = origPhases.map((p) => ({
@@ -75,14 +78,23 @@ function redistributePhases(
     if (diff > 0) {
       // Give extra weeks to non-Taper phases first
       for (let i = 0; i < result.length && diff > 0; i++) {
-        if (result[i].name !== "Taper") { result[i].weeks++; diff--; }
+        if (result[i].name !== "Taper") {
+          result[i].weeks++;
+          diff--;
+        }
       }
-      if (diff > 0) { result[result.length - 1].weeks += diff; break; }
+      if (diff > 0) {
+        result[result.length - 1].weeks += diff;
+        break;
+      }
     } else {
       // Take from Taper first, then from phases above their minimum
       for (let i = result.length - 1; i >= 0 && diff < 0; i--) {
         const min = PHASE_MIN_WEEKS[result[i].name] || 1;
-        while (result[i].weeks > min && diff < 0) { result[i].weeks--; diff++; }
+        while (result[i].weeks > min && diff < 0) {
+          result[i].weeks--;
+          diff++;
+        }
       }
     }
   }
@@ -91,11 +103,7 @@ function redistributePhases(
 }
 
 /** Adjust a phase's week count while keeping totalWeeks fixed. */
-function adjustPhaseWeeks(
-  phases: PhaseProposal[],
-  index: number,
-  delta: number
-): PhaseProposal[] {
+function adjustPhaseWeeks(phases: PhaseProposal[], index: number, delta: number): PhaseProposal[] {
   const result = phases.map((p) => ({ ...p }));
   const target = result[index];
   const taperIdx = result.length - 1;
@@ -133,7 +141,8 @@ export default function PlanProposalCard({
   onAdjust,
 }: PlanProposalCardProps) {
   const t = useTranslations("coach");
-  const { phases, totalWeeks, raceGoalName, raceDate, currentVolume, peakVolume, adjustments } = proposal;
+  const { phases, totalWeeks, raceGoalName, raceDate, currentVolume, peakVolume, adjustments } =
+    proposal;
 
   // Local editable state — initialised from proposal, updated as user edits
   const [edits, setEdits] = useState<{
@@ -157,9 +166,8 @@ export default function PlanProposalCard({
   const commitEdits = useCallback(
     (next: typeof edits) => {
       setEdits(next);
-      const computedTotal = raceDate && next.startDate
-        ? computeTotalWeeks(next.startDate, raceDate)
-        : totalWeeks;
+      const computedTotal =
+        raceDate && next.startDate ? computeTotalWeeks(next.startDate, raceDate) : totalWeeks;
       onProposalChange?.({
         ...proposal,
         totalWeeks: computedTotal,
@@ -194,7 +202,8 @@ export default function PlanProposalCard({
 
   const trainingPeriod = (() => {
     if (!raceDate) return null;
-    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const fmt = (d: Date) =>
+      d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     const race = new Date(raceDate);
     if (isNaN(race.getTime())) return null;
     const start = edits.startDate
@@ -280,7 +289,9 @@ export default function PlanProposalCard({
                     <span>→ {trainingPeriod.end}</span>
                   </div>
                 ) : (
-                  <span>{trainingPeriod.start} → {trainingPeriod.end}</span>
+                  <span>
+                    {trainingPeriod.start} → {trainingPeriod.end}
+                  </span>
                 )}
               </div>
             )}
@@ -291,7 +302,8 @@ export default function PlanProposalCard({
       {/* Phase timeline — editable weeks */}
       <div className="mb-3">
         <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-          {t("proposalWeeksCount", { count: effectiveTotalWeeks })} · {t("proposalPhasesCount", { count: phases.length })}
+          {t("proposalWeeksCount", { count: effectiveTotalWeeks })} ·{" "}
+          {t("proposalPhasesCount", { count: phases.length })}
         </p>
         <div className="flex gap-1.5 flex-wrap">
           {displayPhases.map((phase, i) => {
@@ -350,7 +362,9 @@ export default function PlanProposalCard({
           <div className="flex-1 h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-blue-400 to-amber-400"
-              style={{ width: `${Math.min(100, (parseInt(displayCurrent) / Math.max(1, parseInt(displayPeak))) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, (parseInt(displayCurrent) / Math.max(1, parseInt(displayPeak))) * 100)}%`,
+              }}
             />
           </div>
           {editable ? (
@@ -383,7 +397,8 @@ export default function PlanProposalCard({
             <div className="min-w-0">
               <span className="font-medium">{phase.name}</span>
               <span className="text-muted-foreground">
-                {" "}· {phase.weeks}w · {phase.focus}
+                {" "}
+                · {phase.weeks}w · {phase.focus}
               </span>
               <span className="text-muted-foreground/60"> · {phase.peakVolume}</span>
             </div>
@@ -400,7 +415,10 @@ export default function PlanProposalCard({
           </div>
           <ul className="space-y-0.5">
             {adjustments.map((adj, i) => (
-              <li key={i} className="text-[11px] text-amber-700/80 dark:text-amber-400/80 flex items-start gap-1.5">
+              <li
+                key={i}
+                className="text-[11px] text-amber-700/80 dark:text-amber-400/80 flex items-start gap-1.5"
+              >
                 <span className="mt-0.5">·</span>
                 <span>{adj}</span>
               </li>
@@ -415,7 +433,12 @@ export default function PlanProposalCard({
           <span>✓</span>
           {editable ? t("proposalBuildThisPlan") : t("proposalApprove")}
         </Button>
-        <Button size="sm" variant="outline" className="flex-1 h-8 text-xs gap-1.5" onClick={onAdjust}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 h-8 text-xs gap-1.5"
+          onClick={onAdjust}
+        >
           <span>✎</span> {t("proposalAdjust")}
         </Button>
       </div>

@@ -8,16 +8,52 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
-  Brain, Users, Save, Loader2, Check, Eye, EyeOff, Pencil, Search, Key,
-  ChevronLeft, ChevronRight,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Brain,
+  Users,
+  Save,
+  Loader2,
+  Check,
+  Eye,
+  EyeOff,
+  Pencil,
+  Search,
+  Key,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { PROVIDER_BASE_URLS, PROVIDER_MODELS, PROVIDER_ORDER, PROVIDER_LABELS } from "@/lib/llm-providers";
+import {
+  PROVIDER_BASE_URLS,
+  PROVIDER_MODELS,
+  PROVIDER_ORDER,
+  PROVIDER_LABELS,
+} from "@/lib/llm-providers";
 
 type LlmForm = { provider: string; model: string; baseUrl: string; apiKey: string };
-type LlmUser = { id: string; email: string; name: string; provider: string; model: string; baseUrl: string; hasKey: boolean };
+type LlmUser = {
+  id: string;
+  email: string;
+  name: string;
+  provider: string;
+  model: string;
+  baseUrl: string;
+  hasKey: boolean;
+};
 
 const PAGE_SIZE = 50;
 
@@ -45,12 +81,18 @@ function ProviderFields({
         <Label>{t("llm.provider")}</Label>
         <Select
           value={form.provider || undefined}
-          onValueChange={(p) => onChange({ provider: p, model: "", baseUrl: PROVIDER_BASE_URLS[p] || "" })}
+          onValueChange={(p) =>
+            onChange({ provider: p, model: "", baseUrl: PROVIDER_BASE_URLS[p] || "" })
+          }
         >
-          <SelectTrigger className="w-full"><SelectValue placeholder={t("llm.selectProvider")} /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={t("llm.selectProvider")} />
+          </SelectTrigger>
           <SelectContent>
             {PROVIDER_ORDER.map((p) => (
-              <SelectItem key={p} value={p}>{PROVIDER_LABELS[p] || p}</SelectItem>
+              <SelectItem key={p} value={p}>
+                {PROVIDER_LABELS[p] || p}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -60,10 +102,14 @@ function ProviderFields({
         <div className="space-y-2">
           <Label>{t("llm.model")}</Label>
           <Select value={form.model || undefined} onValueChange={(m) => onChange({ model: m })}>
-            <SelectTrigger className="w-full"><SelectValue placeholder={t("llm.selectModel")} /></SelectTrigger>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t("llm.selectModel")} />
+            </SelectTrigger>
             <SelectContent>
               {(PROVIDER_MODELS[form.provider] || []).map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -113,7 +159,12 @@ export default function LlmSettingsSection() {
   const savedTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Site-wide default state ──
-  const [defaultForm, setDefaultForm] = useState<LlmForm>({ provider: "", model: "", baseUrl: "", apiKey: "" });
+  const [defaultForm, setDefaultForm] = useState<LlmForm>({
+    provider: "",
+    model: "",
+    baseUrl: "",
+    apiKey: "",
+  });
   const [defaultHasKey, setDefaultHasKey] = useState(false);
   const [defaultLoading, setDefaultLoading] = useState(true);
   const [defaultSaving, setDefaultSaving] = useState(false);
@@ -131,7 +182,12 @@ export default function LlmSettingsSection() {
 
   // ── Edit dialog state ──
   const [editing, setEditing] = useState<LlmUser | null>(null);
-  const [editForm, setEditForm] = useState<LlmForm>({ provider: "", model: "", baseUrl: "", apiKey: "" });
+  const [editForm, setEditForm] = useState<LlmForm>({
+    provider: "",
+    model: "",
+    baseUrl: "",
+    apiKey: "",
+  });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -200,7 +256,9 @@ export default function LlmSettingsSection() {
   }, [loadUsers]);
 
   useEffect(() => {
-    return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
+    return () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    };
   }, []);
 
   const flashSaved = () => {
@@ -212,16 +270,18 @@ export default function LlmSettingsSection() {
     setDefaultSaving(true);
     setDefaultError("");
     try {
-      const res = await checkForbidden(await fetch("/api/admin/llm-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: defaultForm.provider,
-          model: defaultForm.model,
-          baseUrl: defaultForm.baseUrl,
-          apiKey: defaultForm.apiKey.trim() || undefined,
-        }),
-      }));
+      const res = await checkForbidden(
+        await fetch("/api/admin/llm-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            provider: defaultForm.provider,
+            model: defaultForm.model,
+            baseUrl: defaultForm.baseUrl,
+            apiKey: defaultForm.apiKey.trim() || undefined,
+          }),
+        })
+      );
       if (!res.ok) throw new Error(t("saveFailed"));
       if (defaultForm.apiKey.trim()) setDefaultHasKey(true);
       setDefaultForm((f) => ({ ...f, apiKey: "" }));
@@ -237,11 +297,13 @@ export default function LlmSettingsSection() {
     setDefaultSaving(true);
     setDefaultError("");
     try {
-      const res = await checkForbidden(await fetch("/api/admin/llm-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: "" }),
-      }));
+      const res = await checkForbidden(
+        await fetch("/api/admin/llm-settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: "" }),
+        })
+      );
       if (!res.ok) throw new Error(t("saveFailed"));
       setDefaultHasKey(false);
       flashSaved();
@@ -263,17 +325,19 @@ export default function LlmSettingsSection() {
     setEditSaving(true);
     setEditError("");
     try {
-      const res = await checkForbidden(await fetch("/api/admin/user-llm", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: editing.id,
-          provider: editForm.provider,
-          model: editForm.model,
-          baseUrl: editForm.baseUrl,
-          apiKey: editForm.apiKey.trim() || undefined,
-        }),
-      }));
+      const res = await checkForbidden(
+        await fetch("/api/admin/user-llm", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: editing.id,
+            provider: editForm.provider,
+            model: editForm.model,
+            baseUrl: editForm.baseUrl,
+            apiKey: editForm.apiKey.trim() || undefined,
+          }),
+        })
+      );
       if (!res.ok) throw new Error(t("saveFailed"));
       setEditing(null);
       loadUsers();
@@ -289,11 +353,19 @@ export default function LlmSettingsSection() {
     setEditSaving(true);
     setEditError("");
     try {
-      const res = await checkForbidden(await fetch("/api/admin/user-llm", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: editing.id, provider: "", model: "", baseUrl: "", apiKey: "" }),
-      }));
+      const res = await checkForbidden(
+        await fetch("/api/admin/user-llm", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: editing.id,
+            provider: "",
+            model: "",
+            baseUrl: "",
+            apiKey: "",
+          }),
+        })
+      );
       if (!res.ok) throw new Error(t("saveFailed"));
       setEditing(null);
       loadUsers();
@@ -305,18 +377,26 @@ export default function LlmSettingsSection() {
   };
 
   if (defaultLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
-  const saveDisabled = !defaultForm.provider || !defaultForm.model
-    || (defaultForm.provider !== "ollama" && !defaultForm.apiKey && !defaultHasKey);
+  const saveDisabled =
+    !defaultForm.provider ||
+    !defaultForm.model ||
+    (defaultForm.provider !== "ollama" && !defaultForm.apiKey && !defaultHasKey);
 
   return (
     <div className="space-y-6">
       {/* ── Site-wide default ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Brain className="h-5 w-5" /> {t("llm.defaultTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" /> {t("llm.defaultTitle")}
+          </CardTitle>
           <CardDescription>{t("llm.defaultDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -330,8 +410,15 @@ export default function LlmSettingsSection() {
           <div className="flex items-center gap-2">
             {defaultHasKey && (
               <>
-                <Badge variant="secondary"><Key className="h-3 w-3 mr-1" /> {t("llm.keySet")}</Badge>
-                <Button variant="outline" size="sm" disabled={defaultSaving} onClick={removeDefaultKey}>
+                <Badge variant="secondary">
+                  <Key className="h-3 w-3 mr-1" /> {t("llm.keySet")}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={defaultSaving}
+                  onClick={removeDefaultKey}
+                >
                   {t("llm.removeKey")}
                 </Button>
               </>
@@ -341,9 +428,13 @@ export default function LlmSettingsSection() {
           {defaultError && <div className="text-sm text-destructive">{defaultError}</div>}
 
           <Button disabled={saveDisabled} onClick={saveDefault} className="gap-2">
-            {defaultSaving ? <Loader2 className="h-4 w-4 animate-spin" />
-              : defaultSaved ? <Check className="h-4 w-4" />
-              : <Save className="h-4 w-4" />}
+            {defaultSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : defaultSaved ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
             {defaultSaving ? t("llm.saving") : defaultSaved ? t("llm.saved") : t("llm.save")}
           </Button>
         </CardContent>
@@ -352,7 +443,9 @@ export default function LlmSettingsSection() {
       {/* ── Per-user settings ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> {t("llm.usersTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" /> {t("llm.usersTitle")}
+          </CardTitle>
           <CardDescription>{t("llm.usersDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -369,17 +462,25 @@ export default function LlmSettingsSection() {
           {usersError && <div className="text-sm text-destructive">{usersError}</div>}
 
           {usersLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
           ) : users.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">{t("llm.noResults")}</p>
           ) : (
             <div className="space-y-3">
               {users.map((u) => (
-                <div key={u.id} className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-md border p-3">
+                <div
+                  key={u.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-md border p-3"
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium truncate">{u.name}</span>
-                      <Badge variant={u.provider ? "secondary" : "outline"} className="text-muted-foreground">
+                      <Badge
+                        variant={u.provider ? "secondary" : "outline"}
+                        className="text-muted-foreground"
+                      >
                         {u.provider ? `${u.provider} · ${u.model || "—"}` : t("llm.noConfig")}
                       </Badge>
                       <Badge variant={u.hasKey ? "default" : "outline"}>
@@ -399,13 +500,27 @@ export default function LlmSettingsSection() {
           {total > 0 && (
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-muted-foreground">
-                {t("llm.pageInfo", { from: skip + 1, to: Math.min(skip + PAGE_SIZE, total), total })}
+                {t("llm.pageInfo", {
+                  from: skip + 1,
+                  to: Math.min(skip + PAGE_SIZE, total),
+                  total,
+                })}
               </span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={skip === 0 || usersLoading} onClick={() => setSkip((s) => Math.max(0, s - PAGE_SIZE))}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={skip === 0 || usersLoading}
+                  onClick={() => setSkip((s) => Math.max(0, s - PAGE_SIZE))}
+                >
                   <ChevronLeft className="h-3 w-3 mr-1" /> {t("llm.prev")}
                 </Button>
-                <Button variant="outline" size="sm" disabled={skip + PAGE_SIZE >= total || usersLoading} onClick={() => setSkip((s) => s + PAGE_SIZE)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={skip + PAGE_SIZE >= total || usersLoading}
+                  onClick={() => setSkip((s) => s + PAGE_SIZE)}
+                >
                   {t("llm.next")} <ChevronRight className="h-3 w-3 ml-1" />
                 </Button>
               </div>
@@ -437,9 +552,15 @@ export default function LlmSettingsSection() {
                   {t("llm.resetToDefault")}
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setEditing(null)} disabled={editSaving}>{t("llm.cancel")}</Button>
+                  <Button variant="outline" onClick={() => setEditing(null)} disabled={editSaving}>
+                    {t("llm.cancel")}
+                  </Button>
                   <Button onClick={saveUser} disabled={editSaving} className="gap-2">
-                    {editSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                    {editSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
                     {t("llm.save")}
                   </Button>
                 </div>

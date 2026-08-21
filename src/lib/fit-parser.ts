@@ -10,11 +10,7 @@
 import { ActivityType, ActivitySubType } from "@prisma/client";
 import { ParsedFileActivity, TrackPoint } from "./gpx-parser";
 import { generateBaseName } from "./activity-naming";
-import {
-  computePowerTss,
-  computeHrTssEstimate,
-  estimateTss,
-} from "@/lib/training-math";
+import { computePowerTss, computeHrTssEstimate, estimateTss } from "@/lib/training-math";
 import { mapFitSport } from "./sport-mappings";
 
 // fit-file-parser has no TypeScript types, so we use require-style import
@@ -97,11 +93,12 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
           : undefined;
 
         for (const session of sessions) {
-          const { type: sportType, subType: mappedSubType } = mapFitSport(session.sport, session.sub_sport);
+          const { type: sportType, subType: mappedSubType } = mapFitSport(
+            session.sport,
+            session.sub_sport
+          );
           const subType = mappedSubType ?? null;
-          const startTime = session.start_time
-            ? new Date(session.start_time)
-            : new Date();
+          const startTime = session.start_time ? new Date(session.start_time) : new Date();
 
           // FIT duration is in seconds
           const duration = session.total_timer_time || session.total_elapsed_time || 0;
@@ -219,7 +216,10 @@ export function parseFitFile(buffer: Buffer): Promise<ParsedFileActivity[]> {
   });
 }
 
-function computeFromFitRecords(records: FitRecord[], localTimestamp?: Date): ParsedFileActivity | null {
+function computeFromFitRecords(
+  records: FitRecord[],
+  localTimestamp?: Date
+): ParsedFileActivity | null {
   if (records.length < 2) return null;
 
   const first = records[0];
@@ -261,21 +261,24 @@ function computeFromFitRecords(records: FitRecord[], localTimestamp?: Date): Par
     }
   }
 
-  const avgHr = hrValues.length > 0
-    ? Math.round((hrValues.reduce((a, b) => a + b, 0) / hrValues.length) * 10) / 10
-    : null;
+  const avgHr =
+    hrValues.length > 0
+      ? Math.round((hrValues.reduce((a, b) => a + b, 0) / hrValues.length) * 10) / 10
+      : null;
 
   const maxHr = hrValues.length > 0 ? Math.max(...hrValues) : null;
 
-  const avgCadence = cadenceValues.length > 0
-    ? Math.round(cadenceValues.reduce((a, b) => a + b, 0) / cadenceValues.length)
-    : null;
+  const avgCadence =
+    cadenceValues.length > 0
+      ? Math.round(cadenceValues.reduce((a, b) => a + b, 0) / cadenceValues.length)
+      : null;
 
   const maxCadence = cadenceValues.length > 0 ? Math.max(...cadenceValues) : null;
 
-  const avgPower = powerValues.length > 0
-    ? Math.round(powerValues.reduce((a, b) => a + b, 0) / powerValues.length)
-    : null;
+  const avgPower =
+    powerValues.length > 0
+      ? Math.round(powerValues.reduce((a, b) => a + b, 0) / powerValues.length)
+      : null;
 
   const tss = estimateTss(duration);
 

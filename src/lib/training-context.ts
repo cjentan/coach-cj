@@ -121,73 +121,66 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86400_000);
 
   // ── Single batch of parallel queries ────────────────
-  const [
-    trainingLogs,
-    goals,
-    bodyMetrics,
-    dailyHealth,
-    user,
-    latestPlan,
-    fatigueAlert,
-  ] = await Promise.all([
-    // Last 90 days of logs for PMC + weekly aggregates
-    prisma.trainingLog.findMany({
-      where: { userId, mergedIntoId: null, startDate: { gte: ninetyDaysAgo } },
-      orderBy: { startDate: "asc" },
-      select: {
-        startDate: true,
-        name: true,
-        type: true,
-        distanceMeters: true,
-        elevationGainMeters: true,
-        durationSeconds: true,
-        tss: true,
-        remarks: true,
-      },
-    }),
-    // Active goals
-    prisma.raceGoal.findMany({
-      where: { userId, status: "active" },
-      orderBy: [{ priority: "asc" }, { targetDate: "asc" }],
-    }),
-    // Body metrics (for fatigue)
-    prisma.bodyMetric.findMany({
-      where: { userId },
-      orderBy: { recordedAt: "desc" },
-      take: 14,
-      select: { recordedAt: true, restingHr: true, weightKg: true },
-    }),
-    // Daily health (last 7 days)
-    prisma.dailyHealth.findMany({
-      where: { userId, date: { gte: new Date(now.getTime() - 7 * 86400000) } },
-      orderBy: { date: "desc" },
-      select: {
-        sleepSeconds: true,
-        sleepScore: true,
-        overnightHrv: true,
-        hrvStatus: true,
-        bodyBatteryMin: true,
-        bodyBatteryMax: true,
-        avgStress: true,
-        restingHeartRate: true,
-      },
-    }),
-    // User profile — LLM config + training context
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, trainingContext: true },
-    }),
-    // Latest weekly plan for current/next week
-    prisma.weeklyPlan.findFirst({
-      where: { userId, weekStartDate: { gte: weekStart } },
-      orderBy: { weekStartDate: "asc" },
-    }),
-    // Latest unacknowledged fatigue alert
-    prisma.fatigueAlert.findFirst({
-      where: { userId, acknowledged: false },
-      orderBy: { detectedAt: "desc" },
-    }),
-  ]);
+  const [trainingLogs, goals, bodyMetrics, dailyHealth, user, latestPlan, fatigueAlert] =
+    await Promise.all([
+      // Last 90 days of logs for PMC + weekly aggregates
+      prisma.trainingLog.findMany({
+        where: { userId, mergedIntoId: null, startDate: { gte: ninetyDaysAgo } },
+        orderBy: { startDate: "asc" },
+        select: {
+          startDate: true,
+          name: true,
+          type: true,
+          distanceMeters: true,
+          elevationGainMeters: true,
+          durationSeconds: true,
+          tss: true,
+          remarks: true,
+        },
+      }),
+      // Active goals
+      prisma.raceGoal.findMany({
+        where: { userId, status: "active" },
+        orderBy: [{ priority: "asc" }, { targetDate: "asc" }],
+      }),
+      // Body metrics (for fatigue)
+      prisma.bodyMetric.findMany({
+        where: { userId },
+        orderBy: { recordedAt: "desc" },
+        take: 14,
+        select: { recordedAt: true, restingHr: true, weightKg: true },
+      }),
+      // Daily health (last 7 days)
+      prisma.dailyHealth.findMany({
+        where: { userId, date: { gte: new Date(now.getTime() - 7 * 86400000) } },
+        orderBy: { date: "desc" },
+        select: {
+          sleepSeconds: true,
+          sleepScore: true,
+          overnightHrv: true,
+          hrvStatus: true,
+          bodyBatteryMin: true,
+          bodyBatteryMax: true,
+          avgStress: true,
+          restingHeartRate: true,
+        },
+      }),
+      // User profile — LLM config + training context
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, trainingContext: true },
+      }),
+      // Latest weekly plan for current/next week
+      prisma.weeklyPlan.findFirst({
+        where: { userId, weekStartDate: { gte: weekStart } },
+        orderBy: { weekStartDate: "asc" },
+      }),
+      // Latest unacknowledged fatigue alert
+      prisma.fatigueAlert.findFirst({
+        where: { userId, acknowledged: false },
+        orderBy: { detectedAt: "desc" },
+      }),
+    ]);
 
   // ── Anchor goal resolution ─────────────────────────────
   // A training plan is anchored to the race it was created for (WeeklyPlan.
@@ -207,9 +200,13 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
   }
 
   // Compute plan end date from goals (use nearest goal, or 12 weeks out)
-  const planEndDate = goals.length > 0
-    ? goals.reduce((earliest, g) => g.targetDate < earliest ? g.targetDate : earliest, goals[0].targetDate)
-    : new Date(now.getTime() + 84 * 86400000);
+  const planEndDate =
+    goals.length > 0
+      ? goals.reduce(
+          (earliest, g) => (g.targetDate < earliest ? g.targetDate : earliest),
+          goals[0].targetDate
+        )
+      : new Date(now.getTime() + 84 * 86400000);
 
   // All weekly plans from now until the nearest goal
   const allPlans = await prisma.weeklyPlan.findMany({
@@ -228,9 +225,8 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
 
   const planWeeks: TrainingContext["planWeeks"] = allPlans.map((p) => {
     const sessions = Array.isArray(p.plannedSessions) ? p.plannedSessions : [];
-    const adjSummary = p.adjustments && p.adjustments.length > 0
-      ? p.adjustments[0].slice(0, 100)
-      : null;
+    const adjSummary =
+      p.adjustments && p.adjustments.length > 0 ? p.adjustments[0].slice(0, 100) : null;
     return {
       weekStartDate: p.weekStartDate.toISOString().split("T")[0],
       targetVolumeMeters: p.targetVolumeMeters,
@@ -252,9 +248,8 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     .sort((a, b) => a.date.localeCompare(b.date));
   const filledInput = fillDailyTss(pmcInput);
   const pmcResults = computePMC(filledInput);
-  const latestPmc = pmcResults.length > 0
-    ? pmcResults[pmcResults.length - 1]
-    : { ctl: 30, atl: 30, tsb: 0 };
+  const latestPmc =
+    pmcResults.length > 0 ? pmcResults[pmcResults.length - 1] : { ctl: 30, atl: 30, tsb: 0 };
 
   let tsbTrend = "stable";
   if (pmcResults.length >= 2) {
@@ -269,9 +264,7 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
   for (let w = 3; w >= 0; w--) {
     const start = new Date(now.getTime() - (w + 1) * 7 * 86400000);
     const end = new Date(now.getTime() - w * 7 * 86400000);
-    const weekLogs = trainingLogs.filter(
-      (l) => l.startDate >= start && l.startDate < end
-    );
+    const weekLogs = trainingLogs.filter((l) => l.startDate >= start && l.startDate < end);
     const label = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     recentWeeks.push({
       label,
@@ -290,15 +283,11 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
   for (let w = LONG_TERM_WEEKS; w >= 1; w--) {
     const start = new Date(Date.now() - (w + 1) * 7 * 86400000);
     const end = new Date(Date.now() - w * 7 * 86400000);
-    const weekLogs = trainingLogs.filter(
-      (l) => l.startDate >= start && l.startDate < end
-    );
+    const weekLogs = trainingLogs.filter((l) => l.startDate >= start && l.startDate < end);
     longTermVolumeSum += weekLogs.reduce((s, l) => s + (l.distanceMeters || 0), 0);
     longTermVolumeBuckets++;
   }
-  const longTermVolumeKm = Math.round(
-    longTermVolumeSum / (longTermVolumeBuckets || 1) / 1000
-  );
+  const longTermVolumeKm = Math.round(longTermVolumeSum / (longTermVolumeBuckets || 1) / 1000);
 
   // ── Current week ─────────────────────────────────────
   const currentWeekLogs = trainingLogs.filter((l) => l.startDate >= weekStart);
@@ -316,8 +305,7 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     activityCount: currentWeekLogs.length,
     bodyMetrics,
   });
-  const fatigue =
-    fatigueResult.signals.length > 0 ? fatigueResult : null;
+  const fatigue = fatigueResult.signals.length > 0 ? fatigueResult : null;
 
   // ── Readiness ───────────────────────────────────────
   const readinessResult = computeReadinessScore({
@@ -337,29 +325,34 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     dailyHealthResult = {
       sleepAvg: Math.round(
         dailyHealth.reduce((s, d) => s + (d.sleepSeconds || 0), 0) /
-        Math.max(1, dailyHealth.filter((d) => d.sleepSeconds).length) / 60
+          Math.max(1, dailyHealth.filter((d) => d.sleepSeconds).length) /
+          60
       ),
       hrvAvg: Math.round(
         dailyHealth.reduce((s, d) => s + (d.overnightHrv || 0), 0) /
-        Math.max(1, dailyHealth.filter((d) => d.overnightHrv).length)
+          Math.max(1, dailyHealth.filter((d) => d.overnightHrv).length)
       ),
       bodyBatteryAvg: Math.round(
-        dailyHealth.reduce((s, d) => s + ((d.bodyBatteryMin || 0) + (d.bodyBatteryMax || 0)) / 2, 0) / n
+        dailyHealth.reduce(
+          (s, d) => s + ((d.bodyBatteryMin || 0) + (d.bodyBatteryMax || 0)) / 2,
+          0
+        ) / n
       ),
       stressAvg: Math.round(
         dailyHealth.reduce((s, d) => s + (d.avgStress || 0), 0) /
-        Math.max(1, dailyHealth.filter((d) => d.avgStress).length)
+          Math.max(1, dailyHealth.filter((d) => d.avgStress).length)
       ),
       restingHrAvg: Math.round(
         dailyHealth.reduce((s, d) => s + (d.restingHeartRate || 0), 0) /
-        Math.max(1, dailyHealth.filter((d) => d.restingHeartRate).length)
+          Math.max(1, dailyHealth.filter((d) => d.restingHeartRate).length)
       ),
-      sleepScoreAvg: dailyHealth.filter((d) => d.sleepScore).length > 0
-        ? Math.round(
-            dailyHealth.reduce((s, d) => s + (d.sleepScore || 0), 0) /
-            dailyHealth.filter((d) => d.sleepScore).length
-          )
-        : null,
+      sleepScoreAvg:
+        dailyHealth.filter((d) => d.sleepScore).length > 0
+          ? Math.round(
+              dailyHealth.reduce((s, d) => s + (d.sleepScore || 0), 0) /
+                dailyHealth.filter((d) => d.sleepScore).length
+            )
+          : null,
       hrvStatus: dailyHealth.find((d) => d.hrvStatus)?.hrvStatus || null,
     };
   }
@@ -389,14 +382,16 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
       plannedSessions: sessionsArr as WeeklyPlanInfo["plannedSessions"],
       adjustments: latestPlan.adjustments || [],
     };
-    adjustmentHistory = (latestPlan.adjustmentHistory as TrainingContext["adjustmentHistory"]) || [];
+    adjustmentHistory =
+      (latestPlan.adjustmentHistory as TrainingContext["adjustmentHistory"]) || [];
   }
 
   // ── Best previous performances for each goal ─────────
   // For each goal, find the fastest activity at a similar distance
   const bestPerformanceResults = await Promise.all(
     goals.map(async (goal) => {
-      if (!goal.distanceMeters || goal.distanceMeters <= 0) return { goalId: goal.id, result: null };
+      if (!goal.distanceMeters || goal.distanceMeters <= 0)
+        return { goalId: goal.id, result: null };
 
       // Look for activities within ±10% of goal distance
       const minDist = goal.distanceMeters * 0.9;
@@ -420,9 +415,10 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
 
       if (!best) return { goalId: goal.id, result: null };
 
-      const pacePerKm = best.distanceMeters && best.distanceMeters > 0
-        ? (best.durationSeconds / (best.distanceMeters / 1000))
-        : 0;
+      const pacePerKm =
+        best.distanceMeters && best.distanceMeters > 0
+          ? best.durationSeconds / (best.distanceMeters / 1000)
+          : 0;
 
       const mins = Math.floor(pacePerKm / 60);
       const secs = Math.round(pacePerKm % 60);

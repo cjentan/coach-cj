@@ -33,22 +33,23 @@ export interface SimplifiedResult {
  */
 export function simplifyTrackPoints(
   trackPoints: TrackPoint[] | undefined | null,
-  maxPoints = 500,
+  maxPoints = 500
 ): SimplifiedResult {
   const empty: SimplifiedResult = { coords: [], bbox: null };
 
   if (!trackPoints || trackPoints.length === 0) return empty;
 
   const valid = trackPoints.filter(
-    (tp): tp is TrackPoint & { lat: number; lon: number } =>
-      tp.lat != null && tp.lon != null,
+    (tp): tp is TrackPoint & { lat: number; lon: number } => tp.lat != null && tp.lon != null
   );
 
   if (valid.length < 3) return empty;
 
   // Compute bbox from all valid points (before downsampling for max accuracy)
-  let minLat = Infinity, maxLat = -Infinity;
-  let minLng = Infinity, maxLng = -Infinity;
+  let minLat = Infinity,
+    maxLat = -Infinity;
+  let minLng = Infinity,
+    maxLng = -Infinity;
   for (const tp of valid) {
     if (tp.lat < minLat) minLat = tp.lat;
     if (tp.lat > maxLat) maxLat = tp.lat;

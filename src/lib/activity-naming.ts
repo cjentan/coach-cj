@@ -79,7 +79,7 @@ export function getTimeOfDay(date: Date, timezone?: string, localTimestamp?: Dat
   } else if (timezone) {
     h = parseInt(
       date.toLocaleString("en-US", { timeZone: timezone, hour: "numeric", hour12: false }),
-      10,
+      10
     );
   } else {
     h = date.getHours();
@@ -92,10 +92,7 @@ export function getTimeOfDay(date: Date, timezone?: string, localTimestamp?: Dat
 
 // ─── Activity type labels ─────────────────────────────────────
 
-export function getActivityTypeLabel(
-  type: ActivityType,
-  subType: ActivitySubType | null,
-): string {
+export function getActivityTypeLabel(type: ActivityType, subType: ActivitySubType | null): string {
   switch (subType) {
     // Running
     case "trail_running":
@@ -203,7 +200,7 @@ export function getActivityTypeLabel(
 export function isDefaultPattern(
   name: string,
   type: ActivityType,
-  subType: ActivitySubType | null,
+  subType: ActivitySubType | null
 ): boolean {
   const label = getActivityTypeLabel(type, subType);
   return TIMES_OF_DAY.some((tod) => name === `${tod} ${label}`);
@@ -230,14 +227,15 @@ export async function enrichNameWithArea(
   startDate: Date,
   points?: TrackPoint[],
   timezone?: string,
-  localTimestamp?: Date,
+  localTimestamp?: Date
 ): Promise<string> {
   const label = getActivityTypeLabel(type, subType);
   // Preserve the time-of-day from the existing name (user's local timezone)
   // rather than recomputing from UTC timestamp
-  const tod = name === "Untitled"
-    ? getTimeOfDay(startDate, timezone, localTimestamp)
-    : name.slice(0, -label.length - 1); // e.g. "Evening Run" → "Evening"
+  const tod =
+    name === "Untitled"
+      ? getTimeOfDay(startDate, timezone, localTimestamp)
+      : name.slice(0, -label.length - 1); // e.g. "Evening Run" → "Evening"
 
   const coord = getFirstTrackPoint(points);
   if (coord) {
@@ -253,7 +251,7 @@ export async function enrichNameWithArea(
  * Return the first trackpoint that has both lat and lon, or null.
  */
 export function getFirstTrackPoint(
-  trackPoints?: TrackPoint[],
+  trackPoints?: TrackPoint[]
 ): { lat: number; lon: number } | null {
   if (!trackPoints) return null;
   for (const tp of trackPoints) {
@@ -334,10 +332,7 @@ function normalizeCoord(lat: number, lon: number): string {
  * Cache key is (lat.toFixed(3), lon.toFixed(3)) — ~111 m grid
  * precision so the same park or neighbourhood shares one entry.
  */
-export async function resolveAreaName(
-  lat: number,
-  lon: number,
-): Promise<string | null> {
+export async function resolveAreaName(lat: number, lon: number): Promise<string | null> {
   const key = normalizeCoord(lat, lon);
 
   // 1. In-memory cache
@@ -361,18 +356,12 @@ export async function resolveAreaName(
         headers: {
           "User-Agent": "CoachCJ/1.0 (activity-naming; https://coach.example.com)",
         },
-      },
+      }
     );
     if (res.ok) {
       const data = await res.json();
       const addr = data?.address;
-      area =
-        addr?.suburb ||
-        addr?.quarter ||
-        addr?.town ||
-        addr?.city ||
-        addr?.district ||
-        null;
+      area = addr?.suburb || addr?.quarter || addr?.town || addr?.city || addr?.district || null;
     }
   } catch (err) {
     console.warn("[activity-naming] Nominatim request failed:", err);
@@ -399,7 +388,7 @@ export async function generateActivityName(
   startDate: Date,
   trackPoints?: TrackPoint[],
   timezone?: string,
-  localTimestamp?: Date,
+  localTimestamp?: Date
 ): Promise<string> {
   const tod = getTimeOfDay(startDate, timezone, localTimestamp);
   const label = getActivityTypeLabel(type, subType);
@@ -424,7 +413,7 @@ export function generateBaseName(
   subType: ActivitySubType | null,
   startDate: Date,
   timezone?: string,
-  localTimestamp?: Date,
+  localTimestamp?: Date
 ): string {
   const tod = getTimeOfDay(startDate, timezone, localTimestamp);
   const label = getActivityTypeLabel(type, subType);

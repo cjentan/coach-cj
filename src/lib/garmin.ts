@@ -95,9 +95,7 @@ export interface DailyHealthInput {
  * The password is not stored, so we pass a placeholder to the constructor
  * and then load the real OAuth tokens directly.
  */
-export async function getGarminClient(
-  userId: string
-): Promise<any> {
+export async function getGarminClient(userId: string): Promise<any> {
   const session = await prisma.garminSession.findUnique({
     where: { userId },
   });
@@ -271,7 +269,7 @@ export async function syncGarminActivities(
   fullSync?: boolean,
   fromDate?: string | null,
   toDate?: string | null,
-  tzOffset?: number,
+  tzOffset?: number
 ): Promise<{ count: number; newActivityIds: string[] }> {
   // Karvonen zones need the user's resting HR and max HR; fetch once per sync.
   const restHr = await getLatestRestingHr(userId);
@@ -296,15 +294,11 @@ export async function syncGarminActivities(
     newActivities = activities;
     if (fromDate) {
       const from = parseClientDate(fromDate, tzOffset).getTime();
-      newActivities = newActivities.filter(
-        (a) => new Date(a.startTimeGMT).getTime() >= from
-      );
+      newActivities = newActivities.filter((a) => new Date(a.startTimeGMT).getTime() >= from);
     }
     if (toDate) {
       const to = parseClientDate(toDate, tzOffset).getTime() + 86400000; // end of day
-      newActivities = newActivities.filter(
-        (a) => new Date(a.startTimeGMT).getTime() < to
-      );
+      newActivities = newActivities.filter((a) => new Date(a.startTimeGMT).getTime() < to);
     }
   } else {
     // Incremental sync: cutoff is the start date of the newest activity already
@@ -319,9 +313,7 @@ export async function syncGarminActivities(
       select: { startDate: true },
     });
     const cutoff = latest?.startDate.getTime() ?? -Infinity;
-    newActivities = activities.filter(
-      (a) => new Date(a.startTimeGMT).getTime() > cutoff
-    );
+    newActivities = activities.filter((a) => new Date(a.startTimeGMT).getTime() > cutoff);
   }
 
   if (newActivities.length === 0) return { count: 0, newActivityIds: [] };
@@ -391,10 +383,9 @@ export async function syncGarminActivities(
           continue;
         }
 
-        fitBuffer =
-          fitEntry.entryName.toLowerCase().endsWith(".gz")
-            ? require("zlib").gunzipSync(fitEntry.getData())
-            : fitEntry.getData();
+        fitBuffer = fitEntry.entryName.toLowerCase().endsWith(".gz")
+          ? require("zlib").gunzipSync(fitEntry.getData())
+          : fitEntry.getData();
 
         if (!fitBuffer) continue;
         parsedActivities = await parseFitFile(fitBuffer);
@@ -419,9 +410,7 @@ export async function syncGarminActivities(
       const hasMultiple = parsedActivities.length > 1;
       for (let i = 0; i < parsedActivities.length; i++) {
         const parsed = parsedActivities[i];
-        const activityExternalId = hasMultiple
-          ? `${externalId}-${i}`
-          : externalId;
+        const activityExternalId = hasMultiple ? `${externalId}-${i}` : externalId;
 
         // Enrich name with reverse-geocoded area
         const name = await generateActivityName(
@@ -433,10 +422,7 @@ export async function syncGarminActivities(
           parsed.localTimestamp ?? undefined
         );
 
-        const rawJson = buildRawJson(
-          parsed,
-          `garmin-${garminActivity.activityId}.fit`
-        );
+        const rawJson = buildRawJson(parsed, `garmin-${garminActivity.activityId}.fit`);
         const simplified = simplifyTrackPoints(parsed.trackPoints, 500);
 
         // Precompute trackpoint metrics while the trackpoints are in memory,
@@ -446,7 +432,7 @@ export async function syncGarminActivities(
         const tpMetrics = computePrecomputedTrackpointMetrics(
           rawJson.trackPoints as TrackPoint[] | undefined,
           maxHr,
-          restHr,
+          restHr
         );
 
         // Classify workout type
@@ -489,8 +475,7 @@ export async function syncGarminActivities(
             calories: parsed.calories,
             tss: parsed.tss,
             description:
-              parsed.description ||
-              `Imported from Garmin Connect (${garminActivity.activityName})`,
+              parsed.description || `Imported from Garmin Connect (${garminActivity.activityName})`,
             rawJson: rawJson as any,
             simplifiedTrackPoints: simplified.coords as any,
             trackMinLat: simplified.bbox?.minLat ?? null,
@@ -561,10 +546,7 @@ export async function syncGarminActivities(
  * Sync daily health data for recent days.
  * Fetches HR, sleep, body battery, stress, HRV, and steps.
  */
-export async function syncGarminHealthData(
-  client: any,
-  userId: string
-): Promise<number> {
+export async function syncGarminHealthData(client: any, userId: string): Promise<number> {
   const session = await prisma.garminSession.findUnique({
     where: { userId },
   });
@@ -626,10 +608,7 @@ export async function syncGarminHealthData(
  * Fetch all health metrics for a single date from Garmin.
  * Returns null if no data is available.
  */
-async function fetchDailyHealth(
-  client: any,
-  date: Date
-): Promise<DailyHealthInput | null> {
+async function fetchDailyHealth(client: any, date: Date): Promise<DailyHealthInput | null> {
   const dateStr = date.toISOString().split("T")[0];
   const rawData: Record<string, any> = {};
 
@@ -720,9 +699,7 @@ async function fetchDailyHealth(
       const values = (stress.stressValues as Array<{ stressLevel: number }>).map(
         (v) => v.stressLevel
       );
-      avgStress = Math.round(
-        values.reduce((a: number, b: number) => a + b, 0) / values.length
-      );
+      avgStress = Math.round(values.reduce((a: number, b: number) => a + b, 0) / values.length);
       maxStress = Math.max(...values);
     }
     rawData.stress = stress;

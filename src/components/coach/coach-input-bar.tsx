@@ -53,11 +53,7 @@ const CoachInputBar = forwardRef<HTMLTextAreaElement, CoachInputBarProps>(functi
         rows={1}
         className="flex-1 min-h-[40px] max-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
       />
-      <Button
-        size="icon"
-        onClick={onSend}
-        disabled={disabled || !input.trim()}
-      >
+      <Button size="icon" onClick={onSend} disabled={disabled || !input.trim()}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
       </Button>
     </div>

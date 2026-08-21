@@ -42,13 +42,24 @@ export async function GET(req: Request) {
 
     const byWeek: Record<
       string,
-      { activityCount: number; totalDistance: number; totalElevation: number; totalDurationSeconds: number }
+      {
+        activityCount: number;
+        totalDistance: number;
+        totalElevation: number;
+        totalDurationSeconds: number;
+      }
     > = {};
 
     for (const log of logs) {
       const lm = getWeekStart(log.startDate);
       const key = localDateStr(lm);
-      if (!byWeek[key]) byWeek[key] = { activityCount: 0, totalDistance: 0, totalElevation: 0, totalDurationSeconds: 0 };
+      if (!byWeek[key])
+        byWeek[key] = {
+          activityCount: 0,
+          totalDistance: 0,
+          totalElevation: 0,
+          totalDurationSeconds: 0,
+        };
       byWeek[key].activityCount++;
       byWeek[key].totalDistance += log.distanceMeters || 0;
       byWeek[key].totalElevation += log.elevationGainMeters || 0;
@@ -63,7 +74,12 @@ export async function GET(req: Request) {
       we.setUTCDate(we.getUTCDate() + 6);
 
       const key = localDateStr(ws);
-      const stats = byWeek[key] || { activityCount: 0, totalDistance: 0, totalElevation: 0, totalDurationSeconds: 0 };
+      const stats = byWeek[key] || {
+        activityCount: 0,
+        totalDistance: 0,
+        totalElevation: 0,
+        totalDurationSeconds: 0,
+      };
       weeks.push({
         key,
         label: ws.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
@@ -101,12 +117,23 @@ export async function GET(req: Request) {
 
     const byMonth: Record<
       string,
-      { activityCount: number; totalDistance: number; totalElevation: number; totalDurationSeconds: number }
+      {
+        activityCount: number;
+        totalDistance: number;
+        totalElevation: number;
+        totalDurationSeconds: number;
+      }
     > = {};
 
     for (const log of logs) {
       const key = `${log.startDate.getUTCFullYear()}-${String(log.startDate.getUTCMonth() + 1).padStart(2, "0")}`;
-      if (!byMonth[key]) byMonth[key] = { activityCount: 0, totalDistance: 0, totalElevation: 0, totalDurationSeconds: 0 };
+      if (!byMonth[key])
+        byMonth[key] = {
+          activityCount: 0,
+          totalDistance: 0,
+          totalElevation: 0,
+          totalDurationSeconds: 0,
+        };
       byMonth[key].activityCount++;
       byMonth[key].totalDistance += log.distanceMeters || 0;
       byMonth[key].totalElevation += log.elevationGainMeters || 0;
@@ -117,7 +144,12 @@ export async function GET(req: Request) {
     for (let m = 0; m <= endMonth; m++) {
       const key = `${targetYear}-${String(m + 1).padStart(2, "0")}`;
       const d = new Date(Date.UTC(targetYear, m, 1));
-      const stats = byMonth[key] || { activityCount: 0, totalDistance: 0, totalElevation: 0, totalDurationSeconds: 0 };
+      const stats = byMonth[key] || {
+        activityCount: 0,
+        totalDistance: 0,
+        totalElevation: 0,
+        totalDurationSeconds: 0,
+      };
       months.push({
         key,
         label: d.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
@@ -133,8 +165,12 @@ export async function GET(req: Request) {
   const windowEndMonth = -offset;
   const windowStartMonth = windowEndMonth - 11;
 
-  const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + windowStartMonth, 1));
-  const endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + windowEndMonth + 1, 0, 23, 59, 59, 999));
+  const startDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + windowStartMonth, 1)
+  );
+  const endDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + windowEndMonth + 1, 0, 23, 59, 59, 999)
+  );
 
   const logs = await prisma.trainingLog.findMany({
     where: {
@@ -152,12 +188,23 @@ export async function GET(req: Request) {
 
   const byMonth: Record<
     string,
-    { activityCount: number; totalDistance: number; totalElevation: number; totalDurationSeconds: number }
+    {
+      activityCount: number;
+      totalDistance: number;
+      totalElevation: number;
+      totalDurationSeconds: number;
+    }
   > = {};
 
   for (const log of logs) {
     const key = `${log.startDate.getUTCFullYear()}-${String(log.startDate.getUTCMonth() + 1).padStart(2, "0")}`;
-    if (!byMonth[key]) byMonth[key] = { activityCount: 0, totalDistance: 0, totalElevation: 0, totalDurationSeconds: 0 };
+    if (!byMonth[key])
+      byMonth[key] = {
+        activityCount: 0,
+        totalDistance: 0,
+        totalElevation: 0,
+        totalDurationSeconds: 0,
+      };
     byMonth[key].activityCount++;
     byMonth[key].totalDistance += log.distanceMeters || 0;
     byMonth[key].totalElevation += log.elevationGainMeters || 0;
@@ -169,7 +216,12 @@ export async function GET(req: Request) {
     const m = windowStartMonth + (11 - i);
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m, 1));
     const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-    const stats = byMonth[key] || { activityCount: 0, totalDistance: 0, totalElevation: 0, totalDurationSeconds: 0 };
+    const stats = byMonth[key] || {
+      activityCount: 0,
+      totalDistance: 0,
+      totalElevation: 0,
+      totalDurationSeconds: 0,
+    };
     months.push({
       key,
       label: d.toLocaleDateString("en-US", { month: "short", year: "numeric" }),

@@ -5,12 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Loader2, CalendarDays, Sparkles, Trash2 } from "lucide-react";
-import {
-  startOfMonth,
-  endOfMonth,
-  parseISO,
-  isWithinInterval,
-} from "date-fns";
+import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
 import { Button } from "@/components/ui/button";
 import type { TrainingPlanResponse } from "@/lib/training-plan-types";
 import { CalendarView } from "@/components/training-plan/calendar-view";
@@ -42,9 +37,7 @@ export default function TrainingPlanPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/training-plan?tzOffset=${new Date().getTimezoneOffset()}`,
-      );
+      const res = await fetch(`/api/training-plan?tzOffset=${new Date().getTimezoneOffset()}`);
       if (!res.ok) throw new Error(`${common("error")}: ${res.status}`);
       const data: TrainingPlanResponse = await res.json();
       setPlanData(data);
@@ -98,25 +91,24 @@ export default function TrainingPlanPage() {
   // Plan period label
   const planPeriodLabel = useMemo(() => {
     if (!planData || !planData.planStartDate) return null;
-    const start = new Date(planData.planStartDate + "T00:00:00").toLocaleDateString(
-      "en-US",
-      { month: "short", day: "numeric", year: "numeric" },
-    );
-    const end = new Date(planData.planEndDate + "T00:00:00").toLocaleDateString(
-      "en-US",
-      { month: "short", day: "numeric", year: "numeric" },
-    );
+    const start = new Date(planData.planStartDate + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const end = new Date(planData.planEndDate + "T00:00:00").toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
     return tp("planPeriod", { start, end });
   }, [planData, tp]);
 
   // Phase click handler
-  const handlePhaseClick = useCallback(
-    (phase: { weekStart: string }) => {
-      const d = parseISO(phase.weekStart);
-      setCurrentMonth(d);
-    },
-    [],
-  );
+  const handlePhaseClick = useCallback((phase: { weekStart: string }) => {
+    const d = parseISO(phase.weekStart);
+    setCurrentMonth(d);
+  }, []);
 
   // ── Clear plan ──────────────────────────────────────────
   const [confirmClear, setConfirmClear] = useState(false);
@@ -124,7 +116,9 @@ export default function TrainingPlanPage() {
   const clearTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    return () => { if (clearTimer.current) clearTimeout(clearTimer.current); };
+    return () => {
+      if (clearTimer.current) clearTimeout(clearTimer.current);
+    };
   }, []);
 
   const clearPlan = useCallback(async () => {
@@ -146,8 +140,7 @@ export default function TrainingPlanPage() {
   useEffect(() => {
     const handler = () => loadPlanData();
     window.addEventListener(COACH_CHAT_EVENTS.PLAN_UPDATED, handler);
-    return () =>
-      window.removeEventListener(COACH_CHAT_EVENTS.PLAN_UPDATED, handler);
+    return () => window.removeEventListener(COACH_CHAT_EVENTS.PLAN_UPDATED, handler);
   }, [loadPlanData]);
 
   // ── Render helpers ────────────────────────────────────
@@ -240,11 +233,7 @@ export default function TrainingPlanPage() {
           />
 
           {/* ═══ Period Summary (toggle between current week / visible month) ═══ */}
-          <PeriodSummary
-            week={currentWeek}
-            weeks={monthWeeks}
-            monthLabel={monthLabel}
-          />
+          <PeriodSummary week={currentWeek} weeks={monthWeeks} monthLabel={monthLabel} />
 
           {/* ═══ Calendar ═══ */}
           <CalendarView

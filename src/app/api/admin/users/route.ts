@@ -29,8 +29,16 @@ export async function GET(request: Request) {
             fatigueAlerts: true,
           },
         },
-        bodyMetrics: { orderBy: { recordedAt: "desc" }, take: 1, select: { weightKg: true, recordedAt: true } },
-        trainingLogs: { orderBy: { startDate: "desc" }, take: 1, select: { startDate: true, name: true } },
+        bodyMetrics: {
+          orderBy: { recordedAt: "desc" },
+          take: 1,
+          select: { weightKg: true, recordedAt: true },
+        },
+        trainingLogs: {
+          orderBy: { startDate: "desc" },
+          take: 1,
+          select: { startDate: true, name: true },
+        },
       },
     }),
     prisma.user.count(),

@@ -6,15 +6,11 @@ import { localDateStr } from "@/lib/utils";
 /** GET — return historical weekly snapshots for trend charts */
 export async function GET(req: Request) {
   const session = await auth();
-  if (!session?.user)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
   const tzOffset = parseInt(url.searchParams.get("tzOffset") || "0", 10) || 0;
-  const weeks = Math.min(
-    200,
-    Math.max(4, parseInt(url.searchParams.get("weeks") || "52")),
-  );
+  const weeks = Math.min(200, Math.max(4, parseInt(url.searchParams.get("weeks") || "52")));
   const grouping = url.searchParams.get("grouping") || "week";
 
   const assessments = await prisma.weeklyAssessment.findMany({
@@ -106,7 +102,10 @@ export async function GET(req: Request) {
       m.avgDailyTss += w.avgDailyTss ?? 0;
       m.volumeAdherence += w.volumeAdherence ?? 0;
       m.consistency += w.consistency ?? 0;
-      if (w.avgHr != null) { m.avgHr += w.avgHr; m.hrCount++; }
+      if (w.avgHr != null) {
+        m.avgHr += w.avgHr;
+        m.hrCount++;
+      }
       m.count++;
     }
 

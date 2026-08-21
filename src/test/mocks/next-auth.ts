@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 /**
  * Mock the `auth()` function from NextAuth for testing API routes.
@@ -10,10 +10,7 @@ import { vi } from 'vitest';
  *   mockAuth(null);             // user is unauthenticated
  *   mockAuth('custom-id', 'admin');
  */
-export function mockAuth(
-  userId: string | null = 'test-user-id',
-  role = 'user',
-) {
+export function mockAuth(userId: string | null = "test-user-id", role = "user") {
   const { auth } = vi.hoisted(() => ({ auth: vi.fn() }));
 
   if (userId === null) {
@@ -23,8 +20,8 @@ export function mockAuth(
       user: {
         id: userId,
         role,
-        name: 'Test User',
-        email: 'test@example.com',
+        name: "Test User",
+        email: "test@example.com",
       },
     });
   }

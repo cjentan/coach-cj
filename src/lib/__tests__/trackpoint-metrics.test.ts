@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 import {
   computeHrTss,
   computeIntensityDistribution,
@@ -10,21 +10,21 @@ import {
   computePrecomputedTrackpointMetrics,
   hrZoneBoundaryBpm,
   hrZoneRatio,
-} from '../trackpoint-metrics';
-import { buildTrackPoints } from '@/test/factories';
+} from "../trackpoint-metrics";
+import { buildTrackPoints } from "@/test/factories";
 
-describe('computeHrTss', () => {
-  it('returns null for fewer than 10 HR points', () => {
+describe("computeHrTss", () => {
+  it("returns null for fewer than 10 HR points", () => {
     const points = [{ hr: 130 }, { hr: 140 }];
     expect(computeHrTss(points, 180)).toBeNull();
   });
 
-  it('returns null for invalid maxHr', () => {
+  it("returns null for invalid maxHr", () => {
     const points = buildTrackPoints(100);
     expect(computeHrTss(points, 0)).toBeNull();
   });
 
-  it('computes hrTss from trackpoint data', () => {
+  it("computes hrTss from trackpoint data", () => {
     const points = buildTrackPoints(3600, { baseHr: 130 });
     const result = computeHrTss(points, 180);
     expect(result).not.toBeNull();
@@ -34,21 +34,21 @@ describe('computeHrTss', () => {
     expect(result!.zoneHrRanges).toHaveLength(5);
   });
 
-  it('computes zone percentages that sum to ~100%', () => {
+  it("computes zone percentages that sum to ~100%", () => {
     const points = buildTrackPoints(3600, { baseHr: 130 });
     const result = computeHrTss(points, 180);
     const total = result!.zonePct.reduce((a, b) => a + b, 0);
     expect(total).toBeCloseTo(100, 0);
   });
 
-  it('distributes very low HR points into Z1', () => {
+  it("distributes very low HR points into Z1", () => {
     const lowPoints = buildTrackPoints(100, { baseHr: 90 });
     const lowResult = computeHrTss(lowPoints, 200);
     // With maxHr=200, Z1 upper is 120. baseHr=90 ± 20 = 70-110, all in Z1
     expect(lowResult!.zonePct[0]).toBe(100);
   });
 
-  it('distributes high HR points mostly into Z4+Z5', () => {
+  it("distributes high HR points mostly into Z4+Z5", () => {
     const highPoints = buildTrackPoints(100, { baseHr: 190 });
     const highResult = computeHrTss(highPoints, 200);
     // With maxHr=200, Z4 = 161-180, Z5 = 181-200
@@ -57,14 +57,14 @@ describe('computeHrTss', () => {
     expect(highZonePct).toBeGreaterThan(50);
   });
 
-  it('computes zone HR ranges correctly', () => {
+  it("computes zone HR ranges correctly", () => {
     const points = buildTrackPoints(100, { baseHr: 140 });
     const result = computeHrTss(points, 180);
     expect(result!.zoneHrRanges[0]).toBeLessThan(result!.zoneHrRanges[1]);
     expect(result!.zoneHrRanges[3]).toBe(Math.round(180 * 0.9));
   });
 
-  it('computes zone boundaries as % of max HR', () => {
+  it("computes zone boundaries as % of max HR", () => {
     // Zones are % of max HR (matching computeIntensityDistribution): Z1 upper =
     // 60% max, Z2 = 60–70%, …, Z5 = 90–100% (bounded by max HR). Resting HR is
     // not part of the boundaries, so they scale purely off max HR.
@@ -77,7 +77,7 @@ describe('computeHrTss', () => {
     expect(result.zoneHrRanges[4]).toBe(Math.round(200 * 1.0));
   });
 
-  it('computes zone boundaries with Karvonen (HR reserve) when restHr is given', () => {
+  it("computes zone boundaries with Karvonen (HR reserve) when restHr is given", () => {
     // Karvonen: boundary = restHr + (maxHr − restHr) × pct. maxHr=200, restHr=50
     // → reserve 150 → Z1<140, Z2 140–155, Z3 155–170, Z4 170–185, Z5 185–200.
     const points = buildTrackPoints(100, { baseHr: 120 });
@@ -89,7 +89,7 @@ describe('computeHrTss', () => {
     expect(result.zoneHrRanges[4]).toBe(Math.round(200 * 1.0)); // Z5 capped at max HR
   });
 
-  it('ignores an invalid restHr and falls back to % of max HR', () => {
+  it("ignores an invalid restHr and falls back to % of max HR", () => {
     // restHr must satisfy 0 < restHr < maxHr; otherwise boundaries are %maxHR.
     const points = buildTrackPoints(100, { baseHr: 120 });
     const expected = computeHrTss(points, 200)!;
@@ -100,69 +100,70 @@ describe('computeHrTss', () => {
   });
 });
 
-describe('hrZoneBoundaryBpm / hrZoneRatio (Karvonen helpers)', () => {
-  it('computes Karvonen boundaries from the HR reserve', () => {
+describe("hrZoneBoundaryBpm / hrZoneRatio (Karvonen helpers)", () => {
+  it("computes Karvonen boundaries from the HR reserve", () => {
     expect(hrZoneBoundaryBpm(200, 0.6, 50)).toBe(Math.round(50 + 150 * 0.6));
     expect(hrZoneBoundaryBpm(200, 0.9, 50)).toBe(Math.round(50 + 150 * 0.9));
   });
 
-  it('falls back to % of max HR when restHr is missing or invalid', () => {
+  it("falls back to % of max HR when restHr is missing or invalid", () => {
     expect(hrZoneBoundaryBpm(200, 0.6)).toBe(Math.round(200 * 0.6));
     expect(hrZoneBoundaryBpm(200, 0.6, null)).toBe(Math.round(200 * 0.6));
     expect(hrZoneBoundaryBpm(200, 0.6, 0)).toBe(Math.round(200 * 0.6)); // restHr 0
     expect(hrZoneBoundaryBpm(200, 0.6, 250)).toBe(Math.round(200 * 0.6)); // restHr ≥ maxHr
   });
 
-  it('returns null for a non-positive maxHr', () => {
+  it("returns null for a non-positive maxHr", () => {
     expect(hrZoneBoundaryBpm(0, 0.6, 50)).toBeNull();
     expect(hrZoneBoundaryBpm(-10, 0.6, 50)).toBeNull();
   });
 
-  it('maps HR onto the 0..1 reserve scale', () => {
+  it("maps HR onto the 0..1 reserve scale", () => {
     expect(hrZoneRatio(200, 200, 50)).toBe(1); // at max → 100%
     expect(hrZoneRatio(50, 200, 50)).toBe(0); // at rest → 0%
     expect(hrZoneRatio(125, 200, 50)).toBeCloseTo(0.5, 5); // midpoint of reserve
   });
 
-  it('uses 0 as the effective rest anchor when restHr is absent', () => {
+  it("uses 0 as the effective rest anchor when restHr is absent", () => {
     expect(hrZoneRatio(100, 200)).toBeCloseTo(0.5, 5);
   });
 });
 
-describe('computeIntensityDistribution', () => {
-  it('returns null for fewer than 30 HR points', () => {
+describe("computeIntensityDistribution", () => {
+  it("returns null for fewer than 30 HR points", () => {
     const points = Array.from({ length: 20 }, (_, i) => ({ hr: 120 + i }));
     expect(computeIntensityDistribution(points, 180)).toBeNull();
   });
 
-  it('returns null for invalid maxHr', () => {
+  it("returns null for invalid maxHr", () => {
     const points = buildTrackPoints(100);
     expect(computeIntensityDistribution(points, 0)).toBeNull();
   });
 
-  it('returns a valid distribution for normal data', () => {
+  it("returns a valid distribution for normal data", () => {
     const points = buildTrackPoints(600, { baseHr: 130 });
     const result = computeIntensityDistribution(points, 180);
     expect(result).not.toBeNull();
     expect(result!.analyzedDuration).toBeGreaterThanOrEqual(30);
   });
 
-  it('sums zone percentages to ~100%', () => {
+  it("sums zone percentages to ~100%", () => {
     const points = buildTrackPoints(600, { baseHr: 130 });
     const result = computeIntensityDistribution(points, 180);
-    const total = result!.zone1Pct + result!.zone2Pct + result!.zone3Pct + result!.zone4Pct + result!.zone5Pct;
+    const total =
+      result!.zone1Pct + result!.zone2Pct + result!.zone3Pct + result!.zone4Pct + result!.zone5Pct;
     expect(total).toBeCloseTo(100, 0);
   });
 
-  it('returns a classification type', () => {
+  it("returns a classification type", () => {
     const points = buildTrackPoints(600, { baseHr: 130 });
     const result = computeIntensityDistribution(points, 180);
-    expect(['polarized', 'pyramidal', 'threshold-heavy', 'insufficient_data']).toContain(
-      result!.distributionType,
+    expect(["polarized", "pyramidal", "threshold-heavy", "insufficient_data"]).toContain(
+      result!.distributionType
     );
   });
 
-  it('shifts mid-range HR into a lower zone under Karvonen', () => {
+  it("shifts mid-range HR into a lower zone under Karvonen", () => {
     // Flat 150 bpm with maxHr=200:
     //   %maxHR: 150 is in Z3 (140–160) → zone3Pct = 100
     //   Karvonen (rest 50): 150 is in Z2 (140–155) → zone2Pct = 100
@@ -176,13 +177,13 @@ describe('computeIntensityDistribution', () => {
   });
 });
 
-describe('computePowerMetrics', () => {
-  it('returns null for fewer than 30 power points', () => {
+describe("computePowerMetrics", () => {
+  it("returns null for fewer than 30 power points", () => {
     const points = Array.from({ length: 20 }, (_, i) => ({ power: 150 + i }));
     expect(computePowerMetrics(points)).toBeNull();
   });
 
-  it('returns power metrics for sufficient data', () => {
+  it("returns power metrics for sufficient data", () => {
     const points = buildTrackPoints(3600, { basePower: 200 });
     const result = computePowerMetrics(points);
     expect(result).not.toBeNull();
@@ -191,7 +192,7 @@ describe('computePowerMetrics', () => {
     expect(result!.estimatedFtp).toBeGreaterThan(0);
   });
 
-  it('computes NP, VI, IF for valid data', () => {
+  it("computes NP, VI, IF for valid data", () => {
     const points = buildTrackPoints(3600, { basePower: 200 });
     const result = computePowerMetrics(points);
     expect(result!.normalizedPower).not.toBeNull();
@@ -199,7 +200,7 @@ describe('computePowerMetrics', () => {
     expect(result!.intensityFactor).not.toBeNull();
   });
 
-  it('computes weight-normalized values when weight is provided', () => {
+  it("computes weight-normalized values when weight is provided", () => {
     const points = buildTrackPoints(3600, { basePower: 200 });
     const result = computePowerMetrics(points, 250, 70);
     expect(result!.ftpWkg).toBeCloseTo(250 / 70, 0);
@@ -207,21 +208,21 @@ describe('computePowerMetrics', () => {
     expect(result!.normalizedPowerWkg).not.toBeNull();
   });
 
-  it('estimates FTP from 20-min best power', () => {
+  it("estimates FTP from 20-min best power", () => {
     const points = buildTrackPoints(3600, { basePower: 200 });
     const result = computePowerMetrics(points);
     expect(result!.estimatedFtp).toBeGreaterThan(170);
     expect(result!.estimatedFtp).toBeLessThan(210);
   });
 
-  it('computes power TSS', () => {
+  it("computes power TSS", () => {
     const points = buildTrackPoints(3600, { basePower: 200 });
     const result = computePowerMetrics(points);
     expect(result!.tss).not.toBeNull();
     expect(result!.tss).toBeGreaterThan(0);
   });
 
-  it('computes time in power zones', () => {
+  it("computes time in power zones", () => {
     const points = buildTrackPoints(3600, { basePower: 200 });
     const result = computePowerMetrics(points);
     expect(result!.timeInZones).toHaveLength(6);
@@ -231,8 +232,8 @@ describe('computePowerMetrics', () => {
   });
 });
 
-describe('computeDecoupling', () => {
-  it('returns null for fewer than 60 valid points', () => {
+describe("computeDecoupling", () => {
+  it("returns null for fewer than 60 valid points", () => {
     const points = Array.from({ length: 30 }, (_, i) => ({
       hr: 140 + i,
       speed: 3.5,
@@ -240,12 +241,12 @@ describe('computeDecoupling', () => {
     expect(computeDecoupling(points)).toBeNull();
   });
 
-  it('returns null when HR or output data is missing', () => {
+  it("returns null when HR or output data is missing", () => {
     const points = Array.from({ length: 100 }, (_, i) => ({ hr: null, speed: null }));
     expect(computeDecoupling(points as any)).toBeNull();
   });
 
-  it('computes decoupling from speed data', () => {
+  it("computes decoupling from speed data", () => {
     const points = Array.from({ length: 120 }, (_, i) => ({
       hr: 145 + (i > 60 ? 15 : 0),
       speed: 3.5,
@@ -255,7 +256,7 @@ describe('computeDecoupling', () => {
     expect(result!.firstHalfHr!).toBeLessThan(result!.secondHalfHr!);
   });
 
-  it('computes decoupling from power data', () => {
+  it("computes decoupling from power data", () => {
     const points = Array.from({ length: 120 }, (_, i) => ({
       hr: 145 + (i > 60 ? 10 : 0),
       power: 200,
@@ -265,7 +266,7 @@ describe('computeDecoupling', () => {
     expect(result!.decouplingPct).not.toBeNull();
   });
 
-  it('returns negative decoupling for negative splits', () => {
+  it("returns negative decoupling for negative splits", () => {
     const points = Array.from({ length: 120 }, (_, i) => ({
       hr: 145,
       power: i > 60 ? 250 : 200,
@@ -276,8 +277,8 @@ describe('computeDecoupling', () => {
   });
 });
 
-describe('computeEfficiencyFactor', () => {
-  it('returns null for fewer than 60 valid points', () => {
+describe("computeEfficiencyFactor", () => {
+  it("returns null for fewer than 60 valid points", () => {
     const points = Array.from({ length: 30 }, (_, i) => ({
       hr: 140,
       power: 200,
@@ -285,21 +286,21 @@ describe('computeEfficiencyFactor', () => {
     expect(computeEfficiencyFactor(points)).toBeNull();
   });
 
-  it('computes EF from power data', () => {
+  it("computes EF from power data", () => {
     const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
     const result = computeEfficiencyFactor(points);
     expect(result).not.toBeNull();
     expect(result!.ef).toBeGreaterThan(0);
   });
 
-  it('computes EF w/kg when weight is provided', () => {
+  it("computes EF w/kg when weight is provided", () => {
     const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
     const result = computeEfficiencyFactor(points, 70);
     expect(result!.efWkg).not.toBeNull();
     expect(result!.efWkg).toBeGreaterThan(0);
   });
 
-  it('returns null when points lack both power and speed', () => {
+  it("returns null when points lack both power and speed", () => {
     // Points with HR but no power or speed
     const points = Array.from({ length: 120 }, (_, i) => ({
       hr: 140,
@@ -309,14 +310,14 @@ describe('computeEfficiencyFactor', () => {
   });
 });
 
-describe('computeBestTss', () => {
-  it('uses power TSS when power data is available', () => {
+describe("computeBestTss", () => {
+  it("uses power TSS when power data is available", () => {
     const points = buildTrackPoints(3600, { basePower: 200, baseHr: 140 });
     const tss = computeBestTss(points, 140, 180, 3600);
     expect(tss).toBeGreaterThan(0);
   });
 
-  it('falls back to hrTSS when no power but HR available', () => {
+  it("falls back to hrTSS when no power but HR available", () => {
     const points = Array.from({ length: 3600 }, (_, i) => ({
       hr: 130 + Math.round(Math.sin(i / 100) * 20),
     }));
@@ -324,25 +325,25 @@ describe('computeBestTss', () => {
     expect(tss).toBeGreaterThan(0);
   });
 
-  it('uses hr estimate when trackpoints lack both power and HR', () => {
+  it("uses hr estimate when trackpoints lack both power and HR", () => {
     const tss = computeBestTss(null, 140, 180, 3600);
     expect(tss).toBe(60);
   });
 
-  it('falls back to time estimate when even avgHR is missing', () => {
+  it("falls back to time estimate when even avgHR is missing", () => {
     const tss = computeBestTss(null, null, null, 3600);
     expect(tss).toBe(50);
   });
 
-  it('handles insufficient trackpoints gracefully', () => {
+  it("handles insufficient trackpoints gracefully", () => {
     const points = [{ hr: 130 }, { hr: 140 }];
     const tss = computeBestTss(points as any, 140, 180, 3600);
     expect(tss).toBe(60);
   });
 });
 
-describe('extractMetrics', () => {
-  it('returns all metrics with null for missing data', () => {
+describe("extractMetrics", () => {
+  it("returns all metrics with null for missing data", () => {
     const result = extractMetrics(null, null, null, 3600);
     expect(result.hrTss).toBeNull();
     expect(result.powerMetrics).toBeNull();
@@ -352,7 +353,7 @@ describe('extractMetrics', () => {
     expect(result.bestTss).toBeGreaterThan(0);
   });
 
-  it('returns computed metrics from rawJson with trackpoints', () => {
+  it("returns computed metrics from rawJson with trackpoints", () => {
     const rawJson = {
       trackPoints: buildTrackPoints(3600, { baseHr: 140, basePower: 200 }),
     };
@@ -364,7 +365,7 @@ describe('extractMetrics', () => {
     expect(result.bestTss).toBeGreaterThan(0);
   });
 
-  it('aggregates all sub-metrics into one result', () => {
+  it("aggregates all sub-metrics into one result", () => {
     const rawJson = {
       trackPoints: buildTrackPoints(3600, { baseHr: 140, basePower: 200 }),
     };
@@ -377,21 +378,30 @@ describe('extractMetrics', () => {
   });
 });
 
-describe('computePrecomputedTrackpointMetrics', () => {
-  it('returns all nulls for null/undefined/empty trackpoints', () => {
+describe("computePrecomputedTrackpointMetrics", () => {
+  it("returns all nulls for null/undefined/empty trackpoints", () => {
     const empty = computePrecomputedTrackpointMetrics(null, 180);
     expect(empty).toEqual({
-      zone1Pct: null, zone2Pct: null, zone3Pct: null, zone4Pct: null, zone5Pct: null,
-      intensityAnalyzedSeconds: null, decouplingPct: null, efficiencyFactor: null,
+      zone1Pct: null,
+      zone2Pct: null,
+      zone3Pct: null,
+      zone4Pct: null,
+      zone5Pct: null,
+      intensityAnalyzedSeconds: null,
+      decouplingPct: null,
+      efficiencyFactor: null,
       trackpointNormalizedPower: null,
     });
     expect(computePrecomputedTrackpointMetrics(undefined, 180)).toEqual(empty);
     expect(computePrecomputedTrackpointMetrics([], 180)).toEqual(empty);
   });
 
-  it('returns all nulls for fewer than 30 trackpoints', () => {
+  it("returns all nulls for fewer than 30 trackpoints", () => {
     const points = Array.from({ length: 20 }, (_, i) => ({
-      hr: 140 + i, power: 200, speed: 3.5, distance: i,
+      hr: 140 + i,
+      power: 200,
+      speed: 3.5,
+      distance: i,
     }));
     const result = computePrecomputedTrackpointMetrics(points, 180);
     expect(result.zone1Pct).toBeNull();
@@ -400,7 +410,7 @@ describe('computePrecomputedTrackpointMetrics', () => {
     expect(result.trackpointNormalizedPower).toBeNull();
   });
 
-  it('nulls the zone distribution when maxHr is missing', () => {
+  it("nulls the zone distribution when maxHr is missing", () => {
     const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
     const result = computePrecomputedTrackpointMetrics(points, null);
     // Intensity needs maxHr → zones null…
@@ -412,11 +422,12 @@ describe('computePrecomputedTrackpointMetrics', () => {
     expect(result.efficiencyFactor).not.toBeNull();
   });
 
-  it('nulls zones when the distribution is insufficient_data (< 60 HR points)', () => {
+  it("nulls zones when the distribution is insufficient_data (< 60 HR points)", () => {
     // 40 total points: enough for the 30-point gate, but computeIntensityDistribution
     // classifies total < 60 as insufficient_data, which must not be persisted.
     const points = Array.from({ length: 40 }, (_, i) => ({
-      hr: 140 + (i % 10), power: 200,
+      hr: 140 + (i % 10),
+      power: 200,
     }));
     const result = computePrecomputedTrackpointMetrics(points, 180);
     expect(result.zone1Pct).toBeNull();
@@ -427,7 +438,7 @@ describe('computePrecomputedTrackpointMetrics', () => {
     expect(result.intensityAnalyzedSeconds).toBeNull();
   });
 
-  it('computes all metrics from rich trackpoint data', () => {
+  it("computes all metrics from rich trackpoint data", () => {
     const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
     const result = computePrecomputedTrackpointMetrics(points, 180);
 
@@ -442,7 +453,7 @@ describe('computePrecomputedTrackpointMetrics', () => {
     expect(result.trackpointNormalizedPower).not.toBeNull();
   });
 
-  it('uses Karvonen zone distribution when restHr is provided', () => {
+  it("uses Karvonen zone distribution when restHr is provided", () => {
     const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
     const result = computePrecomputedTrackpointMetrics(points, 180, 60);
 
@@ -460,7 +471,7 @@ describe('computePrecomputedTrackpointMetrics', () => {
     expect(byMaxHr).not.toEqual(result);
   });
 
-  it('matches the live compute functions the old dashboard routes used', () => {
+  it("matches the live compute functions the old dashboard routes used", () => {
     const points = buildTrackPoints(3600, { baseHr: 140, basePower: 200 });
     const result = computePrecomputedTrackpointMetrics(points, 180);
 

@@ -9,11 +9,7 @@ export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Bypass i18n for API routes, Next.js internals, and static files
-  if (
-    pathname.startsWith("/api/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.includes(".")
-  ) {
+  if (pathname.startsWith("/api/") || pathname.startsWith("/_next/") || pathname.includes(".")) {
     return NextResponse.next();
   }
 

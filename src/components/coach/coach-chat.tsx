@@ -11,7 +11,14 @@ import { notifyPlanUpdated, notifyActivityAnalysisSaved } from "@/lib/coach-chat
 import { isActivityAnalysisRequest } from "@/lib/activity-analysis-intent";
 import CoachInitialState from "@/components/coach/coach-initial-state";
 import CoachMessageList from "@/components/coach/coach-message-list";
-import type { CoachMessage, CoachSuggestion, PhaseProgress, StatusEntry, SaveProgressInfo, SaveAnalysisPrompt } from "@/components/coach/coach-message-list";
+import type {
+  CoachMessage,
+  CoachSuggestion,
+  PhaseProgress,
+  StatusEntry,
+  SaveProgressInfo,
+  SaveAnalysisPrompt,
+} from "@/components/coach/coach-message-list";
 import type { PhaseSummary } from "@/components/coach/training-plan-summary-card";
 import CoachInputBar from "@/components/coach/coach-input-bar";
 import CoachChatHeader from "@/components/coach/coach-chat-header";
@@ -67,7 +74,9 @@ export default function CoachChat({
   const [completedPhases, setCompletedPhases] = useState<PhaseSummary[]>([]);
   const [internalPlan, setInternalPlan] = useState<PlanWeekData | null>(null);
   const [internalPlanLoading, setInternalPlanLoading] = useState(false);
-  const [pendingSave, setPendingSave] = useState<(SaveAnalysisPrompt & { analysis: string }) | null>(null);
+  const [pendingSave, setPendingSave] = useState<
+    (SaveAnalysisPrompt & { analysis: string }) | null
+  >(null);
   const [savingAnalysis, setSavingAnalysis] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const feedIdRef = useRef(0);
@@ -78,9 +87,7 @@ export default function CoachChat({
 
   // In floating mode, fetch plan data internally if no plan prop provided
   const effectivePlan = isFloating && plan === undefined ? internalPlan : plan;
-  const hasExistingPlan = effectivePlan
-    ? (effectivePlan.totalPlanCount ?? 0) > 0
-    : false;
+  const hasExistingPlan = effectivePlan ? (effectivePlan.totalPlanCount ?? 0) > 0 : false;
 
   // Internal plan fetcher
   const fetchInternalPlan = useCallback(async () => {
@@ -122,11 +129,17 @@ export default function CoachChat({
         setConversationId(active.id);
         const convData = await coachApi("get-conversation", { conversationId: active.id }, t);
         if (convData.conversation) {
-          setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
-          setSuggestions(convData.conversation.suggestions.filter((s: CoachSuggestion) => s.status === "pending"));
+          setMessages(
+            convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system")
+          );
+          setSuggestions(
+            convData.conversation.suggestions.filter((s: CoachSuggestion) => s.status === "pending")
+          );
         }
       }
-    } catch { /* No conversation yet — that's fine */ }
+    } catch {
+      /* No conversation yet — that's fine */
+    }
     setInitialized(true);
   }, [t]);
 
@@ -145,7 +158,7 @@ export default function CoachChat({
   // Cap messages at 100 to prevent unbounded memory growth
   useEffect(() => {
     if (messages.length > 100) {
-      setMessages(prev => prev.length > 100 ? prev.slice(-80) : prev);
+      setMessages((prev) => (prev.length > 100 ? prev.slice(-80) : prev));
     }
   }, [messages.length]);
 
@@ -177,18 +190,23 @@ export default function CoachChat({
 
       // Use streaming so the user sees progress updates during data gathering + LLM call
       let feedId = 0;
-      const data = await coachApiStream("start-interview", { locale, pageContext },
+      const data = await coachApiStream(
+        "start-interview",
+        { locale, pageContext },
         (eventData) => {
           const pd = eventData as Record<string, unknown>;
           if (pd.type === "status") {
-            setStatusFeed((prev) => [...prev, {
-              id: feedId++,
-              text: pd.message as string,
-              timestamp: Date.now(),
-            }]);
+            setStatusFeed((prev) => [
+              ...prev,
+              {
+                id: feedId++,
+                text: pd.message as string,
+                timestamp: Date.now(),
+              },
+            ]);
           }
         },
-        t,
+        t
       );
 
       // Use the interview's conversation ID (startInterview creates its own conversation)
@@ -248,7 +266,14 @@ export default function CoachChat({
     // Clear the pending action so the effect doesn't re-trigger (interviewStarting
     // will be set synchronously inside startPlanInterview).
     onPendingActionHandled?.();
-  }, [pendingAction, interviewStarting, onPendingActionHandled, isFloating, plan, startPlanInterview]);
+  }, [
+    pendingAction,
+    interviewStarting,
+    onPendingActionHandled,
+    isFloating,
+    plan,
+    startPlanInterview,
+  ]);
 
   const analyze = useCallback(async () => {
     setAnalyzing(true);
@@ -256,7 +281,14 @@ export default function CoachChat({
     try {
       const data = await coachApi("analyze", { conversationId, pageContext, locale }, t);
       setConversationId(data.conversationId);
-      setMessages([{ id: "analysis", role: "assistant", content: data.analysis, createdAt: new Date().toISOString() }]);
+      setMessages([
+        {
+          id: "analysis",
+          role: "assistant",
+          content: data.analysis,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
       if (data.suggestions) setSuggestions(data.suggestions);
       if (data.guardrailViolations?.length > 0) {
         setError(`⚠️ ${data.guardrailViolations.join("; ")}`);
@@ -315,9 +347,16 @@ export default function CoachChat({
       let analysisRouted = false;
       if (isActivityAnalysisRequest(userMessage)) {
         try {
-          const data = await coachApi("analyze-activity-in-chat", {
-            conversationId: cid, message: userMessage, pageContext, locale,
-          }, t);
+          const data = await coachApi(
+            "analyze-activity-in-chat",
+            {
+              conversationId: cid,
+              message: userMessage,
+              pageContext,
+              locale,
+            },
+            t
+          );
           const assistantMsg: CoachMessage = {
             id: `assistant-${Date.now()}`,
             role: "assistant",
@@ -355,7 +394,10 @@ export default function CoachChat({
                 setPhaseProgress((prev) => [...prev, pd as unknown as PhaseProgress]);
                 break;
               case "status":
-                setStatusFeed((prev) => [...prev, { id, text: pd.message as string, timestamp: Date.now() }]);
+                setStatusFeed((prev) => [
+                  ...prev,
+                  { id, text: pd.message as string, timestamp: Date.now() },
+                ]);
                 break;
               case "tool_call": {
                 const tool = pd.tool as string;
@@ -408,7 +450,11 @@ export default function CoachChat({
       // Fallback to JSON mode if SSE fails
       console.error("[COACH-CHAT] SSE failed, falling back to JSON chat");
       try {
-        const data = await coachApi("chat", { conversationId: cid, message: userMessage, pageContext, locale }, t);
+        const data = await coachApi(
+          "chat",
+          { conversationId: cid, message: userMessage, pageContext, locale },
+          t
+        );
         const assistantMsg: CoachMessage = {
           id: data.messages?.[1]?.id || `assistant-${Date.now()}`,
           role: "assistant",
@@ -474,7 +520,10 @@ export default function CoachChat({
           const id = feedIdRef.current++;
           switch (pd.type as string) {
             case "status":
-              setStatusFeed((prev) => [...prev, { id, text: pd.message as string, timestamp: Date.now() }]);
+              setStatusFeed((prev) => [
+                ...prev,
+                { id, text: pd.message as string, timestamp: Date.now() },
+              ]);
               break;
             case "tool_call": {
               let text = `🔧 ${pd.tool as string}`;
@@ -517,8 +566,8 @@ export default function CoachChat({
           weekCount: (p.weekCount as number) || 0,
           sessionCount: (p.sessionCount as number) || 0,
           phaseOrder: p.phaseOrder as number | undefined,
-          workoutCount: (p.workoutCount as number | undefined),
-          restCount: (p.restCount as number | undefined),
+          workoutCount: p.workoutCount as number | undefined,
+          restCount: p.restCount as number | undefined,
         }));
         setCompletedPhases(mapped);
       }
@@ -542,20 +591,23 @@ export default function CoachChat({
     inputRef.current?.focus();
   }, [t]);
 
-  const applySuggestion = useCallback(async (suggestionId: string) => {
-    try {
-      const data = await coachApi("apply-suggestion", { suggestionId }, t);
-      if (data.success) {
-        setFeedback(t("applied"));
-        setTimeout(() => setFeedback(null), 4000);
-        setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
-        // Trigger full dashboard reload — goals, plan, readiness etc.
-        handlePlanApplied();
+  const applySuggestion = useCallback(
+    async (suggestionId: string) => {
+      try {
+        const data = await coachApi("apply-suggestion", { suggestionId }, t);
+        if (data.success) {
+          setFeedback(t("applied"));
+          setTimeout(() => setFeedback(null), 4000);
+          setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+          // Trigger full dashboard reload — goals, plan, readiness etc.
+          handlePlanApplied();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t("applySuggestionFailed"));
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("applySuggestionFailed"));
-    }
-  }, [handlePlanApplied, t]);
+    },
+    [handlePlanApplied, t]
+  );
 
   const dismissSuggestion = useCallback((suggestionId: string) => {
     setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
@@ -600,7 +652,9 @@ export default function CoachChat({
         // with just the summarized version
         const convData = await coachApi("get-conversation", { conversationId }, t);
         if (convData.conversation) {
-          setMessages(convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system"));
+          setMessages(
+            convData.conversation.messages.filter((m: CoachMessage) => m.role !== "system")
+          );
           setSuggestions([]);
           setFeedback(t("summarized"));
           setTimeout(() => setFeedback(null), 4000);
@@ -632,10 +686,13 @@ export default function CoachChat({
   }, [handlePlanApplied, t]);
 
   /** Send a pre-filled quick-action message (bypasses the input textarea). */
-  const handleQuickActionMessage = useCallback((text: string) => {
-    pendingMessageRef.current = text;
-    sendMessage();
-  }, [sendMessage]);
+  const handleQuickActionMessage = useCallback(
+    (text: string) => {
+      pendingMessageRef.current = text;
+      sendMessage();
+    },
+    [sendMessage]
+  );
 
   /** Kick off the context-building Q&A through the normal chat tool loop. */
   const handleStartContextInterview = useCallback(() => {
@@ -757,7 +814,9 @@ export default function CoachChat({
             loading={loading}
           />
           {hasMessages && (
-            <p className="text-[0.625rem] text-muted-foreground text-center mt-1">{t("sendHint")}</p>
+            <p className="text-[0.625rem] text-muted-foreground text-center mt-1">
+              {t("sendHint")}
+            </p>
           )}
         </div>
       </div>

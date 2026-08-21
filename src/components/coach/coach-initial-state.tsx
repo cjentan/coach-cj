@@ -1,7 +1,16 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Brain, Sparkles, BarChart3, Activity, LineChart, Heart, MessageCircle, Calendar } from "lucide-react";
+import {
+  Brain,
+  Sparkles,
+  BarChart3,
+  Activity,
+  LineChart,
+  Heart,
+  MessageCircle,
+  Calendar,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type PageContext } from "@/lib/page-context";
 
@@ -59,9 +68,7 @@ export default function CoachInitialState({
       {/* Greeting */}
       <div className="text-center py-4 text-sm text-muted-foreground">
         <Brain className="h-8 w-8 mx-auto mb-2 opacity-40" />
-        <p className="text-sm leading-relaxed max-w-xs mx-auto">
-          {t(greetingKey)}
-        </p>
+        <p className="text-sm leading-relaxed max-w-xs mx-auto">{t(greetingKey)}</p>
       </div>
 
       {/* Quick-action buttons */}
@@ -74,12 +81,14 @@ export default function CoachInitialState({
                 key={action.key}
                 size="sm"
                 variant={action.primary ? "default" : "outline"}
-                onClick={() => action.onClick({
-                  onAnalyze,
-                  onStartPlanInterview,
-                  onSendMessage,
-                  onAskQuestion: onAskQuestion || (() => {}),
-                })}
+                onClick={() =>
+                  action.onClick({
+                    onAnalyze,
+                    onStartPlanInterview,
+                    onSendMessage,
+                    onAskQuestion: onAskQuestion || (() => {}),
+                  })
+                }
                 disabled={interviewStarting && action.key === "createPlan"}
                 className="gap-1.5"
               >
@@ -93,9 +102,7 @@ export default function CoachInitialState({
 
       {/* Hint when plan exists but no conversation started */}
       {hasExistingPlan && (
-        <p className="text-xs text-center mt-3 text-muted-foreground">
-          {t("followUpHint")}
-        </p>
+        <p className="text-xs text-center mt-3 text-muted-foreground">{t("followUpHint")}</p>
       )}
     </div>
   );
@@ -139,7 +146,11 @@ interface ActionDefinition {
   }) => void;
 }
 
-function getActions(page: string, hasPlan: boolean, t: (key: string) => string): ActionDefinition[] {
+function getActions(
+  page: string,
+  hasPlan: boolean,
+  t: (key: string) => string
+): ActionDefinition[] {
   if (hasPlan) {
     // Actions shown when a training plan exists
     switch (page) {

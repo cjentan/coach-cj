@@ -37,24 +37,37 @@ export async function DELETE(request: NextRequest) {
 
   const invalidTypes = types.filter((t) => !(ALL_TYPES as readonly string[]).includes(t));
   if (invalidTypes.length > 0) {
-    return NextResponse.json({ error: `Invalid data types: ${invalidTypes.join(", ")}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `Invalid data types: ${invalidTypes.join(", ")}` },
+      { status: 400 }
+    );
   }
 
   // Build operations array from the requested types.
   // Order matters for referential integrity (child tables first).
   const operations: Prisma.PrismaPromise<any>[] = [];
 
-  if (types.includes("trainingLogs")) operations.push(prisma.trainingLog.deleteMany({ where: { userId } }));
-  if (types.includes("duplicateGroups")) operations.push(prisma.duplicateGroup.deleteMany({ where: { userId } }));
-  if (types.includes("raceGoals")) operations.push(prisma.raceGoal.deleteMany({ where: { userId } }));
-  if (types.includes("bodyMetrics")) operations.push(prisma.bodyMetric.deleteMany({ where: { userId } }));
-  if (types.includes("dailyHealth")) operations.push(prisma.dailyHealth.deleteMany({ where: { userId } }));
-  if (types.includes("weeklyAssessments")) operations.push(prisma.weeklyAssessment.deleteMany({ where: { userId } }));
-  if (types.includes("weeklyPlans")) operations.push(prisma.weeklyPlan.deleteMany({ where: { userId } }));
-  if (types.includes("fatigueAlerts")) operations.push(prisma.fatigueAlert.deleteMany({ where: { userId } }));
-  if (types.includes("analysisReports")) operations.push(prisma.analysisReport.deleteMany({ where: { userId } }));
+  if (types.includes("trainingLogs"))
+    operations.push(prisma.trainingLog.deleteMany({ where: { userId } }));
+  if (types.includes("duplicateGroups"))
+    operations.push(prisma.duplicateGroup.deleteMany({ where: { userId } }));
+  if (types.includes("raceGoals"))
+    operations.push(prisma.raceGoal.deleteMany({ where: { userId } }));
+  if (types.includes("bodyMetrics"))
+    operations.push(prisma.bodyMetric.deleteMany({ where: { userId } }));
+  if (types.includes("dailyHealth"))
+    operations.push(prisma.dailyHealth.deleteMany({ where: { userId } }));
+  if (types.includes("weeklyAssessments"))
+    operations.push(prisma.weeklyAssessment.deleteMany({ where: { userId } }));
+  if (types.includes("weeklyPlans"))
+    operations.push(prisma.weeklyPlan.deleteMany({ where: { userId } }));
+  if (types.includes("fatigueAlerts"))
+    operations.push(prisma.fatigueAlert.deleteMany({ where: { userId } }));
+  if (types.includes("analysisReports"))
+    operations.push(prisma.analysisReport.deleteMany({ where: { userId } }));
   if (types.includes("apiKeys")) operations.push(prisma.apiKey.deleteMany({ where: { userId } }));
-  if (types.includes("coachData")) operations.push(prisma.coachConversation.deleteMany({ where: { userId } }));
+  if (types.includes("coachData"))
+    operations.push(prisma.coachConversation.deleteMany({ where: { userId } }));
 
   const results = await prisma.$transaction(operations);
 

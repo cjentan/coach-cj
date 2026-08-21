@@ -31,7 +31,9 @@ export async function GET() {
     const parsed = JSON.parse(raw);
     status = parsed.status ?? "idle";
     statusError = parsed.error ?? null;
-  } catch { /* first time */ }
+  } catch {
+    /* first time */
+  }
 
   let size: number | null = null;
   let timestamp: string | null = null;
@@ -66,7 +68,9 @@ export async function POST() {
     if (parsed.status === "running") {
       return NextResponse.json({ status: "already_running" }, { status: 409 });
     }
-  } catch { /* proceed */ }
+  } catch {
+    /* proceed */
+  }
 
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   fs.writeFileSync(statusFile, JSON.stringify({ status: "running" }));
@@ -79,7 +83,7 @@ export async function POST() {
         JSON.stringify({
           status: "error",
           error: err instanceof Error ? err.message : "Unknown error",
-        }),
+        })
       );
     } catch {}
   });
@@ -110,7 +114,7 @@ async function loadRawJsonBatched(ids: string[], batchSize = 5): Promise<Map<str
     const rows: RawJsonRow[] = await prisma.$queryRawUnsafe(
       `SELECT id, raw_json AS "rawJson" FROM training_logs
        WHERE id = ANY($1::text[])`,
-      batch,
+      batch
     );
     for (const row of rows) {
       map.set(row.id, row.rawJson);
@@ -201,7 +205,7 @@ async function performBackup(userId: string, statusFile: string) {
               trackpoint_normalized_power AS "trackpointNormalizedPower",
               created_at AS "createdAt"
        FROM training_logs WHERE user_id = $1 ORDER BY start_date ASC`,
-      userId,
+      userId
     ),
     prisma.duplicateGroup.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.raceGoal.findMany({ where: { userId }, orderBy: { targetDate: "asc" } }),
@@ -298,133 +302,169 @@ async function performBackup(userId: string, statusFile: string) {
   }
 
   // ── 6. Write other data files ─────────────────────────────────────────
-  writeJson(tmpDir, "goals.json", raceGoals.map((g) => ({
-    id: g.id,
-    name: g.name,
-    raceType: g.raceType,
-    targetDate: g.targetDate.toISOString(),
-    distanceMeters: g.distanceMeters,
-    elevationGainMeters: g.elevationGainMeters,
-    targetTimeSeconds: g.targetTimeSeconds,
-    priority: g.priority,
-    status: g.status,
-    notes: g.notes,
-    goalStatement: g.goalStatement,
-    courseProfile: g.courseProfile,
-    createdAt: g.createdAt.toISOString(),
-    updatedAt: g.updatedAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "goals.json",
+    raceGoals.map((g) => ({
+      id: g.id,
+      name: g.name,
+      raceType: g.raceType,
+      targetDate: g.targetDate.toISOString(),
+      distanceMeters: g.distanceMeters,
+      elevationGainMeters: g.elevationGainMeters,
+      targetTimeSeconds: g.targetTimeSeconds,
+      priority: g.priority,
+      status: g.status,
+      notes: g.notes,
+      goalStatement: g.goalStatement,
+      courseProfile: g.courseProfile,
+      createdAt: g.createdAt.toISOString(),
+      updatedAt: g.updatedAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "duplicate_groups.json", duplicateGroups.map((g) => ({
-    id: g.id,
-    status: g.status,
-    resolution: g.resolution,
-    keptActivityId: g.keptActivityId,
-    mergedAt: g.mergedAt?.toISOString() ?? null,
-    createdAt: g.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "duplicate_groups.json",
+    duplicateGroups.map((g) => ({
+      id: g.id,
+      status: g.status,
+      resolution: g.resolution,
+      keptActivityId: g.keptActivityId,
+      mergedAt: g.mergedAt?.toISOString() ?? null,
+      createdAt: g.createdAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "body_metrics.json", bodyMetrics.map((m) => ({
-    id: m.id,
-    recordedAt: m.recordedAt.toISOString(),
-    weightKg: m.weightKg,
-    heightCm: m.heightCm,
-    restingHr: m.restingHr,
-    notes: m.notes,
-    createdAt: m.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "body_metrics.json",
+    bodyMetrics.map((m) => ({
+      id: m.id,
+      recordedAt: m.recordedAt.toISOString(),
+      weightKg: m.weightKg,
+      heightCm: m.heightCm,
+      restingHr: m.restingHr,
+      notes: m.notes,
+      createdAt: m.createdAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "weekly_assessments.json", weeklyAssessments.map((a) => ({
-    id: a.id,
-    weekStartDate: a.weekStartDate.toISOString(),
-    acuteTrainingLoad: a.acuteTrainingLoad,
-    chronicTrainingLoad: a.chronicTrainingLoad,
-    tsb: a.tsb,
-    readinessScore: a.readinessScore,
-    fitnessScore: a.fitnessScore,
-    fatigueScore: a.fatigueScore,
-    formScore: a.formScore,
-    weeklyVolumeMeters: a.weeklyVolumeMeters,
-    weeklyElevationMeters: a.weeklyElevationMeters,
-    weeklyDurationSeconds: a.weeklyDurationSeconds,
-    goalProgressPct: a.goalProgressPct,
-    recommendations: a.recommendations,
-    rawData: a.rawData,
-    createdAt: a.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "weekly_assessments.json",
+    weeklyAssessments.map((a) => ({
+      id: a.id,
+      weekStartDate: a.weekStartDate.toISOString(),
+      acuteTrainingLoad: a.acuteTrainingLoad,
+      chronicTrainingLoad: a.chronicTrainingLoad,
+      tsb: a.tsb,
+      readinessScore: a.readinessScore,
+      fitnessScore: a.fitnessScore,
+      fatigueScore: a.fatigueScore,
+      formScore: a.formScore,
+      weeklyVolumeMeters: a.weeklyVolumeMeters,
+      weeklyElevationMeters: a.weeklyElevationMeters,
+      weeklyDurationSeconds: a.weeklyDurationSeconds,
+      goalProgressPct: a.goalProgressPct,
+      recommendations: a.recommendations,
+      rawData: a.rawData,
+      createdAt: a.createdAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "weekly_plans.json", weeklyPlans.map((p) => ({
-    id: p.id,
-    weekStartDate: p.weekStartDate.toISOString(),
-    generatedAt: p.generatedAt.toISOString(),
-    targetVolumeMeters: p.targetVolumeMeters,
-    targetElevationMeters: p.targetElevationMeters,
-    targetDurationSeconds: p.targetDurationSeconds,
-    plannedSessions: p.plannedSessions,
-    adjustments: p.adjustments,
-    trajectoryAssessment: p.trajectoryAssessment,
-    coachNotes: p.coachNotes,
-    overridesExisting: p.overridesExisting,
-    adjustmentHistory: p.adjustmentHistory,
-    createdAt: p.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "weekly_plans.json",
+    weeklyPlans.map((p) => ({
+      id: p.id,
+      weekStartDate: p.weekStartDate.toISOString(),
+      generatedAt: p.generatedAt.toISOString(),
+      targetVolumeMeters: p.targetVolumeMeters,
+      targetElevationMeters: p.targetElevationMeters,
+      targetDurationSeconds: p.targetDurationSeconds,
+      plannedSessions: p.plannedSessions,
+      adjustments: p.adjustments,
+      trajectoryAssessment: p.trajectoryAssessment,
+      coachNotes: p.coachNotes,
+      overridesExisting: p.overridesExisting,
+      adjustmentHistory: p.adjustmentHistory,
+      createdAt: p.createdAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "fatigue_alerts.json", fatigueAlerts.map((a) => ({
-    id: a.id,
-    detectedAt: a.detectedAt.toISOString(),
-    severity: a.severity,
-    signals: a.signals,
-    recommendation: a.recommendation,
-    recommendedRestDays: a.recommendedRestDays,
-    acknowledged: a.acknowledged,
-    createdAt: a.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "fatigue_alerts.json",
+    fatigueAlerts.map((a) => ({
+      id: a.id,
+      detectedAt: a.detectedAt.toISOString(),
+      severity: a.severity,
+      signals: a.signals,
+      recommendation: a.recommendation,
+      recommendedRestDays: a.recommendedRestDays,
+      acknowledged: a.acknowledged,
+      createdAt: a.createdAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "daily_health.json", dailyHealth.map((h) => ({
-    id: h.id,
-    date: h.date.toISOString(),
-    restingHeartRate: h.restingHeartRate,
-    minHeartRate: h.minHeartRate,
-    maxHeartRate: h.maxHeartRate,
-    sleepSeconds: h.sleepSeconds,
-    deepSleepSeconds: h.deepSleepSeconds,
-    lightSleepSeconds: h.lightSleepSeconds,
-    remSleepSeconds: h.remSleepSeconds,
-    awakeSeconds: h.awakeSeconds,
-    sleepScore: h.sleepScore,
-    sleepStartLocal: h.sleepStartLocal,
-    sleepEndLocal: h.sleepEndLocal,
-    bodyBatteryMin: h.bodyBatteryMin,
-    bodyBatteryMax: h.bodyBatteryMax,
-    avgStress: h.avgStress,
-    maxStress: h.maxStress,
-    hrvBalance: h.hrvBalance,
-    hrvStatus: h.hrvStatus,
-    overnightHrv: h.overnightHrv,
-    steps: h.steps,
-    stepGoal: h.stepGoal,
-    rawData: h.rawData,
-  })));
+  writeJson(
+    tmpDir,
+    "daily_health.json",
+    dailyHealth.map((h) => ({
+      id: h.id,
+      date: h.date.toISOString(),
+      restingHeartRate: h.restingHeartRate,
+      minHeartRate: h.minHeartRate,
+      maxHeartRate: h.maxHeartRate,
+      sleepSeconds: h.sleepSeconds,
+      deepSleepSeconds: h.deepSleepSeconds,
+      lightSleepSeconds: h.lightSleepSeconds,
+      remSleepSeconds: h.remSleepSeconds,
+      awakeSeconds: h.awakeSeconds,
+      sleepScore: h.sleepScore,
+      sleepStartLocal: h.sleepStartLocal,
+      sleepEndLocal: h.sleepEndLocal,
+      bodyBatteryMin: h.bodyBatteryMin,
+      bodyBatteryMax: h.bodyBatteryMax,
+      avgStress: h.avgStress,
+      maxStress: h.maxStress,
+      hrvBalance: h.hrvBalance,
+      hrvStatus: h.hrvStatus,
+      overnightHrv: h.overnightHrv,
+      steps: h.steps,
+      stepGoal: h.stepGoal,
+      rawData: h.rawData,
+    }))
+  );
 
-  writeJson(tmpDir, "analysis_reports.json", analysisReports.map((r) => ({
-    id: r.id,
-    reportType: r.reportType,
-    triggeredBy: r.triggeredBy,
-    inputSnapshot: r.inputSnapshot,
-    outputContent: r.outputContent,
-    reasoning: r.reasoning,
-    metrics: r.metrics,
-    createdAt: r.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "analysis_reports.json",
+    analysisReports.map((r) => ({
+      id: r.id,
+      reportType: r.reportType,
+      triggeredBy: r.triggeredBy,
+      inputSnapshot: r.inputSnapshot,
+      outputContent: r.outputContent,
+      reasoning: r.reasoning,
+      metrics: r.metrics,
+      createdAt: r.createdAt.toISOString(),
+    }))
+  );
 
-  writeJson(tmpDir, "api_keys.json", apiKeys.map((k) => ({
-    id: k.id,
-    name: k.name,
-    keyHash: k.keyHash,
-    keyPrefix: k.keyPrefix,
-    lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
-    createdAt: k.createdAt.toISOString(),
-  })));
+  writeJson(
+    tmpDir,
+    "api_keys.json",
+    apiKeys.map((k) => ({
+      id: k.id,
+      name: k.name,
+      keyHash: k.keyHash,
+      keyPrefix: k.keyPrefix,
+      lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+      createdAt: k.createdAt.toISOString(),
+    }))
+  );
 
   if (garminSession) {
     writeJson(tmpDir, "garmin_session.json", {
@@ -455,34 +495,38 @@ async function performBackup(userId: string, statusFile: string) {
   }
 
   if (coachConversations.length > 0) {
-    writeJson(tmpDir, "coach_conversations.json", coachConversations.map((c: CoachConversationWithRelations) => ({
-      id: c.id,
-      title: c.title,
-      status: c.status,
-      contextSnapshot: c.contextSnapshot,
-      createdAt: c.createdAt.toISOString(),
-      updatedAt: c.updatedAt.toISOString(),
-      messages: c.messages.map((m) => ({
-        id: m.id,
-        conversationId: m.conversationId,
-        role: m.role,
-        content: m.content,
-        suggestionId: m.suggestionId,
-        tokenCount: m.tokenCount,
-        createdAt: m.createdAt.toISOString(),
-      })),
-      suggestions: c.suggestions.map((s) => ({
-        id: s.id,
-        conversationId: s.conversationId,
-        suggestionType: s.suggestionType,
-        title: s.title,
-        description: s.description,
-        changes: s.changes,
-        status: s.status,
-        createdAt: s.createdAt.toISOString(),
-        appliedAt: s.appliedAt?.toISOString() ?? null,
-      })),
-    })));
+    writeJson(
+      tmpDir,
+      "coach_conversations.json",
+      coachConversations.map((c: CoachConversationWithRelations) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        contextSnapshot: c.contextSnapshot,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        messages: c.messages.map((m) => ({
+          id: m.id,
+          conversationId: m.conversationId,
+          role: m.role,
+          content: m.content,
+          suggestionId: m.suggestionId,
+          tokenCount: m.tokenCount,
+          createdAt: m.createdAt.toISOString(),
+        })),
+        suggestions: c.suggestions.map((s) => ({
+          id: s.id,
+          conversationId: s.conversationId,
+          suggestionType: s.suggestionType,
+          title: s.title,
+          description: s.description,
+          changes: s.changes,
+          status: s.status,
+          createdAt: s.createdAt.toISOString(),
+          appliedAt: s.appliedAt?.toISOString() ?? null,
+        })),
+      }))
+    );
   }
 
   // ── 7. Package into tar.gz ────────────────────────────────────────────

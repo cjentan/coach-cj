@@ -61,10 +61,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   // Score each candidate
   interface Scored {
-    id: string; name: string; startDate: string;
-    durationSeconds: number; distanceMeters: number | null;
-    elevationGainMeters: number | null; averageHr: number | null;
-    maxHr: number | null; tss: number | null;
+    id: string;
+    name: string;
+    startDate: string;
+    durationSeconds: number;
+    distanceMeters: number | null;
+    elevationGainMeters: number | null;
+    averageHr: number | null;
+    maxHr: number | null;
+    tss: number | null;
     similarity: number;
   }
 

@@ -66,8 +66,11 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Re-snapshot error:", err);
-    return NextResponse.json({
-      error: `Re-snapshot failed: ${(err as Error).message}`,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: `Re-snapshot failed: ${(err as Error).message}`,
+      },
+      { status: 500 }
+    );
   }
 }

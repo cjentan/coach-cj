@@ -7,7 +7,10 @@ const analysisSchema = z.object({
   analysisTrigger: z.enum(["activity_count", "daily", "weekly", "monthly", "every_n_days"]),
   analysisTriggerValue: z.number().int().min(1).max(90).default(3),
   reviewDayOfWeek: z.number().int().min(0).max(6).optional(),
-  reviewTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  reviewTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .optional(),
   reviewDayOfMonth: z.number().int().min(1).max(31).optional(),
 });
 
@@ -17,7 +20,13 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { analysisTrigger: true, analysisTriggerValue: true, reviewDayOfWeek: true, reviewTime: true, reviewDayOfMonth: true },
+    select: {
+      analysisTrigger: true,
+      analysisTriggerValue: true,
+      reviewDayOfWeek: true,
+      reviewTime: true,
+      reviewDayOfMonth: true,
+    },
   });
 
   const lastReport = await prisma.analysisReport.findFirst({
@@ -48,13 +57,18 @@ export async function PUT(req: Request) {
 
   const data: Record<string, any> = {
     analysisTrigger: parsed.data.analysisTrigger,
-    analysisTriggerValue: parsed.data.analysisTrigger === "activity_count" || parsed.data.analysisTrigger === "every_n_days" ? parsed.data.analysisTriggerValue : 1,
+    analysisTriggerValue:
+      parsed.data.analysisTrigger === "activity_count" ||
+      parsed.data.analysisTrigger === "every_n_days"
+        ? parsed.data.analysisTriggerValue
+        : 1,
   };
 
   // Save review schedule fields when provided
   if (parsed.data.reviewDayOfWeek !== undefined) data.reviewDayOfWeek = parsed.data.reviewDayOfWeek;
   if (parsed.data.reviewTime !== undefined) data.reviewTime = parsed.data.reviewTime;
-  if (parsed.data.reviewDayOfMonth !== undefined) data.reviewDayOfMonth = parsed.data.reviewDayOfMonth;
+  if (parsed.data.reviewDayOfMonth !== undefined)
+    data.reviewDayOfMonth = parsed.data.reviewDayOfMonth;
 
   await prisma.user.update({
     where: { id: session.user.id },

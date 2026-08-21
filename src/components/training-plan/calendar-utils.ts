@@ -66,8 +66,6 @@ export function getIcon(type: string): ComponentType<{ className?: string }> {
 export function formatWeekRange(startIso: string, endIso: string): string {
   const s = parseISO(startIso);
   const e = parseISO(endIso);
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${fmt(s)} — ${fmt(e)}`;
-
 }

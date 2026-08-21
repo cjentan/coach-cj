@@ -36,12 +36,10 @@ export function estimateTss(durationSeconds: number): number {
 export function computePowerTss(
   durationSeconds: number,
   normalizedPower: number,
-  ftp: number,
+  ftp: number
 ): number {
   const intensityFactor = normalizedPower / ftp;
-  return Math.round(
-    (durationSeconds * normalizedPower * intensityFactor) / (ftp * 36),
-  );
+  return Math.round((durationSeconds * normalizedPower * intensityFactor) / (ftp * 36));
 }
 
 // ─── HR-based TSS estimate (avg/max ratio) ────────────────────
@@ -57,7 +55,7 @@ export function computePowerTss(
 export function computeHrTssEstimate(
   durationSeconds: number,
   avgHr: number,
-  maxHr: number,
+  maxHr: number
 ): number {
   const intensity = avgHr / maxHr;
   return Math.round((durationSeconds * intensity * intensity) / 36);
@@ -77,7 +75,7 @@ export function computeHrTssEstimate(
  */
 export function computeHrTss(
   timeInZones: number[],
-  durationSeconds: number,
+  durationSeconds: number
 ): { hrTss: number; zonePct: number[] } {
   let weightedSum = 0;
   for (let i = 0; i < 5; i++) {
@@ -86,9 +84,7 @@ export function computeHrTss(
   const hrTss = Math.round((weightedSum * 100) / 3600);
 
   const totalSec = timeInZones.reduce((a, b) => a + b, 0) || 1;
-  const zonePct = timeInZones.map((t) =>
-    Math.round((t / totalSec) * 1000) / 10,
-  );
+  const zonePct = timeInZones.map((t) => Math.round((t / totalSec) * 1000) / 10);
 
   return { hrTss, zonePct };
 }
@@ -111,9 +107,7 @@ export function computeNormalizedPower(powerValues: number[]): number | null {
     const slice = powerValues.slice(i - 29, i + 1);
     rolling30s.push(slice.reduce((a, b) => a + b, 0) / 30);
   }
-  const meanFourth =
-    rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) /
-    rolling30s.length;
+  const meanFourth = rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) / rolling30s.length;
   return Math.round(Math.pow(meanFourth, 0.25));
 }
 
@@ -135,8 +129,6 @@ export function computeNormalizedPowerFloat(powerValues: number[]): number {
     const slice = powerValues.slice(i - 29, i + 1);
     rolling30s.push(slice.reduce((a, b) => a + b, 0) / 30);
   }
-  const meanFourth =
-    rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) /
-    rolling30s.length;
+  const meanFourth = rolling30s.reduce((sum, v) => sum + Math.pow(v, 4), 0) / rolling30s.length;
   return Math.pow(meanFourth, 0.25);
 }

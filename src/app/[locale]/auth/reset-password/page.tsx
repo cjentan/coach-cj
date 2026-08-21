@@ -6,7 +6,14 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
 import { Key, CheckCircle2 } from "lucide-react";
 
 function ResetForm() {
@@ -83,14 +90,32 @@ function ResetForm() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            {error && <div className="p-3 text-sm rounded-md bg-destructive/10 text-destructive">{error}</div>}
+            {error && (
+              <div className="p-3 text-sm rounded-md bg-destructive/10 text-destructive">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label>{t("newPasswordLabel")}</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("newPasswordLabel")} required minLength={8} />
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={t("newPasswordLabel")}
+                required
+                minLength={8}
+              />
             </div>
             <div className="space-y-2">
               <Label>{t("confirmPasswordLabel")}</Label>
-              <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t("confirmPasswordLabel")} required minLength={8} />
+              <Input
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder={t("confirmPasswordLabel")}
+                required
+                minLength={8}
+              />
             </div>
           </CardContent>
           <CardFooter>
@@ -107,7 +132,13 @@ function ResetForm() {
 export default function ResetPasswordPage() {
   const t = useTranslations("common");
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)]">{t("loading")}</div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[calc(100vh-3.5rem)]">
+          {t("loading")}
+        </div>
+      }
+    >
       <ResetForm />
     </Suspense>
   );

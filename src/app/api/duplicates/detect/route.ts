@@ -38,8 +38,11 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("Duplicate detection error:", err);
-    return NextResponse.json({
-      error: `Detection failed: ${(err as Error).message}`,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: `Detection failed: ${(err as Error).message}`,
+      },
+      { status: 500 }
+    );
   }
 }

@@ -44,7 +44,11 @@ export async function POST(req: Request) {
           activities = await parseFitFile(buffer);
 
           if (activities.length === 0) {
-            results.push({ filename: file.name, status: "skipped", error: "No sessions or records found in FIT file" });
+            results.push({
+              filename: file.name,
+              status: "skipped",
+              error: "No sessions or records found in FIT file",
+            });
             continue;
           }
         } else {
@@ -53,7 +57,11 @@ export async function POST(req: Request) {
           const activity = parseActivityFile(content, file.name);
 
           if (!activity) {
-            results.push({ filename: file.name, status: "skipped", error: "Unsupported format — use .gpx, .tcx, or .fit files" });
+            results.push({
+              filename: file.name,
+              status: "skipped",
+              error: "Unsupported format — use .gpx, .tcx, or .fit files",
+            });
             continue;
           }
           activities = [activity];
@@ -69,7 +77,7 @@ export async function POST(req: Request) {
               activity.startDate,
               activity.trackPoints,
               undefined,
-              activity.localTimestamp ?? undefined,
+              activity.localTimestamp ?? undefined
             );
           } catch {
             // Keep parser-generated name if geocoding fails
@@ -87,7 +95,7 @@ export async function POST(req: Request) {
           const tpMetrics = computePrecomputedTrackpointMetrics(
             rawJson.trackPoints as TrackPoint[] | undefined,
             maxHr,
-            restHr,
+            restHr
           );
 
           const created = await prisma.trainingLog.upsert({
@@ -166,10 +174,12 @@ export async function POST(req: Request) {
             trackPoints: activity.trackPoints,
           });
           if (workoutType && workoutType !== created.workoutType) {
-            await prisma.trainingLog.update({
-              where: { id: created.id },
-              data: { workoutType },
-            }).catch(() => {});
+            await prisma.trainingLog
+              .update({
+                where: { id: created.id },
+                data: { workoutType },
+              })
+              .catch(() => {});
           }
         }
 

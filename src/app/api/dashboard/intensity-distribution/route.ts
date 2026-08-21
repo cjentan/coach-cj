@@ -34,7 +34,11 @@ export async function GET(request: NextRequest) {
   });
 
   // Aggregate across activities with computed intensity data.
-  let totalZ1 = 0, totalZ2 = 0, totalZ3 = 0, totalZ4 = 0, totalZ5 = 0;
+  let totalZ1 = 0,
+    totalZ2 = 0,
+    totalZ3 = 0,
+    totalZ4 = 0,
+    totalZ5 = 0;
   let analyzedCount = 0;
   let totalAnalyzedSec = 0;
 
@@ -44,10 +48,14 @@ export async function GET(request: NextRequest) {
   // (which skipped <30 trackpoints, missing maxHr, and insufficient_data).
   for (const log of logs) {
     if (
-      log.zone1Pct == null || log.zone2Pct == null || log.zone3Pct == null ||
-      log.zone4Pct == null || log.zone5Pct == null ||
+      log.zone1Pct == null ||
+      log.zone2Pct == null ||
+      log.zone3Pct == null ||
+      log.zone4Pct == null ||
+      log.zone5Pct == null ||
       log.intensityAnalyzedSeconds == null
-    ) continue;
+    )
+      continue;
 
     totalZ1 += log.zone1Pct;
     totalZ2 += log.zone2Pct;
@@ -68,13 +76,14 @@ export async function GET(request: NextRequest) {
     zone3Pct: Math.round((totalZ3 / analyzedCount) * 10) / 10,
     zone4Pct: Math.round((totalZ4 / analyzedCount) * 10) / 10,
     zone5Pct: Math.round((totalZ5 / analyzedCount) * 10) / 10,
-    distributionType: ((totalZ1 + totalZ2) / analyzedCount >= 75 && (totalZ4 + totalZ5) / analyzedCount >= 5)
-      ? "polarized" as const
-      : totalZ3 / analyzedCount >= 30
-      ? "threshold-heavy" as const
-      : "pyramidal" as const,
+    distributionType:
+      (totalZ1 + totalZ2) / analyzedCount >= 75 && (totalZ4 + totalZ5) / analyzedCount >= 5
+        ? ("polarized" as const)
+        : totalZ3 / analyzedCount >= 30
+          ? ("threshold-heavy" as const)
+          : ("pyramidal" as const),
     activityCount: analyzedCount,
-    analyzedHours: Math.round(totalAnalyzedSec / 3600 * 10) / 10,
+    analyzedHours: Math.round((totalAnalyzedSec / 3600) * 10) / 10,
   };
 
   return NextResponse.json({ distribution });

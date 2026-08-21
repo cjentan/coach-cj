@@ -28,15 +28,15 @@ vi.mock("@/components/coach/training-plan-summary-card", () => ({
 vi.mock("next-intl", () => {
   const t = (key: string, values?: Record<string, string | number>) => {
     const known: Record<string, string> = {
-      "loading": "Loading...",
-      "title": "Coach",
-      "placeholder": "Type your message...",
-      "sendHint": "Press Enter to send",
-      "analyze": "Analyze",
-      "summarize": "Summarize",
-      "saveAnalysisPrompt": "Save this analysis to {name}?",
-      "saveToActivity": "Save to activity",
-      "discard": "Discard",
+      loading: "Loading...",
+      title: "Coach",
+      placeholder: "Type your message...",
+      sendHint: "Press Enter to send",
+      analyze: "Analyze",
+      summarize: "Summarize",
+      saveAnalysisPrompt: "Save this analysis to {name}?",
+      saveToActivity: "Save to activity",
+      discard: "Discard",
       "quickActions.analyzeWorkout": "Analyze this activity",
     };
     let val = known[key] ?? key;
@@ -95,7 +95,8 @@ describe("CoachChat — save analysis prompt", () => {
         response: { conversationId: "conv-1" },
       },
       {
-        match: (u, b) => u.endsWith("/api/dashboard/coach") && b.action === "analyze-activity-in-chat",
+        match: (u, b) =>
+          u.endsWith("/api/dashboard/coach") && b.action === "analyze-activity-in-chat",
         response: {
           conversationId: "conv-1",
           activityId: "act-123",

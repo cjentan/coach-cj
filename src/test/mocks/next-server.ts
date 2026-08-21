@@ -12,10 +12,10 @@
  */
 
 // @ts-expect-error - we need to mock before module resolution
-const { vi } = await import('vitest');
+const { vi } = await import("vitest");
 
 export const mockNextServer = () => {
-  vi.mock('next/server', () => ({
+  vi.mock("next/server", () => ({
     NextResponse: {
       json: vi.fn((body?: unknown, init?: ResponseInit) => {
         const status = (init?.status as number) ?? 200;
@@ -36,14 +36,14 @@ export const mockNextServer = () => {
 
       constructor(input: string | URL, init?: RequestInit) {
         this.url = input.toString();
-        this.method = init?.method ?? 'GET';
+        this.method = init?.method ?? "GET";
         this.headers = new Headers(init?.headers);
         this.body = init?.body as ReadableStream | null;
-        this.nextUrl = new URL(this.url, 'http://localhost:3000');
+        this.nextUrl = new URL(this.url, "http://localhost:3000");
       }
 
       async json() {
-        if (typeof this.body === 'string') return JSON.parse(this.body);
+        if (typeof this.body === "string") return JSON.parse(this.body);
         return {};
       }
 

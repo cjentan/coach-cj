@@ -4,19 +4,9 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import {
-  User,
-  Target,
-  Brain,
-  Plug,
-  Shield,
-} from "lucide-react";
+import { User, Target, Brain, Plug, Shield } from "lucide-react";
 
-export default function SettingsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("settings");
   const pathname = usePathname();
 

@@ -63,9 +63,18 @@ export const StartInterviewResponseSchema = z.object({
 
 export const ActivityAnalysisResultSchema = z.object({
   trainingType: z.enum([
-    "easy_recovery", "long_run", "tempo", "threshold", "interval",
-    "fartlek", "hill_repeats", "sprints", "aerobic_endurance",
-    "race", "cross_training", "other",
+    "easy_recovery",
+    "long_run",
+    "tempo",
+    "threshold",
+    "interval",
+    "fartlek",
+    "hill_repeats",
+    "sprints",
+    "aerobic_endurance",
+    "race",
+    "cross_training",
+    "other",
   ]),
   trainingTypeLabel: z.string().min(1).max(60),
   analysis: z.string().min(1),
@@ -127,15 +136,19 @@ export interface ToolCallEvent {
   action?: string;
 }
 
-export type ChatProgressEvent = PhaseProgressEvent | StatusEvent | ToolCallEvent | {
-  type: "progress";
-  phaseName: string;
-  phaseOrder: number;
-  weekCurrent: number;
-  weekTotal: number;
-  weekStart: string;
-  message: string;
-};
+export type ChatProgressEvent =
+  | PhaseProgressEvent
+  | StatusEvent
+  | ToolCallEvent
+  | {
+      type: "progress";
+      phaseName: string;
+      phaseOrder: number;
+      weekCurrent: number;
+      weekTotal: number;
+      weekStart: string;
+      message: string;
+    };
 
 export interface ChatOptions {
   onProgress?: (event: ChatProgressEvent) => void;
@@ -153,9 +166,17 @@ export function sanitizeJsonText(text: string): string {
 }
 
 /** Derive phase structure (name + weeks) from athlete's training context. */
-export function derivePhaseStructure(ctx: TrainingContextLike): Array<{ name: string; weeks: number }> {
+export function derivePhaseStructure(
+  ctx: TrainingContextLike
+): Array<{ name: string; weeks: number }> {
   const goal = ctx.goals[0];
-  if (!goal) return [{ name: "Base", weeks: 4 }, { name: "Build", weeks: 4 }, { name: "Peak", weeks: 2 }, { name: "Taper", weeks: 1 }];
+  if (!goal)
+    return [
+      { name: "Base", weeks: 4 },
+      { name: "Build", weeks: 4 },
+      { name: "Peak", weeks: 2 },
+      { name: "Taper", weeks: 1 },
+    ];
 
   const diffMs = new Date(goal.targetDate).getTime() - Date.now();
   const totalWeeks = Math.max(4, Math.round(diffMs / (7 * 24 * 60 * 60 * 1000)));
@@ -185,18 +206,26 @@ export function getNextMondayStr(): string {
 /** Generate a phase goal string from the phase name. */
 export function generatePhaseGoal(name: string): string {
   switch (name) {
-    case "Base": return "Build aerobic foundation and endurance base";
-    case "Build": return "Introduce race-specific intensity and quality workouts";
-    case "Peak": return "Sharpen fitness with race-pace rehearsal sessions";
-    case "Taper": return "Reduce volume while maintaining intensity for peak freshness";
-    default: return `${name} phase training`;
+    case "Base":
+      return "Build aerobic foundation and endurance base";
+    case "Build":
+      return "Introduce race-specific intensity and quality workouts";
+    case "Peak":
+      return "Sharpen fitness with race-pace rehearsal sessions";
+    case "Taper":
+      return "Reduce volume while maintaining intensity for peak freshness";
+    default:
+      return `${name} phase training`;
   }
 }
 
 /** Build a textual summary of the athlete's training context for LLM prompts. */
 export function buildContextSummary(ctx: TrainingContextLike, locale = "en"): string {
   const today = new Date().toLocaleDateString(locale, {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
   let s = `## Athlete: ${ctx.athleteName}\n`;
   s += `Today's date: ${today}\n\n`;

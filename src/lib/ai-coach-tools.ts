@@ -119,7 +119,10 @@ async function executeManageGoals(
   switch (action) {
     case "create": {
       if (!goal?.name || !goal?.raceType || !goal?.targetDate || !goal?.distanceMeters) {
-        return { success: false, message: "Creating a goal requires: name, raceType, targetDate, distanceMeters." };
+        return {
+          success: false,
+          message: "Creating a goal requires: name, raceType, targetDate, distanceMeters.",
+        };
       }
       const created = await prisma.raceGoal.create({
         data: {
@@ -145,21 +148,26 @@ async function executeManageGoals(
       const goalId = goal?.id as string;
       if (!goalId) return { success: false, message: "Updating a goal requires goal.id." };
       const existing = await prisma.raceGoal.findUnique({ where: { id: goalId } });
-      if (!existing || existing.userId !== userId) return { success: false, message: "Goal not found." };
+      if (!existing || existing.userId !== userId)
+        return { success: false, message: "Goal not found." };
       if (!goal) return { success: false, message: "Goal data is required for update." };
 
       const updateData: Record<string, unknown> = {};
       if (goal?.name !== undefined) updateData.name = goal.name;
       if (goal?.raceType !== undefined) updateData.raceType = goal.raceType;
-      if (goal?.targetDate !== undefined) updateData.targetDate = new Date(goal.targetDate as string);
+      if (goal?.targetDate !== undefined)
+        updateData.targetDate = new Date(goal.targetDate as string);
       if (goal?.distanceMeters !== undefined) updateData.distanceMeters = goal.distanceMeters;
-      if (goal?.elevationGainMeters !== undefined) updateData.elevationGainMeters = goal.elevationGainMeters;
-      if (goal?.targetTimeSeconds !== undefined) updateData.targetTimeSeconds = goal.targetTimeSeconds;
+      if (goal?.elevationGainMeters !== undefined)
+        updateData.elevationGainMeters = goal.elevationGainMeters;
+      if (goal?.targetTimeSeconds !== undefined)
+        updateData.targetTimeSeconds = goal.targetTimeSeconds;
       if (goal?.priority !== undefined) updateData.priority = goal.priority;
       if (goal?.goalStatement !== undefined) updateData.goalStatement = goal.goalStatement;
       if (goal?.status !== undefined) updateData.status = goal.status;
 
-      if (Object.keys(updateData).length === 0) return { success: false, message: "No fields provided to update." };
+      if (Object.keys(updateData).length === 0)
+        return { success: false, message: "No fields provided to update." };
       await prisma.raceGoal.update({ where: { id: goalId }, data: updateData });
       return { success: true, message: "Goal updated successfully." };
     }
@@ -169,24 +177,40 @@ async function executeManageGoals(
         where: { userId },
         orderBy: [{ priority: "asc" }, { targetDate: "asc" }],
         select: {
-          id: true, name: true, raceType: true, targetDate: true,
-          distanceMeters: true, elevationGainMeters: true,
-          targetTimeSeconds: true, priority: true, status: true, goalStatement: true,
+          id: true,
+          name: true,
+          raceType: true,
+          targetDate: true,
+          distanceMeters: true,
+          elevationGainMeters: true,
+          targetTimeSeconds: true,
+          priority: true,
+          status: true,
+          goalStatement: true,
         },
       });
-      if (allGoals.length === 0) return { success: true, message: "You have no race goals set up yet.", data: { goals: [] } };
+      if (allGoals.length === 0)
+        return {
+          success: true,
+          message: "You have no race goals set up yet.",
+          data: { goals: [] },
+        };
       return {
         success: true,
         message: `Found ${allGoals.length} goal(s).`,
         data: {
           count: allGoals.length,
           goals: allGoals.map((g) => ({
-            id: g.id, name: g.name, raceType: g.raceType,
+            id: g.id,
+            name: g.name,
+            raceType: g.raceType,
             targetDate: g.targetDate.toISOString().split("T")[0],
             distanceMeters: g.distanceMeters,
             elevationGainMeters: g.elevationGainMeters,
             targetTimeSeconds: g.targetTimeSeconds,
-            priority: g.priority, status: g.status, goalStatement: g.goalStatement,
+            priority: g.priority,
+            status: g.status,
+            goalStatement: g.goalStatement,
           })),
         },
       };
@@ -196,13 +220,17 @@ async function executeManageGoals(
       const goalId = goal?.id as string;
       if (!goalId) return { success: false, message: "Deleting a goal requires goal.id." };
       const existing = await prisma.raceGoal.findUnique({ where: { id: goalId } });
-      if (!existing || existing.userId !== userId) return { success: false, message: "Goal not found." };
+      if (!existing || existing.userId !== userId)
+        return { success: false, message: "Goal not found." };
       await prisma.raceGoal.delete({ where: { id: goalId } });
       return { success: true, message: `Goal "${existing.name}" deleted.` };
     }
 
     default:
-      return { success: false, message: `Unknown action: ${action}. Use create, update, delete, or list.` };
+      return {
+        success: false,
+        message: `Unknown action: ${action}. Use create, update, delete, or list.`,
+      };
   }
 }
 
@@ -214,7 +242,8 @@ async function executeSetActivityAsGoal(
   if (!activityId) return { success: false, message: "activityId is required." };
 
   const activity = await prisma.trainingLog.findUnique({ where: { id: activityId } });
-  if (!activity || activity.userId !== userId) return { success: false, message: "Activity not found." };
+  if (!activity || activity.userId !== userId)
+    return { success: false, message: "Activity not found." };
 
   let raceType = "other";
   if (activity.type === "run") {
@@ -232,7 +261,10 @@ async function executeSetActivityAsGoal(
 
   const created = await prisma.raceGoal.create({
     data: {
-      userId, name: activity.name, raceType, targetDate,
+      userId,
+      name: activity.name,
+      raceType,
+      targetDate,
       distanceMeters: activity.distanceMeters || 0,
       elevationGainMeters: activity.elevationGainMeters ?? undefined,
       priority: (args.priority as "A" | "B" | "C") ?? "B",
@@ -243,7 +275,12 @@ async function executeSetActivityAsGoal(
   return {
     success: true,
     message: `"${activity.name}" has been set as a race goal. Priority: ${created.priority}, Target date: ${created.targetDate.toISOString().split("T")[0]}`,
-    data: { id: created.id, name: created.name, distanceMeters: created.distanceMeters, targetDate: created.targetDate.toISOString().split("T")[0] },
+    data: {
+      id: created.id,
+      name: created.name,
+      distanceMeters: created.distanceMeters,
+      targetDate: created.targetDate.toISOString().split("T")[0],
+    },
   };
 }
 
@@ -319,13 +356,15 @@ async function executeUpdateWeeklyPlan(
   } else {
     await prisma.weeklyPlan.create({
       data: {
-        userId, weekStartDate: weekStart,
-        plannedSessions: validSessions ? structuredClone(validSessions) as any : [],
+        userId,
+        weekStartDate: weekStart,
+        plannedSessions: validSessions ? (structuredClone(validSessions) as any) : [],
         targetVolumeMeters: targetVolumeMeters ?? undefined,
         targetElevationMeters: targetElevationMeters ?? undefined,
         targetDurationSeconds: targetDurationSeconds ?? undefined,
         coachNotes: coachNotes ?? undefined,
-        overridesExisting: true, generatedAt: now,
+        overridesExisting: true,
+        generatedAt: now,
         adjustments: [`🤖 ${adjEntry.summary}`],
         adjustmentHistory: [adjEntry],
       },
@@ -379,10 +418,14 @@ async function executeGetWeeklyPlan(
     };
   }
 
-  const sessions = (Array.isArray(plan.plannedSessions) ? plan.plannedSessions : []) as Array<Record<string, unknown>>;
+  const sessions = (Array.isArray(plan.plannedSessions) ? plan.plannedSessions : []) as Array<
+    Record<string, unknown>
+  >;
   const dayLabels = DAY_NAMES.map((n, i) => {
     const s = sessions.find((x) => x.dayOfWeek === i);
-    return s ? `${n}: ${s.type}${s.description ? ` — ${(s.description as string).slice(0, 60)}` : ""}` : `${n}: no plan`;
+    return s
+      ? `${n}: ${s.type}${s.description ? ` — ${(s.description as string).slice(0, 60)}` : ""}`
+      : `${n}: no plan`;
   });
 
   return {
@@ -440,7 +483,11 @@ async function executeUpdateTrainingDay(
   if (args.facility !== undefined) overrides.facility = args.facility;
 
   if (Object.keys(overrides).length === 0) {
-    return { success: false, message: "Provide at least one field to change (type, description, targetDistance, targetElevation, targetDuration, or facility)." };
+    return {
+      success: false,
+      message:
+        "Provide at least one field to change (type, description, targetDistance, targetElevation, targetDuration, or facility).",
+    };
   }
 
   // A rest day carries no training targets — zero them so a workout's stale
@@ -458,14 +505,19 @@ async function executeUpdateTrainingDay(
   sessionDate.setDate(sessionDate.getDate() + dayOfWeek);
   if (sessionDate < todayStart) {
     const dateStr = `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, "0")}-${String(sessionDate.getDate()).padStart(2, "0")}`;
-    return { success: false, message: `Cannot change ${DAY_NAMES[dayOfWeek]} (${dateStr}) — this day has already passed.` };
+    return {
+      success: false,
+      message: `Cannot change ${DAY_NAMES[dayOfWeek]} (${dateStr}) — this day has already passed.`,
+    };
   }
 
   // Load the current week's sessions (or start fresh)
   const existingPlan = await prisma.weeklyPlan.findUnique({
     where: { userId_weekStartDate: { userId, weekStartDate: weekStart } },
   });
-  const sessions = (Array.isArray(existingPlan?.plannedSessions) ? existingPlan.plannedSessions : []) as Array<Record<string, unknown>>;
+  const sessions = (
+    Array.isArray(existingPlan?.plannedSessions) ? existingPlan.plannedSessions : []
+  ) as Array<Record<string, unknown>>;
 
   const idx = sessions.findIndex((s) => s.dayOfWeek === dayOfWeek);
   if (idx >= 0) {
@@ -475,9 +527,10 @@ async function executeUpdateTrainingDay(
   }
 
   const updated = sessions[idx >= 0 ? idx : sessions.length - 1];
-  const changeSummary = updated.type === "rest"
-    ? `${DAY_NAMES[dayOfWeek]} set to rest day`
-    : `${DAY_NAMES[dayOfWeek]} updated to ${updated.type}: ${String(updated.description || "").slice(0, 80)}`;
+  const changeSummary =
+    updated.type === "rest"
+      ? `${DAY_NAMES[dayOfWeek]} set to rest day`
+      : `${DAY_NAMES[dayOfWeek]} updated to ${updated.type}: ${String(updated.description || "").slice(0, 80)}`;
 
   const adjEntry = {
     timestamp: now.toISOString(),
@@ -546,7 +599,10 @@ export async function executeCreateTrainingPhase(
   const weeks = args.weeks as Array<Record<string, unknown>> | undefined;
 
   if (!phaseName || !phaseGoal || !raceGoalId || !phaseOrder || !weeks || !Array.isArray(weeks)) {
-    return { success: false, message: "phaseName, phaseGoal, raceGoalId, phaseOrder, and weeks array are required." };
+    return {
+      success: false,
+      message: "phaseName, phaseGoal, raceGoalId, phaseOrder, and weeks array are required.",
+    };
   }
   if (weeks.length < 1) {
     return { success: false, message: "A phase must have at least 1 week." };
@@ -673,7 +729,9 @@ export async function executeCreateTrainingPhase(
         generatedAt: now,
         anchorGoalId: raceGoalId,
         adjustmentHistory: structuredClone([adjEntry]) as any,
-        adjustments: [`🏋️ ${phaseName} W${week.weekNumber}: ${coachNotes || `${validSessions.length} session(s)`}`],
+        adjustments: [
+          `🏋️ ${phaseName} W${week.weekNumber}: ${coachNotes || `${validSessions.length} session(s)`}`,
+        ],
       };
 
       await prisma.weeklyPlan.create({
@@ -732,13 +790,26 @@ async function executeQueryActivities(
 
   let orderBy: Record<string, string>;
   switch (sort) {
-    case "date_asc": orderBy = { startDate: "asc" }; break;
-    case "distance_desc": orderBy = { distanceMeters: "desc" }; break;
-    case "distance_asc": orderBy = { distanceMeters: "asc" }; break;
-    case "duration_desc": orderBy = { durationSeconds: "desc" }; break;
-    case "pace_asc": orderBy = { distanceMeters: "desc" }; break;
-    case "tss_desc": orderBy = { tss: "desc" }; break;
-    default: orderBy = { startDate: "desc" };
+    case "date_asc":
+      orderBy = { startDate: "asc" };
+      break;
+    case "distance_desc":
+      orderBy = { distanceMeters: "desc" };
+      break;
+    case "distance_asc":
+      orderBy = { distanceMeters: "asc" };
+      break;
+    case "duration_desc":
+      orderBy = { durationSeconds: "desc" };
+      break;
+    case "pace_asc":
+      orderBy = { distanceMeters: "desc" };
+      break;
+    case "tss_desc":
+      orderBy = { tss: "desc" };
+      break;
+    default:
+      orderBy = { startDate: "desc" };
   }
 
   const activities = await prisma.trainingLog.findMany({
@@ -747,24 +818,42 @@ async function executeQueryActivities(
     take: limit,
     select: {
       id: true,
-      name: true, type: true, subType: true, startDate: true,
-      durationSeconds: true, distanceMeters: true, elevationGainMeters: true,
-      averageHr: true, maxHr: true, averagePower: true,
-      normalizedPower: true, tss: true, remarks: true, source: true,
+      name: true,
+      type: true,
+      subType: true,
+      startDate: true,
+      durationSeconds: true,
+      distanceMeters: true,
+      elevationGainMeters: true,
+      averageHr: true,
+      maxHr: true,
+      averagePower: true,
+      normalizedPower: true,
+      tss: true,
+      remarks: true,
+      source: true,
     },
   });
 
   const formatted = activities.map((a) => {
     const distanceKm = a.distanceMeters ? (a.distanceMeters / 1000).toFixed(1) : "?";
-    const pacePerKm = a.distanceMeters && a.distanceMeters > 0 && a.durationSeconds > 0
-      ? (a.durationSeconds / (a.distanceMeters / 1000)) : null;
+    const pacePerKm =
+      a.distanceMeters && a.distanceMeters > 0 && a.durationSeconds > 0
+        ? a.durationSeconds / (a.distanceMeters / 1000)
+        : null;
     return {
       id: a.id,
-      name: a.name, type: a.type, subType: a.subType,
+      name: a.name,
+      type: a.type,
+      subType: a.subType,
       date: a.startDate.toISOString().split("T")[0],
       distanceKm: parseFloat(distanceKm),
       durationMinutes: Math.round(a.durationSeconds / 60),
-      pace: pacePerKm ? `${Math.floor(pacePerKm / 60)}:${Math.round(pacePerKm % 60).toString().padStart(2, "0")} /km` : null,
+      pace: pacePerKm
+        ? `${Math.floor(pacePerKm / 60)}:${Math.round(pacePerKm % 60)
+            .toString()
+            .padStart(2, "0")} /km`
+        : null,
       elevationGainMeters: a.elevationGainMeters ? Math.round(a.elevationGainMeters) : null,
       avgHr: a.averageHr ? Math.round(a.averageHr) : null,
       avgPower: a.averagePower ? Math.round(a.averagePower) : null,
@@ -790,8 +879,8 @@ async function executeLookupRace(
   userId: string,
   args: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
-  const raceName = (args.raceName as string || "").trim();
-  const year = (args.year as string || "").trim();
+  const raceName = ((args.raceName as string) || "").trim();
+  const year = ((args.year as string) || "").trim();
 
   if (!raceName) {
     return { success: false, message: "raceName is required." };
@@ -835,18 +924,17 @@ async function tryWikipediaSearch(
     try {
       const encoded = encodeURIComponent(
         term
-          .replace(/[^\w\s-]/g, "")    // strip punctuation
-          .replace(/\s+/g, "_")        // spaces to underscores
+          .replace(/[^\w\s-]/g, "") // strip punctuation
+          .replace(/\s+/g, "_") // spaces to underscores
           .replace(/_+/g, "_")
       );
 
-      const response = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`,
-        { signal: AbortSignal.timeout(5000) }
-      );
+      const response = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`, {
+        signal: AbortSignal.timeout(5000),
+      });
 
       if (response.ok) {
-        const data = await response.json() as {
+        const data = (await response.json()) as {
           title?: string;
           extract?: string;
           content_urls?: { desktop?: { page?: string } };
@@ -884,10 +972,7 @@ async function tryWikipediaSearch(
  * Search the web via DuckDuckGo Lite (no API key required).
  * Parses the HTML result page and returns formatted snippets.
  */
-async function tryWebSearch(
-  raceName: string,
-  year: string
-): Promise<ToolExecutionResult | null> {
+async function tryWebSearch(raceName: string, year: string): Promise<ToolExecutionResult | null> {
   // Build focused search queries
   const queries: string[] = [];
   if (year) {
@@ -920,9 +1005,9 @@ async function tryWebSearch(
   if (allResults.length === 0) return null;
 
   // Format results for the LLM
-  const formatted = allResults.map((r, i) =>
-    `${i + 1}. ${r.title}\n   ${r.snippet}\n   (${r.url})`
-  ).join("\n\n");
+  const formatted = allResults
+    .map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}\n   (${r.url})`)
+    .join("\n\n");
 
   return {
     success: true,
@@ -977,7 +1062,10 @@ function parseDuckDuckGoResults(
 
   while ((linkMatch = linkRegex.exec(html)) !== null) {
     const url = linkMatch[1].trim();
-    const title = linkMatch[2].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    const title = linkMatch[2]
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (url && title && !seenUrls.has(url)) {
       seenUrls.add(url);
       urls.push(url);
@@ -988,7 +1076,10 @@ function parseDuckDuckGoResults(
   const snippets: string[] = [];
   let snippetMatch: RegExpExecArray | null;
   while ((snippetMatch = snippetRegex.exec(html)) !== null) {
-    const snippet = snippetMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    const snippet = snippetMatch[1]
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (snippet) {
       snippets.push(snippet);
     }

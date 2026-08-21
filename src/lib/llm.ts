@@ -69,10 +69,19 @@ export function isLlmConfigured(apiKey?: string, provider?: string): boolean {
  * used when a provider + model are set and a key exists (or the provider is
  * Ollama, which needs no key). Returns null when none is configured.
  */
-export async function getDefaultLlmConfig(): Promise<{ apiKey: string; baseUrl: string; model: string; provider: string } | null> {
+export async function getDefaultLlmConfig(): Promise<{
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  provider: string;
+} | null> {
   const { getAdminLlmDefault } = await import("./llm-defaults");
   const adminDefault = await getAdminLlmDefault();
-  if (adminDefault.provider && adminDefault.model && (adminDefault.apiKey || adminDefault.provider === "ollama")) {
+  if (
+    adminDefault.provider &&
+    adminDefault.model &&
+    (adminDefault.apiKey || adminDefault.provider === "ollama")
+  ) {
     return {
       apiKey: adminDefault.apiKey,
       baseUrl: adminDefault.baseUrl || PROVIDER_BASE_URLS[adminDefault.provider] || "",
@@ -161,7 +170,9 @@ async function sendChatCompletion(
     const ttfb = Date.now() - t0;
     if (!res.ok) {
       const respBody = (await res.text().catch(() => "")).slice(0, 500);
-      console.error(`[llm] model=${model} maxTokens=${opts.maxTokens} FAILED status=${res.status} in ${Date.now() - t0}ms: ${respBody}`);
+      console.error(
+        `[llm] model=${model} maxTokens=${opts.maxTokens} FAILED status=${res.status} in ${Date.now() - t0}ms: ${respBody}`
+      );
       return null;
     }
 
@@ -171,16 +182,26 @@ async function sendChatCompletion(
     // under-report a 35s call as a few hundred ms.
     const dur = Date.now() - t0;
     const message = data.choices?.[0]?.message;
-    const usage = (data.usage ?? null) as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null;
+    const usage = (data.usage ?? null) as {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+    } | null;
     if (!message) {
-      console.error(`[llm] model=${model} maxTokens=${opts.maxTokens} FAILED missing message in ${dur}ms — status=${res.status}, choices=${data.choices?.length || 0}, finish_reason=${data.choices?.[0]?.finish_reason || "none"}, usage=${usage ? JSON.stringify(usage) : "n/a"}`);
+      console.error(
+        `[llm] model=${model} maxTokens=${opts.maxTokens} FAILED missing message in ${dur}ms — status=${res.status}, choices=${data.choices?.length || 0}, finish_reason=${data.choices?.[0]?.finish_reason || "none"}, usage=${usage ? JSON.stringify(usage) : "n/a"}`
+      );
       if (data.choices?.[0]?.message) {
-        console.error(`[llm] response message keys: ${Object.keys(data.choices[0].message).join(", ")}`);
+        console.error(
+          `[llm] response message keys: ${Object.keys(data.choices[0].message).join(", ")}`
+        );
       }
       return null;
     }
 
-    console.log(`[llm] model=${model} maxTokens=${opts.maxTokens} OK in ${dur}ms (ttfb=${ttfb}ms) finish=${data.choices?.[0]?.finish_reason ?? "n/a"} content=${message.content?.trim()?.length ?? 0}ch toolCalls=${message.tool_calls?.length ?? 0} usage=${usage ? JSON.stringify(usage) : "n/a"}`);
+    console.log(
+      `[llm] model=${model} maxTokens=${opts.maxTokens} OK in ${dur}ms (ttfb=${ttfb}ms) finish=${data.choices?.[0]?.finish_reason ?? "n/a"} content=${message.content?.trim()?.length ?? 0}ch toolCalls=${message.tool_calls?.length ?? 0} usage=${usage ? JSON.stringify(usage) : "n/a"}`
+    );
     return {
       content: message.content?.trim() || null,
       toolCalls: message.tool_calls || [],
@@ -205,10 +226,7 @@ async function sendChatCompletion(
  *
  * Requires apiKey, baseUrl, and model — either in opts or resolved externally.
  */
-export async function chat(
-  messages: LlmMessage[],
-  opts: LlmOptions = {}
-): Promise<string | null> {
+export async function chat(messages: LlmMessage[], opts: LlmOptions = {}): Promise<string | null> {
   const {
     temperature = 0.3,
     maxTokens = 1024,
@@ -333,7 +351,9 @@ export async function chatWithTools(
   });
 
   if (result) {
-    console.error(`[AI-COACH] LLM response: tool_calls=${result.toolCalls.length}, content_length=${(result.content || "").length}`);
+    console.error(
+      `[AI-COACH] LLM response: tool_calls=${result.toolCalls.length}, content_length=${(result.content || "").length}`
+    );
   }
 
   return result;

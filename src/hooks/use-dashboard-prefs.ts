@@ -122,7 +122,7 @@ export function useDashboardPrefs() {
         return next;
       });
     },
-    [persistToServer],
+    [persistToServer]
   );
 
   return { prefs, setPrefs, loading };

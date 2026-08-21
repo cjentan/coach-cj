@@ -19,25 +19,14 @@ import {
   syncGarminHealthData,
   GarminMFARequiredError,
 } from "@/lib/garmin";
-import {
-  connectCoros,
-  disconnectCoros,
-  getCorosClient,
-  syncCorosActivities,
-} from "@/lib/coros";
+import { connectCoros, disconnectCoros, getCorosClient, syncCorosActivities } from "@/lib/coros";
 import { scheduleBatchAnalysis } from "@/lib/activity-analysis-queue";
 
 type Provider = "garmin" | "coros";
 type Action = "connect" | "disconnect" | "reset-sync" | "status" | "sync";
 
 const VALID_PROVIDERS: Provider[] = ["garmin", "coros"];
-const VALID_ACTIONS: Action[] = [
-  "connect",
-  "disconnect",
-  "reset-sync",
-  "status",
-  "sync",
-];
+const VALID_ACTIONS: Action[] = ["connect", "disconnect", "reset-sync", "status", "sync"];
 
 function isValidProvider(p: string): p is Provider {
   return VALID_PROVIDERS.includes(p as Provider);
@@ -57,10 +46,7 @@ async function handleConnect(
   try {
     const { email, password, mfaCode } = await req.json();
     if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
     if (provider === "garmin") {
@@ -75,22 +61,17 @@ async function handleConnect(
 
     // Garmin MFA
     if (provider === "garmin" && err instanceof GarminMFARequiredError) {
-      return NextResponse.json(
-        { mfaRequired: true, error: "MFA code required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ mfaRequired: true, error: "MFA code required" }, { status: 400 });
     }
 
-    const message =
-      err instanceof Error ? err.message : `Failed to connect ${providerLabel}`;
+    const message = err instanceof Error ? err.message : `Failed to connect ${providerLabel}`;
     console.error(`[${provider}-connect]`, message);
 
     // Rate-limiting
     if (message.includes("429") || message.includes("too many")) {
       return NextResponse.json(
         {
-          error:
-            "Too many login attempts. Please wait a few minutes and try again.",
+          error: "Too many login attempts. Please wait a few minutes and try again.",
         },
         { status: 429 }
       );
@@ -101,8 +82,7 @@ async function handleConnect(
       if (message.includes("401") || message.includes("credentials")) {
         return NextResponse.json(
           {
-            error:
-              "Invalid email or password. Please check your Garmin Connect credentials.",
+            error: "Invalid email or password. Please check your Garmin Connect credentials.",
           },
           { status: 401 }
         );
@@ -115,8 +95,7 @@ async function handleConnect(
       ) {
         return NextResponse.json(
           {
-            error:
-              "Invalid email or password. Please check your COROS Training Hub credentials.",
+            error: "Invalid email or password. Please check your COROS Training Hub credentials.",
           },
           { status: 401 }
         );
@@ -141,10 +120,7 @@ async function handleDisconnect(
     return NextResponse.json({ success: true });
   } catch (err) {
     const providerLabel = provider === "garmin" ? "Garmin" : "COROS";
-    const message =
-      err instanceof Error
-        ? err.message
-        : `Failed to disconnect ${providerLabel}`;
+    const message = err instanceof Error ? err.message : `Failed to disconnect ${providerLabel}`;
     console.error(`[${provider}-disconnect]`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -175,8 +151,7 @@ async function handleResetSync(
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Failed to reset sync state";
+    const message = err instanceof Error ? err.message : "Failed to reset sync state";
     console.error(`[${provider}-reset-sync]`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -206,8 +181,7 @@ async function handleStatus(
       connected: !!garminSession,
       displayName: garminSession?.displayName ?? null,
       lastSyncAt: garminSession?.lastSyncAt?.toISOString() ?? null,
-      lastHealthSyncAt:
-        garminSession?.lastHealthSyncAt?.toISOString() ?? null,
+      lastHealthSyncAt: garminSession?.lastHealthSyncAt?.toISOString() ?? null,
       connectedAt: garminSession?.connectedAt?.toISOString() ?? null,
       garminActivityCount,
     });
@@ -238,15 +212,9 @@ async function handleStatus(
   });
 }
 
-async function handleSync(
-  provider: Provider,
-  req: Request,
-  userId: string
-): Promise<NextResponse> {
+async function handleSync(provider: Provider, req: Request, userId: string): Promise<NextResponse> {
   try {
-    const { fromDate, toDate, tzOffset: rawTz, incremental } = await req
-      .json()
-      .catch(() => ({}));
+    const { fromDate, toDate, tzOffset: rawTz, incremental } = await req.json().catch(() => ({}));
     const tzOffset = parseInt(String(rawTz || "0"), 10);
 
     if (provider === "garmin") {
@@ -254,8 +222,7 @@ async function handleSync(
       if (!client) {
         return NextResponse.json(
           {
-            error:
-              "Garmin not connected. Connect your Garmin account in Settings first.",
+            error: "Garmin not connected. Connect your Garmin account in Settings first.",
           },
           { status: 400 }
         );
@@ -269,25 +236,14 @@ async function handleSync(
       const fullSync = !incremental;
 
       const [activitiesResult, healthDaysSynced] = await Promise.all([
-        syncGarminActivities(
-          client,
-          userId,
-          fullSync,
-          fromDate,
-          toDate,
-          tzOffset
-        ),
+        syncGarminActivities(client, userId, fullSync, fromDate, toDate, tzOffset),
         syncGarminHealthData(client, userId),
       ]);
 
       const { count: activitiesImported, newActivityIds } = activitiesResult;
 
       if (newActivityIds.length > 0) {
-        scheduleBatchAnalysis(
-          newActivityIds,
-          userId,
-          activitiesImported
-        ).catch(() => {});
+        scheduleBatchAnalysis(newActivityIds, userId, activitiesImported).catch(() => {});
       }
 
       return NextResponse.json({
@@ -302,8 +258,7 @@ async function handleSync(
     if (!client) {
       return NextResponse.json(
         {
-          error:
-            "COROS not connected. Connect your COROS Training Hub account in Settings first.",
+          error: "COROS not connected. Connect your COROS Training Hub account in Settings first.",
         },
         { status: 400 }
       );
@@ -312,15 +267,17 @@ async function handleSync(
     // Same incremental semantics as Garmin above.
     const fullSync = !incremental;
 
-    const { count: activitiesImported, newActivityIds } =
-      await syncCorosActivities(client, userId, fullSync, fromDate, toDate, tzOffset);
+    const { count: activitiesImported, newActivityIds } = await syncCorosActivities(
+      client,
+      userId,
+      fullSync,
+      fromDate,
+      toDate,
+      tzOffset
+    );
 
     if (newActivityIds.length > 0) {
-      scheduleBatchAnalysis(
-        newActivityIds,
-        userId,
-        activitiesImported
-      ).catch(() => {});
+      scheduleBatchAnalysis(newActivityIds, userId, activitiesImported).catch(() => {});
     }
 
     return NextResponse.json({
@@ -328,8 +285,7 @@ async function handleSync(
       activitiesImported,
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Sync failed";
+    const message = err instanceof Error ? err.message : "Sync failed";
     console.error(`[${provider}-sync]`, message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -339,11 +295,7 @@ async function handleSync(
 const ACTION_DISPATCH: Record<
   Action,
   {
-    handler: (
-      provider: Provider,
-      req: Request,
-      userId: string
-    ) => Promise<NextResponse>;
+    handler: (provider: Provider, req: Request, userId: string) => Promise<NextResponse>;
     method: "GET" | "POST" | "DELETE";
   }
 > = {

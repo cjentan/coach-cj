@@ -41,9 +41,7 @@ const COROS_TOKEN_DIR_PREFIX = "/tmp/coros-";
  * Restore a CorosApi client from a stored access token.
  * Returns null if no valid session exists or the token is expired.
  */
-export async function getCorosClient(
-  userId: string
-): Promise<CorosApi | null> {
+export async function getCorosClient(userId: string): Promise<CorosApi | null> {
   const session = await prisma.corosSession.findUnique({
     where: { userId },
   });
@@ -90,11 +88,7 @@ export async function getCorosClient(
  *
  * The password is discarded after login; the access token is persisted in the DB.
  */
-export async function connectCoros(
-  userId: string,
-  email: string,
-  password: string
-): Promise<void> {
+export async function connectCoros(userId: string, email: string, password: string): Promise<void> {
   const client = new CorosApi({ email, password });
   await client.login();
 
@@ -162,7 +156,7 @@ export async function syncCorosActivities(
   fullSync?: boolean,
   fromDate?: string | null,
   toDate?: string | null,
-  tzOffset?: number,
+  tzOffset?: number
 ): Promise<{ count: number; newActivityIds: string[] }> {
   // Karvonen zones need the user's resting HR and max HR; fetch once per sync.
   const restHr = await getLatestRestingHr(userId);
@@ -207,10 +201,7 @@ export async function syncCorosActivities(
     newActivities = activities.filter((a) => {
       // COROS startTime is in seconds for some endpoints, ms for others
       // Convert to ms if it looks like seconds (< 1e12)
-      const startMs =
-        a.startTime < 1_000_000_000_000
-          ? a.startTime * 1000
-          : a.startTime;
+      const startMs = a.startTime < 1_000_000_000_000 ? a.startTime * 1000 : a.startTime;
       return startMs > cutoff;
     });
   }
@@ -267,9 +258,7 @@ export async function syncCorosActivities(
         parsedActivities = await parseFitFile(fileBuffer);
       } catch {
         // FIT parse failed — skip this activity
-        console.error(
-          `[coros] Failed to parse FIT for activity ${externalId}`
-        );
+        console.error(`[coros] Failed to parse FIT for activity ${externalId}`);
         fileBuffer = null;
         if (global.gc) global.gc();
         continue;
@@ -285,9 +274,7 @@ export async function syncCorosActivities(
       const hasMultiple = parsedActivities.length > 1;
       for (let i = 0; i < parsedActivities.length; i++) {
         const parsed = parsedActivities[i];
-        const activityExternalId = hasMultiple
-          ? `${externalId}-${i}`
-          : externalId;
+        const activityExternalId = hasMultiple ? `${externalId}-${i}` : externalId;
 
         // Enrich name with reverse-geocoded area
         const name = await generateActivityName(
@@ -309,7 +296,7 @@ export async function syncCorosActivities(
         const tpMetrics = computePrecomputedTrackpointMetrics(
           rawJson.trackPoints as TrackPoint[] | undefined,
           maxHr,
-          restHr,
+          restHr
         );
 
         // Classify workout type
@@ -351,9 +338,7 @@ export async function syncCorosActivities(
             normalizedPower: parsed.normalizedPower,
             calories: parsed.calories,
             tss: parsed.tss,
-            description:
-              parsed.description ||
-              `Imported from COROS Training Hub`,
+            description: parsed.description || `Imported from COROS Training Hub`,
             rawJson: rawJson as any,
             simplifiedTrackPoints: simplifiedTrackPoints as any,
             workoutType: workoutType || undefined,

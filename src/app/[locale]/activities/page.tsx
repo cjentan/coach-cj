@@ -3,11 +3,30 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Plus, Activity, Bike, Waves, Mountain, SportShoe, Footprints, MessageSquare, ChevronDown, ChevronUp, RefreshCw, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Activity,
+  Bike,
+  Waves,
+  Mountain,
+  SportShoe,
+  Footprints,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDistance, formatDuration, localDateStr, getWeekStart, getCurrentUnits } from "@/lib/utils";
+import {
+  formatDistance,
+  formatDuration,
+  localDateStr,
+  getWeekStart,
+  getCurrentUnits,
+} from "@/lib/utils";
 import ImportModal from "@/components/training/import-modal";
 import { SOURCE_LABELS, SOURCE_COLORS, ACTIVITY_TYPE_LABELS } from "@/lib/constants";
 
@@ -19,15 +38,27 @@ function formatElevationShort(meters: number): string {
 }
 
 type ActivityLog = {
-  id: string; type: string; subType: string | null; name: string; startDate: string;
-  distanceMeters: number | null; elevationGainMeters: number | null;
-  durationSeconds: number; averageHr: number | null; tss: number | null;
-  remarks?: string | null; source: string;
+  id: string;
+  type: string;
+  subType: string | null;
+  name: string;
+  startDate: string;
+  distanceMeters: number | null;
+  elevationGainMeters: number | null;
+  durationSeconds: number;
+  averageHr: number | null;
+  tss: number | null;
+  remarks?: string | null;
+  source: string;
 };
 
 type MonthlyStat = {
-  key: string; label: string; fullLabel?: string;
-  activityCount: number; totalDistance: number; totalElevation: number;
+  key: string;
+  label: string;
+  fullLabel?: string;
+  activityCount: number;
+  totalDistance: number;
+  totalElevation: number;
   totalDurationSeconds: number;
 };
 
@@ -42,17 +73,47 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const TYPE_BADGE_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
-  run: "default", ride: "secondary", swim: "outline", hike: "outline",
+  run: "default",
+  ride: "secondary",
+  swim: "outline",
+  hike: "outline",
 };
 
 const SUB_TYPE_LABELS: Record<string, string> = {
-  trail_running: "Trail", treadmill: "Treadmill", virtual_run: "Virtual Run",
-  mountain_biking: "MTB", gravel_cycling: "Gravel", road_cycling: "Road", indoor_cycling: "Indoor", virtual_ride: "Virtual Ride", handcycle: "Handcycle",
-  open_water: "Open Water", lap_swimming: "Lap Swim",
-  strength_training: "Strength", crossfit: "CrossFit", yoga: "Yoga", elliptical: "Elliptical", stair_stepper: "Stair Stepper", pilates: "Pilates",
-  rock_climbing: "Rock Climb", surfing: "Surfing", stand_up_paddling: "SUP", kayaking: "Kayaking", canoeing: "Canoeing", rowing: "Rowing",
-  ice_skating: "Ice Skate", inline_skating: "Inline Skate", nordic_skiing: "Nordic Ski", alpine_skiing: "Alpine Ski", backcountry_skiing: "Backcountry", snowboarding: "Snowboard", snowshoeing: "Snowshoe",
-  soccer: "Soccer", tennis: "Tennis", golf: "Golf", wheelchair: "Wheelchair",
+  trail_running: "Trail",
+  treadmill: "Treadmill",
+  virtual_run: "Virtual Run",
+  mountain_biking: "MTB",
+  gravel_cycling: "Gravel",
+  road_cycling: "Road",
+  indoor_cycling: "Indoor",
+  virtual_ride: "Virtual Ride",
+  handcycle: "Handcycle",
+  open_water: "Open Water",
+  lap_swimming: "Lap Swim",
+  strength_training: "Strength",
+  crossfit: "CrossFit",
+  yoga: "Yoga",
+  elliptical: "Elliptical",
+  stair_stepper: "Stair Stepper",
+  pilates: "Pilates",
+  rock_climbing: "Rock Climb",
+  surfing: "Surfing",
+  stand_up_paddling: "SUP",
+  kayaking: "Kayaking",
+  canoeing: "Canoeing",
+  rowing: "Rowing",
+  ice_skating: "Ice Skate",
+  inline_skating: "Inline Skate",
+  nordic_skiing: "Nordic Ski",
+  alpine_skiing: "Alpine Ski",
+  backcountry_skiing: "Backcountry",
+  snowboarding: "Snowboard",
+  snowshoeing: "Snowshoe",
+  soccer: "Soccer",
+  tennis: "Tennis",
+  golf: "Golf",
+  wheelchair: "Wheelchair",
 };
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "success" | "warning" | "outline";
@@ -158,7 +219,9 @@ function getWeekLabel(weekKey: string): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-function groupLogsByWeek(logs: ActivityLog[]): { weekKey: string; label: string; logs: ActivityLog[] }[] {
+function groupLogsByWeek(
+  logs: ActivityLog[]
+): { weekKey: string; label: string; logs: ActivityLog[] }[] {
   const groups: Record<string, ActivityLog[]> = {};
   for (const log of logs) {
     const weekStart = getWeekStart(new Date(log.startDate));
@@ -170,9 +233,14 @@ function groupLogsByWeek(logs: ActivityLog[]): { weekKey: string; label: string;
     .map(([weekKey, weekLogs]) => ({
       weekKey,
       label: getWeekLabel(weekKey),
-      logs: weekLogs.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()),
+      logs: weekLogs.sort(
+        (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+      ),
     }))
-    .sort((a, b) => new Date(b.weekKey + "T00:00:00").getTime() - new Date(a.weekKey + "T00:00:00").getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.weekKey + "T00:00:00").getTime() - new Date(a.weekKey + "T00:00:00").getTime()
+    );
 }
 
 const now = new Date();
@@ -198,7 +266,10 @@ export default function ActivitiesPage() {
       const params = new URLSearchParams(window.location.search);
       const vm = params.get("vm") as "monthly" | "weekly" | "yearly" | null;
       if (vm && ["monthly", "weekly", "yearly"].includes(vm)) return vm;
-      return (localStorage.getItem("activities-view-mode") as "monthly" | "weekly" | "yearly") || "monthly";
+      return (
+        (localStorage.getItem("activities-view-mode") as "monthly" | "weekly" | "yearly") ||
+        "monthly"
+      );
     }
     return "monthly";
   });
@@ -252,13 +323,17 @@ export default function ActivitiesPage() {
 
   // ── Filter options from API ──────────────────────────
   const [filterOptions, setFilterOptions] = useState<{
-    types: string[]; sources: string[]; subTypes: string[];
+    types: string[];
+    sources: string[];
+    subTypes: string[];
   }>({ types: [], sources: [], subTypes: [] });
 
   // ── Sync from connected integrations (Garmin / COROS) ──
   const [connectedProviders, setConnectedProviders] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ type: "success" | "error"; text: string } | null>(
+    null
+  );
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Check which integrations are connected on mount
@@ -278,18 +353,31 @@ export default function ActivitiesPage() {
     (cancelledRef?: { current: boolean }) => {
       setLoading(true);
       Promise.all([
-        fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`).then(r => r.json()),
-        fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
-        fetch("/api/activities/filter-options").then(r => r.json()),
-      ]).then(([logsData, stats, opts]) => {
-        if (cancelledRef?.current) return;
-        if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
-        const bars = stats.months || stats.weeks;
-        if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
-        if (opts.types) setFilterOptions(opts);
-      }).catch(() => {}).finally(() => {
-        if (!cancelledRef?.current) setLoading(false);
-      });
+        fetch(
+          `/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`
+        ).then((r) => r.json()),
+        fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(
+          (r) => r.json()
+        ),
+        fetch("/api/activities/filter-options").then((r) => r.json()),
+      ])
+        .then(([logsData, stats, opts]) => {
+          if (cancelledRef?.current) return;
+          if (logsData.logs) {
+            setAllLogs(logsData.logs);
+            setTotal(logsData.total);
+          }
+          const bars = stats.months || stats.weeks;
+          if (bars) {
+            setBarStats(bars);
+            setCanGoBack(stats.canGoBack ?? true);
+          }
+          if (opts.types) setFilterOptions(opts);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelledRef?.current) setLoading(false);
+        });
     },
     [dateFrom, dateTo, avgTypeFilter, avgSourceFilter, monthOffset, viewMode]
   );
@@ -401,7 +489,9 @@ export default function ActivitiesPage() {
   useEffect(() => {
     const cancelledRef = { current: false };
     loadAll(cancelledRef);
-    return () => { cancelledRef.current = true; };
+    return () => {
+      cancelledRef.current = true;
+    };
   }, [loadAll]);
 
   // ── Sync position state to URL ─────────────────────────────
@@ -530,7 +620,10 @@ export default function ActivitiesPage() {
   // In monthly view the fetch range is extended to include straddling weeks,
   // so drop any week group that doesn't actually overlap the selected month.
   const visibleWeekGroups = useMemo(
-    () => (viewMode === "monthly" ? weekGroups.filter((w) => weekOverlapsMonth(w.weekKey, selectedBar)) : weekGroups),
+    () =>
+      viewMode === "monthly"
+        ? weekGroups.filter((w) => weekOverlapsMonth(w.weekKey, selectedBar))
+        : weekGroups,
     [weekGroups, viewMode, selectedBar]
   );
 
@@ -559,14 +652,17 @@ export default function ActivitiesPage() {
 
   // ── Render ───────────────────────────────────────────
 
-  if (loading && allLogs.length === 0) return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-2">{t("title")}</h1>
-      <div className="animate-pulse space-y-3 mt-8">
-        {[1,2,3,4,5].map(i => <div key={i} className="h-16 bg-muted rounded-lg" />)}
+  if (loading && allLogs.length === 0)
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-2">{t("title")}</h1>
+        <div className="animate-pulse space-y-3 mt-8">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-16 bg-muted rounded-lg" />
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -610,7 +706,11 @@ export default function ActivitiesPage() {
             <p className="text-muted-foreground mt-1">
               {t("activityCount", { count: activeBar.activityCount })}
               {activeBar.activityCount > 0 && (
-                <> — {formatDistance(activeBar.totalDistance)} · {formatElevationShort(activeBar.totalElevation)} ↑</>
+                <>
+                  {" "}
+                  — {formatDistance(activeBar.totalDistance)} ·{" "}
+                  {formatElevationShort(activeBar.totalElevation)} ↑
+                </>
               )}
             </p>
           )}
@@ -641,7 +741,9 @@ export default function ActivitiesPage() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                 {viewMode === "yearly"
                   ? now.getFullYear() - monthOffset
-                  : viewMode === "monthly" ? t("monthlyVolume") : t("weeklyVolume")}
+                  : viewMode === "monthly"
+                    ? t("monthlyVolume")
+                    : t("weeklyVolume")}
               </h2>
               {/* View mode toggle */}
               <div className="flex rounded-lg border border-border p-0.5 bg-muted/30">
@@ -713,9 +815,7 @@ export default function ActivitiesPage() {
                   {/* Label */}
                   <span
                     className={`text-[10px] leading-tight whitespace-nowrap ${
-                      isActive
-                        ? "text-foreground font-semibold"
-                        : "text-muted-foreground"
+                      isActive ? "text-foreground font-semibold" : "text-muted-foreground"
                     }`}
                   >
                     {viewMode === "monthly" ? bar.label.split(" ")[0] : bar.label}
@@ -732,7 +832,9 @@ export default function ActivitiesPage() {
           {activeBar && activeBar.totalDistance > 0 && (
             <div className="text-xs text-muted-foreground mt-2 text-center">
               <span className="font-medium text-foreground">
-                {viewMode === "weekly" && activeBar.fullLabel ? activeBar.fullLabel : activeBar.label}
+                {viewMode === "weekly" && activeBar.fullLabel
+                  ? activeBar.fullLabel
+                  : activeBar.label}
               </span>
               {" — "}
               {formatDistance(activeBar.totalDistance)}
@@ -792,8 +894,15 @@ export default function ActivitiesPage() {
 
       {/* ═══ FILTER CHIPS ═══ */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1">{t("type")}</span>
-        {TYPE_OPTIONS.filter(typeOpt => typeOpt === "all" || filterOptions.types.includes(typeOpt) || filterOptions.types.length === 0).map((typeOpt) => (
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1">
+          {t("type")}
+        </span>
+        {TYPE_OPTIONS.filter(
+          (typeOpt) =>
+            typeOpt === "all" ||
+            filterOptions.types.includes(typeOpt) ||
+            filterOptions.types.length === 0
+        ).map((typeOpt) => (
           <button
             key={typeOpt}
             onClick={() => setAvgTypeFilter(typeOpt)}
@@ -806,8 +915,13 @@ export default function ActivitiesPage() {
             {typeOpt === "all" ? t("all") : labelsT("activityTypes." + TYPE_LABELS_SHORT[typeOpt])}
           </button>
         ))}
-        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1 ml-2">{t("source")}</span>
-        {SOURCE_OPTIONS.filter(s => s === "all" || filterOptions.sources.includes(s) || filterOptions.sources.length === 0).map((s) => (
+        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide mr-1 ml-2">
+          {t("source")}
+        </span>
+        {SOURCE_OPTIONS.filter(
+          (s) =>
+            s === "all" || filterOptions.sources.includes(s) || filterOptions.sources.length === 0
+        ).map((s) => (
           <button
             key={s}
             onClick={() => setAvgSourceFilter(s)}
@@ -822,7 +936,10 @@ export default function ActivitiesPage() {
         ))}
         {(avgTypeFilter !== "all" || avgSourceFilter !== "all") && (
           <button
-            onClick={() => { setAvgTypeFilter("all"); setAvgSourceFilter("all"); }}
+            onClick={() => {
+              setAvgTypeFilter("all");
+              setAvgSourceFilter("all");
+            }}
             className="text-xs text-muted-foreground underline hover:text-foreground ml-1"
           >
             {t("clearFilters")}
@@ -832,10 +949,12 @@ export default function ActivitiesPage() {
 
       {/* ═══ WEEK-GROUPED ACTIVITIES ═══ */}
       {visibleWeekGroups.length === 0 ? (
-        <Card><CardContent className="py-12 text-center">
-          <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">{t("noActivities")}</p>
-        </CardContent></Card>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Activity className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground">{t("noActivities")}</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-3">
           {visibleWeekGroups.map((week) => {
@@ -855,16 +974,30 @@ export default function ActivitiesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm tracking-tight">{week.label}</span>
-                      <Badge variant="secondary" className="text-[10px] font-semibold">{t("activityCount", { count: week.logs.length })}</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-semibold">
+                        {t("activityCount", { count: week.logs.length })}
+                      </Badge>
                     </div>
                     <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
-                      {weekDist > 0 && <span className="font-medium">{formatDistance(weekDist)}</span>}
-                      {weekElev > 0 && <span className="font-medium">{formatElevationShort(weekElev)} ↑</span>}
+                      {weekDist > 0 && (
+                        <span className="font-medium">{formatDistance(weekDist)}</span>
+                      )}
+                      {weekElev > 0 && (
+                        <span className="font-medium">{formatElevationShort(weekElev)} ↑</span>
+                      )}
                       <span className="font-medium">{formatDuration(weekDur)}</span>
-                      {weekTss > 0 && <span className="font-medium">{t("tss")} {Math.round(weekTss)}</span>}
+                      {weekTss > 0 && (
+                        <span className="font-medium">
+                          {t("tss")} {Math.round(weekTss)}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />}
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                  )}
                 </button>
 
                 {/* Activity rows */}
@@ -877,61 +1010,117 @@ export default function ActivitiesPage() {
                       return (
                         <div key={log.id}>
                           {/* Mobile layout */}
-                          <Link href={detailHref(log.id)} className="md:hidden block px-4 py-3 hover:bg-muted/30 transition-colors">
+                          <Link
+                            href={detailHref(log.id)}
+                            className="md:hidden block px-4 py-3 hover:bg-muted/30 transition-colors"
+                          >
                             <div className="flex items-start">
                               <div className="flex-1 min-w-0 pr-2">
-                                <div className="text-sm font-medium leading-snug line-clamp-2">{log.name}</div>
+                                <div className="text-sm font-medium leading-snug line-clamp-2">
+                                  {log.name}
+                                </div>
                                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                   <span className="text-xs text-muted-foreground">
-                                    {new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                    {new Date(log.startDate).toLocaleDateString("en-US", {
+                                      weekday: "short",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}
                                   </span>
                                   <span className="ml-auto flex items-center gap-1">
-                                    <span className="text-muted-foreground/60">{TYPE_ICONS[log.type] || <Activity className="h-3.5 w-3.5" />}</span>
+                                    <span className="text-muted-foreground/60">
+                                      {TYPE_ICONS[log.type] || <Activity className="h-3.5 w-3.5" />}
+                                    </span>
                                     <SourceBadge source={log.source} />
                                   </span>
                                 </div>
                               </div>
                               <div className="text-right shrink-0" style={{ width: "25%" }}>
-                                {dist > 0 && <div className="text-sm font-medium tabular-nums">{formatDistance(dist)}</div>}
-                                {elev > 0 && <div className="text-xs text-muted-foreground tabular-nums">{Math.round(elev)}m</div>}
-                                {log.tss != null && <div className="text-xs tabular-nums">{t("tss")} {Math.round(log.tss)}</div>}
+                                {dist > 0 && (
+                                  <div className="text-sm font-medium tabular-nums">
+                                    {formatDistance(dist)}
+                                  </div>
+                                )}
+                                {elev > 0 && (
+                                  <div className="text-xs text-muted-foreground tabular-nums">
+                                    {Math.round(elev)}m
+                                  </div>
+                                )}
+                                {log.tss != null && (
+                                  <div className="text-xs tabular-nums">
+                                    {t("tss")} {Math.round(log.tss)}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </Link>
                           {/* Desktop layout (md+) */}
-                          <Link href={detailHref(log.id)} className="hidden md:block px-4 py-2.5 hover:bg-muted/30 transition-colors">
+                          <Link
+                            href={detailHref(log.id)}
+                            className="hidden md:block px-4 py-2.5 hover:bg-muted/30 transition-colors"
+                          >
                             <div className="flex items-center gap-3">
-                            <span className="text-muted-foreground shrink-0">{TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium truncate">{log.name}</span>
-                                <Badge variant={TYPE_BADGE_VARIANTS[log.type] || "outline"} className="text-[10px] shrink-0 capitalize">{log.type}</Badge>
-                                {log.subType && SUB_TYPE_LABELS[log.subType] && (
-                                  <Badge variant="secondary" className="shrink-0 text-[10px] hidden sm:inline">{labelsT("subTypes." + log.subType)}</Badge>
+                              <span className="text-muted-foreground shrink-0">
+                                {TYPE_ICONS[log.type] || <Activity className="h-4 w-4" />}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium truncate">{log.name}</span>
+                                  <Badge
+                                    variant={TYPE_BADGE_VARIANTS[log.type] || "outline"}
+                                    className="text-[10px] shrink-0 capitalize"
+                                  >
+                                    {log.type}
+                                  </Badge>
+                                  {log.subType && SUB_TYPE_LABELS[log.subType] && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="shrink-0 text-[10px] hidden sm:inline"
+                                    >
+                                      {labelsT("subTypes." + log.subType)}
+                                    </Badge>
+                                  )}
+                                  <SourceBadge source={log.source} />
+                                  {log.tss != null && (
+                                    <Badge variant="secondary" className="text-[10px]">
+                                      {t("tss")} {Math.round(log.tss)}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(log.startDate).toLocaleDateString("en-US", {
+                                    weekday: "short",
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs shrink-0">
+                                {dist > 0 && (
+                                  <span className="font-medium tabular-nums">
+                                    {formatDistance(dist)}
+                                  </span>
                                 )}
-                                <SourceBadge source={log.source} />
-                                {log.tss != null && (
-                                  <Badge variant="secondary" className="text-[10px]">{t("tss")} {Math.round(log.tss)}</Badge>
+                                <span className="text-muted-foreground tabular-nums">
+                                  {formatDuration(log.durationSeconds)}
+                                </span>
+                                {elev > 0 && (
+                                  <span className="text-muted-foreground tabular-nums hidden lg:inline">
+                                    {Math.round(elev)}m
+                                  </span>
+                                )}
+                                {log.averageHr != null && (
+                                  <span className="text-muted-foreground tabular-nums hidden lg:inline">
+                                    ❤️{Math.round(log.averageHr)}
+                                  </span>
+                                )}
+                                {log.remarks && (
+                                  <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(log.startDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                              </p>
                             </div>
-                            <div className="flex items-center gap-3 text-xs shrink-0">
-                              {dist > 0 && <span className="font-medium tabular-nums">{formatDistance(dist)}</span>}
-                              <span className="text-muted-foreground tabular-nums">{formatDuration(log.durationSeconds)}</span>
-                              {elev > 0 && (
-                                <span className="text-muted-foreground tabular-nums hidden lg:inline">{Math.round(elev)}m</span>
-                              )}
-                              {log.averageHr != null && (
-                                <span className="text-muted-foreground tabular-nums hidden lg:inline">❤️{Math.round(log.averageHr)}</span>
-                              )}
-                              {log.remarks && <MessageSquare className="h-3 w-3 text-muted-foreground shrink-0" />}
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
+                          </Link>
+                        </div>
                       );
                     })}
                   </div>

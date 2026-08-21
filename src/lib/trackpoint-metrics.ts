@@ -33,9 +33,9 @@ export type TrackpointInput = Array<Partial<TrackPoint>>;
 
 export interface HrTssResult {
   hrTss: number;
-  timeInZones: number[];   // seconds in each zone
-  zonePct: number[];        // % of total time in each zone
-  zoneHrRanges: number[];   // upper HR bound for each zone
+  timeInZones: number[]; // seconds in each zone
+  zonePct: number[]; // % of total time in each zone
+  zoneHrRanges: number[]; // upper HR bound for each zone
 }
 
 export interface PowerMetrics {
@@ -44,8 +44,8 @@ export interface PowerMetrics {
   normalizedPower: number | null;
   variabilityIndex: number | null;
   intensityFactor: number | null;
-  tss: number | null;        // power-based TSS
-  timeInZones: number[];     // seconds in each power zone
+  tss: number | null; // power-based TSS
+  timeInZones: number[]; // seconds in each power zone
   zonePct: number[];
   /** Estimated FTP in absolute watts */
   estimatedFtp: number;
@@ -104,7 +104,7 @@ export interface IntensityDistribution {
  *   Zone 4: Threshold        (80-90%)
  *   Zone 5: VO2Max/Anaerobic (90-100%)
  */
-const HR_ZONE_PCTS = [0.60, 0.70, 0.80, 0.90, 1.0]; // upper bounds as fraction of HR range
+const HR_ZONE_PCTS = [0.6, 0.7, 0.8, 0.9, 1.0]; // upper bounds as fraction of HR range
 
 /**
  * Convert a zone-band fraction into a bpm boundary.
@@ -118,24 +118,18 @@ const HR_ZONE_PCTS = [0.60, 0.70, 0.80, 0.90, 1.0]; // upper bounds as fraction 
 export function hrZoneBoundaryBpm(
   maxHr: number,
   pct: number,
-  restHr?: number | null,
+  restHr?: number | null
 ): number | null {
   if (maxHr <= 0) return null;
   const rest = restHr != null && restHr > 0 && restHr < maxHr ? restHr : null;
-  return rest != null
-    ? Math.round(rest + (maxHr - rest) * pct)
-    : Math.round(maxHr * pct);
+  return rest != null ? Math.round(rest + (maxHr - rest) * pct) : Math.round(maxHr * pct);
 }
 
 /**
  * Fraction of the HR range at `hr`: (hr − rest) / (max − rest) with Karvonen,
  * or hr / max when no resting HR is available.
  */
-export function hrZoneRatio(
-  hr: number,
-  maxHr: number,
-  restHr?: number | null,
-): number {
+export function hrZoneRatio(hr: number, maxHr: number, restHr?: number | null): number {
   const rest = restHr != null && restHr > 0 && restHr < maxHr ? restHr : 0;
   return (hr - rest) / (maxHr - rest);
 }
@@ -149,7 +143,7 @@ export function hrZoneRatio(
  * Zone 5: VO2Max           (106-120%)
  * Zone 6: Anaerobic        (121-150%)
  */
-const POWER_ZONE_PCTS = [0.55, 0.75, 0.90, 1.05, 1.20, 1.50];
+const POWER_ZONE_PCTS = [0.55, 0.75, 0.9, 1.05, 1.2, 1.5];
 
 // ─── hrTSS (Heart Rate Training Stress Score) ───────────────
 
@@ -177,7 +171,7 @@ export function computeHrTss(
   // HR is available, matching computeIntensityDistribution; without one they
   // fall back to the same bands as % of max HR.
   const zones = HR_ZONE_PCTS.map(
-    (pct) => hrZoneBoundaryBpm(maxHr, pct, restHr) ?? Math.round(maxHr * pct),
+    (pct) => hrZoneBoundaryBpm(maxHr, pct, restHr) ?? Math.round(maxHr * pct)
   );
 
   // Zone weights (intensity factor per zone)
@@ -246,7 +240,7 @@ export function computeIntensityDistribution(
   const hrPoints = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0);
   if (hrPoints.length < 30 || maxHr <= 0) return null;
 
-  const thresholds = [0.60, 0.70, 0.80, 0.90]; // upper bounds as fraction of HR range
+  const thresholds = [0.6, 0.7, 0.8, 0.9]; // upper bounds as fraction of HR range
   const zoneCount = [0, 0, 0, 0, 0];
 
   for (const tp of hrPoints) {
@@ -307,7 +301,7 @@ export function computeIntensityDistribution(
 export function computePowerMetrics(
   trackPoints: TrackpointInput,
   ftp?: number,
-  weightKg?: number,
+  weightKg?: number
 ): PowerMetrics | null {
   const powerPoints = trackPoints.filter((tp) => tp.power != null && tp.power > 0);
   if (powerPoints.length < 30) return null;
@@ -321,24 +315,32 @@ export function computePowerMetrics(
   const normalizedPower = sharedComputeNormalizedPower(powers);
 
   // Estimate FTP if not provided: 95% of best 20-minute power
-  const estimatedFtp = ftp || (() => {
-    if (powers.length < 20 * 60) return avgPower; // not enough data
-    let best20min = 0;
-    for (let i = 0; i <= powers.length - 20 * 60; i++) {
-      const slice = powers.slice(i, i + 20 * 60);
-      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-      if (avg > best20min) best20min = avg;
-    }
-    return Math.round(best20min * 0.95);
-  })();
+  const estimatedFtp =
+    ftp ||
+    (() => {
+      if (powers.length < 20 * 60) return avgPower; // not enough data
+      let best20min = 0;
+      for (let i = 0; i <= powers.length - 20 * 60; i++) {
+        const slice = powers.slice(i, i + 20 * 60);
+        const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+        if (avg > best20min) best20min = avg;
+      }
+      return Math.round(best20min * 0.95);
+    })();
 
-  const variabilityIndex = avgPower > 0 ? Math.round((normalizedPower! / avgPower) * 100) / 100 : null;
-  const intensityFactor = estimatedFtp > 0 && normalizedPower ? Math.round((normalizedPower / estimatedFtp) * 100) / 100 : null;
+  const variabilityIndex =
+    avgPower > 0 ? Math.round((normalizedPower! / avgPower) * 100) / 100 : null;
+  const intensityFactor =
+    estimatedFtp > 0 && normalizedPower
+      ? Math.round((normalizedPower / estimatedFtp) * 100) / 100
+      : null;
 
   // Power TSS® = (duration_sec × NP × IF) / (FTP × 3600) × 100
   let tss: number | null = null;
   if (normalizedPower && intensityFactor && estimatedFtp > 0) {
-    tss = Math.round((powerPoints.length * normalizedPower * intensityFactor) / (estimatedFtp * 36));
+    tss = Math.round(
+      (powerPoints.length * normalizedPower * intensityFactor) / (estimatedFtp * 36)
+    );
   }
 
   // Time in power zones
@@ -358,9 +360,8 @@ export function computePowerMetrics(
   const hasWeight = weightKg && weightKg > 0;
   const ftpWkg = hasWeight ? Math.round((estimatedFtp / weightKg) * 10) / 10 : null;
   const avgPowerWkg = hasWeight ? Math.round((avgPower / weightKg) * 10) / 10 : null;
-  const normalizedPowerWkg = hasWeight && normalizedPower
-    ? Math.round((normalizedPower / weightKg) * 10) / 10
-    : null;
+  const normalizedPowerWkg =
+    hasWeight && normalizedPower ? Math.round((normalizedPower / weightKg) * 10) / 10 : null;
 
   return {
     avgPower,
@@ -397,7 +398,7 @@ export function computeDecoupling(
   usePower: boolean = false
 ): DecouplingResult | null {
   const validPoints = trackPoints.filter((tp) => {
-    const output = usePower ? tp.power : (tp.speed || (tp.distance != null ? 1 : null));
+    const output = usePower ? tp.power : tp.speed || (tp.distance != null ? 1 : null);
     return tp.hr != null && tp.hr > 0 && output != null && output > 0;
   });
 
@@ -450,9 +451,11 @@ export function computeDecoupling(
  */
 export function computeEfficiencyFactor(
   trackPoints: TrackpointInput,
-  weightKg?: number,
+  weightKg?: number
 ): { ef: number; efWkg: number | null } | null {
-  const valid = trackPoints.filter((tp) => tp.hr != null && tp.hr > 0 && tp.power != null && tp.power > 0);
+  const valid = trackPoints.filter(
+    (tp) => tp.hr != null && tp.hr > 0 && tp.power != null && tp.power > 0
+  );
   if (valid.length < 60) return null;
 
   const powers = valid.map((tp) => tp.power!);
@@ -491,7 +494,13 @@ export function computeEfficiencyFactor(
  * Best-available TSS: uses power TSS if power data available,
  * falls back to hrTSS if HR data available, falls back to estimate.
  */
-export function computeBestTss(trackPoints: TrackpointInput | null, avgHr: number | null, maxHr: number | null, durationSeconds: number, restHr?: number | null): number {
+export function computeBestTss(
+  trackPoints: TrackpointInput | null,
+  avgHr: number | null,
+  maxHr: number | null,
+  durationSeconds: number,
+  restHr?: number | null
+): number {
   if (trackPoints && trackPoints.length >= 30) {
     // Try power-based TSS first
     const powerMetrics = computePowerMetrics(trackPoints);
@@ -539,8 +548,9 @@ export function extractMetrics(
   const trackPoints = (rawJson?.trackPoints as TrackPoint[]) || null;
 
   const powerMetrics = trackPoints ? computePowerMetrics(trackPoints) : null;
-  const hrTss = (trackPoints && maxHr) ? computeHrTss(trackPoints, maxHr, restHr) : null;
-  const intensityDistribution = (trackPoints && maxHr) ? computeIntensityDistribution(trackPoints, maxHr, restHr) : null;
+  const hrTss = trackPoints && maxHr ? computeHrTss(trackPoints, maxHr, restHr) : null;
+  const intensityDistribution =
+    trackPoints && maxHr ? computeIntensityDistribution(trackPoints, maxHr, restHr) : null;
   const decoupling = trackPoints ? computeDecoupling(trackPoints, powerMetrics != null) : null;
   const efResult = trackPoints ? computeEfficiencyFactor(trackPoints) : null;
   const efficiencyFactor = efResult?.ef ?? null;
@@ -608,21 +618,17 @@ const EMPTY_PRECOMPUTED_METRICS: PrecomputedTrackpointMetrics = {
 export function computePrecomputedTrackpointMetrics(
   trackPoints: TrackpointInput | null | undefined,
   maxHr: number | null,
-  restHr?: number | null,
+  restHr?: number | null
 ): PrecomputedTrackpointMetrics {
   if (!trackPoints || trackPoints.length < 30) {
     return { ...EMPTY_PRECOMPUTED_METRICS };
   }
 
-  const intensity = maxHr
-    ? computeIntensityDistribution(trackPoints, maxHr, restHr)
-    : null;
+  const intensity = maxHr ? computeIntensityDistribution(trackPoints, maxHr, restHr) : null;
   // Mirror the dashboard's live logic: an "insufficient_data" distribution was
   // skipped in the aggregate, so persist null for it to reproduce that filter.
   const usableIntensity =
-    intensity && intensity.distributionType !== "insufficient_data"
-      ? intensity
-      : null;
+    intensity && intensity.distributionType !== "insufficient_data" ? intensity : null;
 
   const hasPower = trackPoints.some((tp) => tp.power != null && tp.power > 0);
   const decoupling = computeDecoupling(trackPoints, hasPower);

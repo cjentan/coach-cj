@@ -7,13 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -41,9 +35,12 @@ import {
 } from "lucide-react";
 import { LONG_DAY_NAMES, RACE_TYPES } from "@/lib/constants";
 import {
-  distanceToMeters, elevationToMeters,
-  defaultDistanceUnit, defaultElevationUnit,
-  type DistanceUnit, type ElevationUnit,
+  distanceToMeters,
+  elevationToMeters,
+  defaultDistanceUnit,
+  defaultElevationUnit,
+  type DistanceUnit,
+  type ElevationUnit,
 } from "@/lib/utils";
 import { useUnits } from "@/hooks/use-units";
 
@@ -77,11 +74,7 @@ function StepIndicator({
               <span className="hidden sm:inline">{s.label}</span>
             </div>
             {i < steps.length - 1 && (
-              <div
-                className={`h-px w-4 sm:w-8 ${
-                  isDone ? "bg-primary" : "bg-muted"
-                }`}
-              />
+              <div className={`h-px w-4 sm:w-8 ${isDone ? "bg-primary" : "bg-muted"}`} />
             )}
           </div>
         );
@@ -128,30 +121,19 @@ function StepFooter({
       </div>
       <div className="flex items-center gap-2">
         {onSkip && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onSkip}
-            disabled={saving}
-          >
+          <Button variant="ghost" size="sm" onClick={onSkip} disabled={saving}>
             <SkipForward className="h-4 w-4 mr-1" /> {t("skip")}
           </Button>
         )}
         {onNext && (
-          <Button
-            size="sm"
-            onClick={onNext}
-            disabled={!canNext || saving}
-          >
+          <Button size="sm" onClick={onNext} disabled={!canNext || saving}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />{" "}
-                {t("saving")}
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" /> {t("saving")}
               </>
             ) : (
               <>
-                {label}{" "}
-                <ChevronRight className="h-4 w-4 ml-1" />
+                {label} <ChevronRight className="h-4 w-4 ml-1" />
               </>
             )}
           </Button>
@@ -182,9 +164,7 @@ export default function OnboardingPage() {
   const [pageLoading, setPageLoading] = useState(true);
 
   // Step 1: Integration
-  const [integrationType, setIntegrationType] = useState<
-    "garmin" | "coros" | null
-  >(null);
+  const [integrationType, setIntegrationType] = useState<"garmin" | "coros" | null>(null);
   const [garminConnected, setGarminConnected] = useState(false);
   const [garminEmail, setGarminEmail] = useState("");
   const [garminPassword, setGarminPassword] = useState("");
@@ -192,9 +172,7 @@ export default function OnboardingPage() {
   const [garminMfaCode, setGarminMfaCode] = useState("");
   const [garminConnecting, setGarminConnecting] = useState(false);
   const [garminError, setGarminError] = useState<string | null>(null);
-  const [garminDisplayName, setGarminDisplayName] = useState<string | null>(
-    null
-  );
+  const [garminDisplayName, setGarminDisplayName] = useState<string | null>(null);
 
   const [corosConnected, setCorosConnected] = useState(false);
   const [corosEmail, setCorosEmail] = useState("");
@@ -224,9 +202,7 @@ export default function OnboardingPage() {
   const [goalSaved, setGoalSaved] = useState(false);
 
   // Step 5: Body Metrics
-  const [metricDate, setMetricDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [metricDate, setMetricDate] = useState(new Date().toISOString().slice(0, 10));
   const [metricWeight, setMetricWeight] = useState("");
   const [metricHeight, setMetricHeight] = useState("");
   const [metricRestingHr, setMetricRestingHr] = useState("");
@@ -362,7 +338,8 @@ export default function OnboardingPage() {
         targetDate: goalTargetDate,
         distanceMeters: distanceToMeters(Number(goalDistance), goalDistUnit),
       };
-      if (goalElevation) body.elevationGainMeters = elevationToMeters(Number(goalElevation), goalEleUnit);
+      if (goalElevation)
+        body.elevationGainMeters = elevationToMeters(Number(goalElevation), goalEleUnit);
       body.priority = goalPriority;
 
       const res = await fetch("/api/goals", {
@@ -460,9 +437,7 @@ export default function OnboardingPage() {
           <div>
             <div className="text-center mb-8">
               <Activity className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">
-                {t("integration.title")}
-              </h1>
+              <h1 className="text-2xl font-bold mb-2">{t("integration.title")}</h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {t("integration.description")}
               </p>
@@ -475,9 +450,7 @@ export default function OnboardingPage() {
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Watch className="h-5 w-5" /> {t("integration.corosTitle")}
                   </CardTitle>
-                  <CardDescription>
-                    {t("integration.corosDesc")}
-                  </CardDescription>
+                  <CardDescription>{t("integration.corosDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {corosConnected ? (
@@ -506,19 +479,14 @@ export default function OnboardingPage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label
-                          htmlFor="coros-password"
-                          className="text-xs"
-                        >
+                        <Label htmlFor="coros-password" className="text-xs">
                           {t("integration.passwordLabel")}
                         </Label>
                         <Input
                           id="coros-password"
                           type="password"
                           value={corosPassword}
-                          onChange={(e) =>
-                            setCorosPassword(e.target.value)
-                          }
+                          onChange={(e) => setCorosPassword(e.target.value)}
                           placeholder={t("integration.corosPassword")}
                           disabled={corosConnecting}
                         />
@@ -527,11 +495,7 @@ export default function OnboardingPage() {
                         size="sm"
                         className="w-full"
                         onClick={handleCorosConnect}
-                        disabled={
-                          corosConnecting ||
-                          !corosEmail ||
-                          !corosPassword
-                        }
+                        disabled={corosConnecting || !corosEmail || !corosPassword}
                       >
                         {corosConnecting ? (
                           <>
@@ -544,11 +508,7 @@ export default function OnboardingPage() {
                           </>
                         )}
                       </Button>
-                      {corosError && (
-                        <p className="text-xs text-destructive">
-                          {corosError}
-                        </p>
-                      )}
+                      {corosError && <p className="text-xs text-destructive">{corosError}</p>}
                     </div>
                   )}
                 </CardContent>
@@ -560,9 +520,7 @@ export default function OnboardingPage() {
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Activity className="h-5 w-5" /> Garmin Connect
                   </CardTitle>
-                  <CardDescription>
-                    {t("integration.garminDesc")}
-                  </CardDescription>
+                  <CardDescription>{t("integration.garminDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {garminConnected ? (
@@ -582,10 +540,7 @@ export default function OnboardingPage() {
                         <span className="text-sm">{t("integration.notConnected")}</span>
                       </div>
                       <div className="space-y-1.5">
-                        <Label
-                          htmlFor="garmin-email"
-                          className="text-xs"
-                        >
+                        <Label htmlFor="garmin-email" className="text-xs">
                           {t("integration.emailLabel")}
                         </Label>
                         <Input
@@ -598,38 +553,28 @@ export default function OnboardingPage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label
-                          htmlFor="garmin-password"
-                          className="text-xs"
-                        >
+                        <Label htmlFor="garmin-password" className="text-xs">
                           {t("integration.passwordLabel")}
                         </Label>
                         <Input
                           id="garmin-password"
                           type="password"
                           value={garminPassword}
-                          onChange={(e) =>
-                            setGarminPassword(e.target.value)
-                          }
+                          onChange={(e) => setGarminPassword(e.target.value)}
                           placeholder={t("integration.garminPassword")}
                           disabled={garminConnecting || garminMfaRequired}
                         />
                       </div>
                       {garminMfaRequired && (
                         <div className="space-y-1.5">
-                          <Label
-                            htmlFor="garmin-mfa"
-                            className="text-xs"
-                          >
+                          <Label htmlFor="garmin-mfa" className="text-xs">
                             {t("integration.mfaCodeLabel")}
                           </Label>
                           <Input
                             id="garmin-mfa"
                             type="text"
                             value={garminMfaCode}
-                            onChange={(e) =>
-                              setGarminMfaCode(e.target.value)
-                            }
+                            onChange={(e) => setGarminMfaCode(e.target.value)}
                             placeholder={t("integration.mfaPlaceholder")}
                             disabled={garminConnecting}
                           />
@@ -657,26 +602,16 @@ export default function OnboardingPage() {
                           </>
                         )}
                       </Button>
-                      {garminError && (
-                        <p className="text-xs text-destructive">
-                          {garminError}
-                        </p>
-                      )}
+                      {garminError && <p className="text-xs text-destructive">{garminError}</p>}
                     </div>
                   )}
                 </CardContent>
               </Card>
             </div>
 
-            <ExplanationCard>
-              {t("integration.explanation")}
-            </ExplanationCard>
+            <ExplanationCard>{t("integration.explanation")}</ExplanationCard>
 
-            <StepFooter
-              onNext={() => setCurrentStep(1)}
-              onSkip={() => setCurrentStep(1)}
-              canNext
-            />
+            <StepFooter onNext={() => setCurrentStep(1)} onSkip={() => setCurrentStep(1)} canNext />
           </div>
         );
 
@@ -686,9 +621,7 @@ export default function OnboardingPage() {
           <div>
             <div className="text-center mb-8">
               <Brain className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">
-                {t("review.title")}
-              </h1>
+              <h1 className="text-2xl font-bold mb-2">{t("review.title")}</h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {t("review.description")}
               </p>
@@ -699,17 +632,12 @@ export default function OnboardingPage() {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Brain className="h-4 w-4" /> {t("review.cardTitle")}
                 </CardTitle>
-                <CardDescription>
-                  {t("review.cardDescription")}
-                </CardDescription>
+                <CardDescription>{t("review.cardDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>{t("review.frequencyLabel")}</Label>
-                  <Select
-                    value={analysisTrigger}
-                    onValueChange={setAnalysisTrigger}
-                  >
+                  <Select value={analysisTrigger} onValueChange={setAnalysisTrigger}>
                     <SelectTrigger className="max-w-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -721,9 +649,7 @@ export default function OnboardingPage() {
                         {settingsT("analysis.optionEveryNDays")}
                       </SelectItem>
                       <SelectItem value="daily">{settingsT("analysis.optionDaily")}</SelectItem>
-                      <SelectItem value="weekly">
-                        {settingsT("analysis.optionWeekly")}
-                      </SelectItem>
+                      <SelectItem value="weekly">{settingsT("analysis.optionWeekly")}</SelectItem>
                       <SelectItem value="monthly">{settingsT("analysis.optionMonthly")}</SelectItem>
                     </SelectContent>
                   </Select>
@@ -739,12 +665,7 @@ export default function OnboardingPage() {
                       max={20}
                       value={analysisTriggerValue}
                       onChange={(e) =>
-                        setAnalysisTriggerValue(
-                          Math.max(
-                            1,
-                            Math.min(20, Number(e.target.value))
-                          )
-                        )
+                        setAnalysisTriggerValue(Math.max(1, Math.min(20, Number(e.target.value))))
                       }
                       className="w-20"
                     />
@@ -763,12 +684,7 @@ export default function OnboardingPage() {
                       max={90}
                       value={analysisTriggerValue}
                       onChange={(e) =>
-                        setAnalysisTriggerValue(
-                          Math.max(
-                            1,
-                            Math.min(90, Number(e.target.value))
-                          )
-                        )
+                        setAnalysisTriggerValue(Math.max(1, Math.min(90, Number(e.target.value))))
                       }
                       className="w-20"
                     />
@@ -783,10 +699,7 @@ export default function OnboardingPage() {
                     <Label className="flex items-center gap-1">
                       <CalendarDays className="h-4 w-4" /> {settingsT("analysis.dayOfWeek")}
                     </Label>
-                    <Select
-                      value={reviewDay}
-                      onValueChange={setReviewDay}
-                    >
+                    <Select value={reviewDay} onValueChange={setReviewDay}>
                       <SelectTrigger className="max-w-xs">
                         <SelectValue />
                       </SelectTrigger>
@@ -810,9 +723,7 @@ export default function OnboardingPage() {
                       max={31}
                       value={reviewDayOfMonth}
                       onChange={(e) =>
-                        setReviewDayOfMonth(
-                          Math.max(1, Math.min(31, Number(e.target.value)))
-                        )
+                        setReviewDayOfMonth(Math.max(1, Math.min(31, Number(e.target.value))))
                       }
                       className="w-20"
                     />
@@ -843,9 +754,7 @@ export default function OnboardingPage() {
               </CardContent>
             </Card>
 
-            <ExplanationCard>
-              {t("review.explanation")}
-            </ExplanationCard>
+            <ExplanationCard>{t("review.explanation")}</ExplanationCard>
 
             <StepFooter
               onBack={() => setCurrentStep(0)}
@@ -862,9 +771,7 @@ export default function OnboardingPage() {
           <div>
             <div className="text-center mb-8">
               <Target className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">
-                {t("goal.title")}
-              </h1>
+              <h1 className="text-2xl font-bold mb-2">{t("goal.title")}</h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {t("goal.description")}
               </p>
@@ -877,9 +784,7 @@ export default function OnboardingPage() {
                   <p className="font-medium text-green-700 dark:text-green-300">
                     {t("goal.savedTitle")}
                   </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t("goal.savedDescription")}
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">{t("goal.savedDescription")}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -904,10 +809,7 @@ export default function OnboardingPage() {
                       <Label htmlFor="goal-type" className="text-xs">
                         {settingsT("goals.raceType")}
                       </Label>
-                      <Select
-                        value={goalRaceType}
-                        onValueChange={setGoalRaceType}
-                      >
+                      <Select value={goalRaceType} onValueChange={setGoalRaceType}>
                         <SelectTrigger id="goal-type">
                           <SelectValue />
                         </SelectTrigger>
@@ -928,9 +830,7 @@ export default function OnboardingPage() {
                         id="goal-date"
                         type="date"
                         value={goalTargetDate}
-                        onChange={(e) =>
-                          setGoalTargetDate(e.target.value)
-                        }
+                        onChange={(e) => setGoalTargetDate(e.target.value)}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -946,10 +846,21 @@ export default function OnboardingPage() {
                           className="flex-1"
                           value={goalDistance}
                           onChange={(e) => setGoalDistance(e.target.value)}
-                          placeholder={goalDistUnit === "m" ? t("goal.distancePlaceholderM") : goalDistUnit === "km" ? t("goal.distancePlaceholderKm") : t("goal.distancePlaceholderMi")}
+                          placeholder={
+                            goalDistUnit === "m"
+                              ? t("goal.distancePlaceholderM")
+                              : goalDistUnit === "km"
+                                ? t("goal.distancePlaceholderKm")
+                                : t("goal.distancePlaceholderMi")
+                          }
                         />
-                        <Select value={goalDistUnit} onValueChange={(v) => setGoalDistUnit(v as DistanceUnit)}>
-                          <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
+                        <Select
+                          value={goalDistUnit}
+                          onValueChange={(v) => setGoalDistUnit(v as DistanceUnit)}
+                        >
+                          <SelectTrigger className="w-[92px]">
+                            <SelectValue />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="m">{t("goal.unitMeters")}</SelectItem>
                             <SelectItem value="km">{t("goal.unitKilometers")}</SelectItem>
@@ -959,10 +870,7 @@ export default function OnboardingPage() {
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label
-                        htmlFor="goal-elevation"
-                        className="text-xs"
-                      >
+                      <Label htmlFor="goal-elevation" className="text-xs">
                         {t("goal.elevationLabel")}
                       </Label>
                       <div className="flex gap-2">
@@ -973,13 +881,20 @@ export default function OnboardingPage() {
                           step="any"
                           className="flex-1"
                           value={goalElevation}
-                          onChange={(e) =>
-                            setGoalElevation(e.target.value)
+                          onChange={(e) => setGoalElevation(e.target.value)}
+                          placeholder={
+                            goalEleUnit === "m"
+                              ? t("goal.elevationPlaceholderM")
+                              : t("goal.elevationPlaceholderFt")
                           }
-                          placeholder={goalEleUnit === "m" ? t("goal.elevationPlaceholderM") : t("goal.elevationPlaceholderFt")}
                         />
-                        <Select value={goalEleUnit} onValueChange={(v) => setGoalEleUnit(v as ElevationUnit)}>
-                          <SelectTrigger className="w-[92px]"><SelectValue /></SelectTrigger>
+                        <Select
+                          value={goalEleUnit}
+                          onValueChange={(v) => setGoalEleUnit(v as ElevationUnit)}
+                        >
+                          <SelectTrigger className="w-[92px]">
+                            <SelectValue />
+                          </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="m">{t("goal.unitMeters")}</SelectItem>
                             <SelectItem value="ft">{t("goal.unitFeet")}</SelectItem>
@@ -992,12 +907,7 @@ export default function OnboardingPage() {
                     size="sm"
                     className="mt-4"
                     onClick={handleSaveGoal}
-                    disabled={
-                      goalSaving ||
-                      !goalName.trim() ||
-                      !goalTargetDate ||
-                      !goalDistance
-                    }
+                    disabled={goalSaving || !goalName.trim() || !goalTargetDate || !goalDistance}
                   >
                     {goalSaving ? t("saving") : t("goal.saveGoal")}
                   </Button>
@@ -1005,9 +915,7 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            <ExplanationCard>
-              {t("goal.explanation")}
-            </ExplanationCard>
+            <ExplanationCard>{t("goal.explanation")}</ExplanationCard>
 
             <StepFooter
               onBack={() => setCurrentStep(1)}
@@ -1027,9 +935,7 @@ export default function OnboardingPage() {
           <div>
             <div className="text-center mb-8">
               <Scale className="h-10 w-10 text-primary mx-auto mb-4" />
-              <h1 className="text-2xl font-bold mb-2">
-                {t("bodyMetrics.title")}
-              </h1>
+              <h1 className="text-2xl font-bold mb-2">{t("bodyMetrics.title")}</h1>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
                 {t("bodyMetrics.description")}
               </p>
@@ -1047,9 +953,7 @@ export default function OnboardingPage() {
             ) : (
               <Card className="mb-4">
                 <CardHeader>
-                  <CardTitle className="text-base">
-                    {t("bodyMetrics.cardTitle")}
-                  </CardTitle>
+                  <CardTitle className="text-base">{t("bodyMetrics.cardTitle")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -1075,9 +979,7 @@ export default function OnboardingPage() {
                         max="500"
                         step="0.1"
                         value={metricWeight}
-                        onChange={(e) =>
-                          setMetricWeight(e.target.value)
-                        }
+                        onChange={(e) => setMetricWeight(e.target.value)}
                         placeholder={t("bodyMetrics.weightPlaceholder")}
                       />
                     </div>
@@ -1091,17 +993,12 @@ export default function OnboardingPage() {
                         min="100"
                         max="250"
                         value={metricHeight}
-                        onChange={(e) =>
-                          setMetricHeight(e.target.value)
-                        }
+                        onChange={(e) => setMetricHeight(e.target.value)}
                         placeholder={t("bodyMetrics.heightPlaceholder")}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label
-                        htmlFor="metric-resting-hr"
-                        className="text-xs"
-                      >
+                      <Label htmlFor="metric-resting-hr" className="text-xs">
                         {t("bodyMetrics.restingHrLabel")}
                       </Label>
                       <Input
@@ -1110,9 +1007,7 @@ export default function OnboardingPage() {
                         min="30"
                         max="220"
                         value={metricRestingHr}
-                        onChange={(e) =>
-                          setMetricRestingHr(e.target.value)
-                        }
+                        onChange={(e) => setMetricRestingHr(e.target.value)}
                         placeholder={t("bodyMetrics.restingHrPlaceholder")}
                       />
                     </div>
@@ -1143,9 +1038,7 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            <ExplanationCard>
-              {t("bodyMetrics.explanation")}
-            </ExplanationCard>
+            <ExplanationCard>{t("bodyMetrics.explanation")}</ExplanationCard>
 
             <StepFooter
               onBack={() => setCurrentStep(2)}
@@ -1167,9 +1060,7 @@ export default function OnboardingPage() {
               <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <Check className="h-8 w-8 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mb-2">
-                {t("complete")}
-              </h1>
+              <h1 className="text-2xl font-bold mb-2">{t("complete")}</h1>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto">
                 {t("completionDescription")}
               </p>
@@ -1181,7 +1072,9 @@ export default function OnboardingPage() {
                 label={t("summary.wearable")}
                 detail={
                   integrationType
-                    ? t("summary.wearableConnected", { type: integrationType === "garmin" ? "Garmin" : "COROS" })
+                    ? t("summary.wearableConnected", {
+                        type: integrationType === "garmin" ? "Garmin" : "COROS",
+                      })
                     : t("summary.wearableSkipped")
                 }
                 done={!!integrationType}
@@ -1197,7 +1090,10 @@ export default function OnboardingPage() {
                       : analysisTrigger === "daily"
                         ? t("review.dailySummary", { time: reviewTime })
                         : analysisTrigger === "every_n_days"
-                          ? t("review.everyNDaysSummary", { count: analysisTriggerValue, time: reviewTime })
+                          ? t("review.everyNDaysSummary", {
+                              count: analysisTriggerValue,
+                              time: reviewTime,
+                            })
                           : analysisTrigger === "activity_count"
                             ? t("review.afterNActivities", { count: analysisTriggerValue })
                             : analysisTrigger
@@ -1221,13 +1117,11 @@ export default function OnboardingPage() {
             <Button size="lg" onClick={handleComplete} disabled={saving}>
               {saving ? (
                 <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />{" "}
-                  {t("finalizing")}
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" /> {t("finalizing")}
                 </>
               ) : (
                 <>
-                  {t("goToDashboard")}{" "}
-                  <ChevronRight className="h-5 w-5 ml-1" />
+                  {t("goToDashboard")} <ChevronRight className="h-5 w-5 ml-1" />
                 </>
               )}
             </Button>
@@ -1277,9 +1171,7 @@ function SummaryItem({
 }) {
   return (
     <div className="flex items-center gap-3 text-sm">
-      <Icon
-        className={`h-5 w-5 shrink-0 ${done ? "text-green-500" : "text-muted-foreground"}`}
-      />
+      <Icon className={`h-5 w-5 shrink-0 ${done ? "text-green-500" : "text-muted-foreground"}`} />
       <div>
         <p className="font-medium">{label}</p>
         <p className="text-muted-foreground text-xs">{detail}</p>

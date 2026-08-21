@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
-import { PLAN_GENERATION_ENGINE_KEY, type PlanGenerationEngine } from "@/lib/plan-generation-engine";
+import {
+  PLAN_GENERATION_ENGINE_KEY,
+  type PlanGenerationEngine,
+} from "@/lib/plan-generation-engine";
 
 const EngineSchema = z.object({
   engine: z.enum(["v1", "v2"]),

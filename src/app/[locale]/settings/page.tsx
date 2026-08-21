@@ -11,9 +11,26 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { useTheme } from "next-themes";
 import { useAccessibility, type TextSize } from "@/hooks/use-accessibility";
 import { useUnits } from "@/hooks/use-units";
-import { User, Sun, Moon, Monitor, AlertCircle, Check, KeyRound, Languages, Accessibility, Ruler } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogClose,
+  User,
+  Sun,
+  Moon,
+  Monitor,
+  AlertCircle,
+  Check,
+  KeyRound,
+  Languages,
+  Accessibility,
+  Ruler,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 
 export default function SettingsProfilePage() {
@@ -50,7 +67,9 @@ export default function SettingsProfilePage() {
     window.location.href = `/${newLocale}/settings`;
   }
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
@@ -62,21 +81,27 @@ export default function SettingsProfilePage() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t("cardProfileDesc")}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t("cardProfileDesc")}</p>
       </div>
 
       {/* Profile */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> {t("cardProfileTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" /> {t("cardProfileTitle")}
+          </CardTitle>
           <CardDescription>{t("cardProfileAccountDetails")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">{t("cardName")}</span><span className="font-medium">{session.user?.name}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">{t("cardEmail")}</span><span className="font-medium">{session.user?.email}</span></div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">{t("cardName")}</span>
+              <span className="font-medium">{session.user?.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">{t("cardEmail")}</span>
+              <span className="font-medium">{session.user?.email}</span>
+            </div>
             <div className="flex justify-between pt-2 border-t border-border/50">
               <span className="text-muted-foreground">{t("cardPassword")}</span>
               <Dialog>
@@ -207,7 +232,9 @@ export default function SettingsProfilePage() {
       {/* Language */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Languages className="h-5 w-5" /> {settingsT("language")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Languages className="h-5 w-5" /> {settingsT("language")}
+          </CardTitle>
           <CardDescription>{settingsT("languageDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -236,7 +263,9 @@ export default function SettingsProfilePage() {
       {/* Units */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Ruler className="h-5 w-5" /> {t("unitsTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Ruler className="h-5 w-5" /> {t("unitsTitle")}
+          </CardTitle>
           <CardDescription>{t("unitsDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -264,7 +293,17 @@ export default function SettingsProfilePage() {
       {/* Appearance */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">{mounted && (theme === "dark" ? <Moon className="h-5 w-5" /> : theme === "light" ? <Sun className="h-5 w-5" /> : <Monitor className="h-5 w-5" />)} {t("appearanceTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            {mounted &&
+              (theme === "dark" ? (
+                <Moon className="h-5 w-5" />
+              ) : theme === "light" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Monitor className="h-5 w-5" />
+              ))}{" "}
+            {t("appearanceTitle")}
+          </CardTitle>
           <CardDescription>{t("appearanceDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -283,8 +322,14 @@ export default function SettingsProfilePage() {
                     : "border-muted hover:border-muted-foreground/30"
                 }`}
               >
-                <Icon className={`h-6 w-6 ${mounted && theme === value ? "text-primary" : "text-muted-foreground"}`} />
-                <span className={`text-sm font-medium ${mounted && theme === value ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
+                <Icon
+                  className={`h-6 w-6 ${mounted && theme === value ? "text-primary" : "text-muted-foreground"}`}
+                />
+                <span
+                  className={`text-sm font-medium ${mounted && theme === value ? "text-primary" : "text-muted-foreground"}`}
+                >
+                  {label}
+                </span>
               </button>
             ))}
           </div>
@@ -294,7 +339,9 @@ export default function SettingsProfilePage() {
       {/* Accessibility */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Accessibility className="h-5 w-5" /> {t("accessibilityTitle")}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Accessibility className="h-5 w-5" /> {t("accessibilityTitle")}
+          </CardTitle>
           <CardDescription>{t("accessibilityDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -316,8 +363,16 @@ export default function SettingsProfilePage() {
                   }`}
                 >
                   <span className="block font-medium">{label}</span>
-                  <span className="block mt-1 opacity-60 leading-none"
-                    style={{ fontSize: value === "normal" ? "0.75rem" : value === "large" ? "0.9375rem" : "1.125rem" }}
+                  <span
+                    className="block mt-1 opacity-60 leading-none"
+                    style={{
+                      fontSize:
+                        value === "normal"
+                          ? "0.75rem"
+                          : value === "large"
+                            ? "0.9375rem"
+                            : "1.125rem",
+                    }}
                   >
                     Aa
                   </span>
@@ -327,7 +382,6 @@ export default function SettingsProfilePage() {
           </div>
         </CardContent>
       </Card>
-
     </div>
   );
 }

@@ -145,9 +145,7 @@ function buildUserMessage(
   msg += `Volume: ${formatDistance(currentPlan.targetVolumeMeters)}, Elevation: ${formatDistance(currentPlan.targetElevationMeters)}\n\n`;
 
   msg += "### Sessions\n";
-  const sortedSessions = [...currentPlan.plannedSessions].sort(
-    (a, b) => a.dayOfWeek - b.dayOfWeek
-  );
+  const sortedSessions = [...currentPlan.plannedSessions].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
   for (const s of sortedSessions) {
     const dist = s.targetDistance ? formatDistance(s.targetDistance) : "—";
     const vert = s.targetElevation ? formatDistance(s.targetElevation) : "—";
@@ -213,11 +211,12 @@ function applyGuardrails(
   const violations: string[] = [];
 
   // 1. Volume ceiling: ≤ current * 1.15 (or use recent volume as baseline if plan is 0)
-  const volumeBaseline = currentPlan.targetVolumeMeters > 0
-    ? currentPlan.targetVolumeMeters
-    : context.recentVolumeByWeek.length > 0
-      ? context.recentVolumeByWeek.reduce((a, b) => a + b, 0) / context.recentVolumeByWeek.length
-      : 0;
+  const volumeBaseline =
+    currentPlan.targetVolumeMeters > 0
+      ? currentPlan.targetVolumeMeters
+      : context.recentVolumeByWeek.length > 0
+        ? context.recentVolumeByWeek.reduce((a, b) => a + b, 0) / context.recentVolumeByWeek.length
+        : 0;
 
   if (volumeBaseline > 0) {
     const maxVolume = volumeBaseline * 1.15;
@@ -236,9 +235,7 @@ function applyGuardrails(
 
   // 3. Complete week: exactly 7 sessions
   if (adjusted.plannedSessions.length !== 7) {
-    violations.push(
-      `Plan must have exactly 7 sessions (got ${adjusted.plannedSessions.length})`
-    );
+    violations.push(`Plan must have exactly 7 sessions (got ${adjusted.plannedSessions.length})`);
   }
 
   // 4. Illness detection: force ≥ 2 consecutive rest days

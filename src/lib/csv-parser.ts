@@ -73,7 +73,9 @@ function parseDate(raw: string): Date | null {
   // Try MM/DD/YYYY or DD/MM/YYYY
   const parts = trimmed.split(/[\/\-.\s]/);
   if (parts.length === 3) {
-    const a = parseInt(parts[0]), b = parseInt(parts[1]), c = parseInt(parts[2]);
+    const a = parseInt(parts[0]),
+      b = parseInt(parts[1]),
+      c = parseInt(parts[2]);
     // Assume MM/DD/YYYY if a <= 12
     if (a <= 12 && b <= 31 && c > 2000) {
       d = new Date(c, a - 1, b);
@@ -126,7 +128,8 @@ function parseCsvRows(content: string): string[] {
     const ch = content[i];
     if (ch === '"') {
       if (inQuotes && content[i + 1] === '"') {
-        current += '""'; i++;
+        current += '""';
+        i++;
       } else {
         inQuotes = !inQuotes;
       }
@@ -172,9 +175,10 @@ export function parseStravaCsv(content: string): CsvParseResult {
 
   if (dateIdx < 0) {
     return {
-      activities: [], errors: [
-        `Could not find 'Activity Date' column. Headers found: ${header.join(", ")}`
-      ], totalRows: rows.length - 1, headers: header,
+      activities: [],
+      errors: [`Could not find 'Activity Date' column. Headers found: ${header.join(", ")}`],
+      totalRows: rows.length - 1,
+      headers: header,
     };
   }
 
@@ -198,15 +202,15 @@ export function parseStravaCsv(content: string): CsvParseResult {
       // Duration: prefer Moving Time, fall back to Elapsed Time
       let durationSec = 0;
       if (movingIdx >= 0) durationSec = Math.round(parseNum(cols[movingIdx]) || 0);
-      if (durationSec === 0 && elapsedIdx >= 0) durationSec = Math.round(parseNum(cols[elapsedIdx]) || 0);
+      if (durationSec === 0 && elapsedIdx >= 0)
+        durationSec = Math.round(parseNum(cols[elapsedIdx]) || 0);
       if (durationSec === 0) durationSec = 3600; // default 1h rather than 0
 
       // Distance: Strava CSV exports in km for most types, convert to meters.
       // For Swim activities Strava already exports in meters, so skip the ×1000.
       const distRaw = distIdx >= 0 ? parseNum(cols[distIdx]) : null;
-      const distance = distRaw != null
-        ? Math.round(type === "swim" ? distRaw : distRaw * 1000)
-        : null;
+      const distance =
+        distRaw != null ? Math.round(type === "swim" ? distRaw : distRaw * 1000) : null;
 
       const elevation = elevIdx >= 0 ? parseNum(cols[elevIdx]) : null;
       const avgHr = avgHrIdx >= 0 ? parseNum(cols[avgHrIdx]) : null;

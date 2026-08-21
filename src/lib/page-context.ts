@@ -31,18 +31,10 @@ export interface PageContext {
  */
 export function detectPageContext(pathname: string): PageContext | null {
   // Normalise: strip trailing slash
-  const p = pathname.endsWith("/") && pathname.length > 1
-    ? pathname.slice(0, -1)
-    : pathname;
+  const p = pathname.endsWith("/") && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
 
   // Paths where the chat button is hidden
-  const hiddenPrefixes = [
-    "/settings",
-    "/auth",
-    "/onboarding",
-    "/admin",
-    "/llm-test",
-  ];
+  const hiddenPrefixes = ["/settings", "/auth", "/onboarding", "/admin", "/llm-test"];
   if (hiddenPrefixes.some((prefix) => p.startsWith(prefix))) {
     return null;
   }

@@ -24,12 +24,7 @@ import {
   parseISO,
   format,
 } from "date-fns";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn, formatDistance, formatDuration, formatElevation, inferEffort } from "@/lib/utils";
 import type { PlanWeekData, PlanDay } from "@/lib/training-plan-types";
@@ -44,11 +39,7 @@ interface CalendarViewProps {
 
 // ── Main CalendarView ───────────────────────────────────
 
-export function CalendarView({
-  weeks,
-  currentMonth,
-  onMonthChange,
-}: CalendarViewProps) {
+export function CalendarView({ weeks, currentMonth, onMonthChange }: CalendarViewProps) {
   const t = useTranslations("training-plan");
   const labelsT = useTranslations("labels");
   const router = useRouter();
@@ -104,7 +95,10 @@ export function CalendarView({
     setWeekIndex(newIdx);
     // Sync month to the new week's start
     const ws = parseISO(weeks[newIdx].weekStart);
-    if (ws.getMonth() !== currentMonth.getMonth() || ws.getFullYear() !== currentMonth.getFullYear()) {
+    if (
+      ws.getMonth() !== currentMonth.getMonth() ||
+      ws.getFullYear() !== currentMonth.getFullYear()
+    ) {
       onMonthChange(ws);
     }
   }, [weekIndex, weeks, currentMonth, onMonthChange]);
@@ -114,7 +108,10 @@ export function CalendarView({
     const newIdx = weekIndex + 1;
     setWeekIndex(newIdx);
     const ws = parseISO(weeks[newIdx].weekStart);
-    if (ws.getMonth() !== currentMonth.getMonth() || ws.getFullYear() !== currentMonth.getFullYear()) {
+    if (
+      ws.getMonth() !== currentMonth.getMonth() ||
+      ws.getFullYear() !== currentMonth.getFullYear()
+    ) {
       onMonthChange(ws);
     }
   }, [weekIndex, weeks, currentMonth, onMonthChange]);
@@ -172,10 +169,7 @@ export function CalendarView({
         </div>
 
         {/* Day grid */}
-        <div
-          className="grid grid-cols-7"
-          style={{ minHeight: `${numWeeks * 5.625}rem` }}
-        >
+        <div className="grid grid-cols-7" style={{ minHeight: `${numWeeks * 5.625}rem` }}>
           {gridDays.map((day) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const planDay = dayMap.get(dateStr);
@@ -217,7 +211,13 @@ export function CalendarView({
       {/* ═══ Day Detail Dialog (shared) ═══ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          {selectedDay && <DayDetailContent planDay={selectedDay} router={router} onClose={() => setDialogOpen(false)} />}
+          {selectedDay && (
+            <DayDetailContent
+              planDay={selectedDay}
+              router={router}
+              onClose={() => setDialogOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -245,13 +245,10 @@ const DayCell = memo(function DayCell({
 
   // Determine if this day is fully in the past
   const now = new Date();
-  const isPast =
-    day < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const isPast = day < new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   // Classify the planned session
-  const effort = planned
-    ? inferEffort(planned.type, planned.description)
-    : "rest";
+  const effort = planned ? inferEffort(planned.type, planned.description) : "rest";
   const effortStyle = EFFORT_STYLES[effort];
 
   // Activity icon
@@ -273,11 +270,10 @@ const DayCell = memo(function DayCell({
         effortStyle.border,
         !inMonth && "opacity-30",
         isPast && !planDay?.actual && !planDay?.planned && "opacity-40",
-        isToday &&
-          "bg-primary/5 ring-1 ring-primary/20 ring-inset ring-l-0",
+        isToday && "bg-primary/5 ring-1 ring-primary/20 ring-inset ring-l-0",
         inMonth && !isToday && "hover:bg-muted/30",
         isClickable && "cursor-pointer",
-        !isClickable && "cursor-default",
+        !isClickable && "cursor-default"
       )}
     >
       {/* ── Top row: Date + icon + effort badge ── */}
@@ -286,7 +282,7 @@ const DayCell = memo(function DayCell({
           className={cn(
             "inline-flex items-center justify-center w-5 h-5 text-[0.625rem] sm:text-[0.6875rem] font-medium rounded-full shrink-0",
             isToday && "bg-primary text-primary-foreground",
-            !isToday && "text-muted-foreground",
+            !isToday && "text-muted-foreground"
           )}
         >
           {dayNumber}
@@ -300,7 +296,7 @@ const DayCell = memo(function DayCell({
           <span
             className={cn(
               "inline-flex items-center rounded-full px-1.5 py-0 text-[0.5rem] sm:text-[0.5625rem] font-medium leading-tight truncate max-w-full",
-              effortStyle.badge,
+              effortStyle.badge
             )}
           >
             {planned.type === "rest" ? t("rest") : planned.type}
@@ -333,20 +329,17 @@ const DayCell = memo(function DayCell({
           <span className="text-[0.5rem] sm:text-[0.5625rem] font-medium truncate">
             {planDay.actual.name}
           </span>
-          {planDay.actual.distanceMeters != null &&
-            planDay.actual.distanceMeters > 0 && (
-              <span className="text-[0.5rem] text-muted-foreground shrink-0 hidden sm:inline">
-                {formatDistance(planDay.actual.distanceMeters)}
-              </span>
-            )}
+          {planDay.actual.distanceMeters != null && planDay.actual.distanceMeters > 0 && (
+            <span className="text-[0.5rem] text-muted-foreground shrink-0 hidden sm:inline">
+              {formatDistance(planDay.actual.distanceMeters)}
+            </span>
+          )}
         </div>
       )}
 
       {/* ── Empty past day ── */}
       {isPast && !planned && !hasActual && (
-        <p className="text-[0.5rem] sm:text-[0.5625rem] text-muted-foreground italic mt-0.5">
-          —
-        </p>
+        <p className="text-[0.5rem] sm:text-[0.5625rem] text-muted-foreground italic mt-0.5">—</p>
       )}
     </button>
   );
@@ -384,9 +377,7 @@ function DayDetailContent({
   }, [date]);
 
   // Classify effort
-  const effort = planned
-    ? inferEffort(planned.type, planned.description)
-    : null;
+  const effort = planned ? inferEffort(planned.type, planned.description) : null;
   const effortStyle = effort ? EFFORT_STYLES[effort] : null;
 
   // Activity icon
@@ -403,12 +394,7 @@ function DayDetailContent({
       <DialogHeader>
         <div className="flex items-center gap-2">
           {planned && IconComponent && (
-            <div
-              className={cn(
-                "p-2 rounded-lg",
-                effortStyle?.badge ?? "bg-muted/30",
-              )}
-            >
+            <div className={cn("p-2 rounded-lg", effortStyle?.badge ?? "bg-muted/30")}>
               <IconComponent className="h-5 w-5" />
             </div>
           )}
@@ -428,7 +414,7 @@ function DayDetailContent({
               <span
                 className={cn(
                   "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                  effortStyle?.badge ?? "bg-muted/30 text-muted-foreground",
+                  effortStyle?.badge ?? "bg-muted/30 text-muted-foreground"
                 )}
               >
                 {planned.type === "rest" ? t("rest") : planned.type}
@@ -437,7 +423,7 @@ function DayDetailContent({
                 <span
                   className={cn(
                     "text-xs font-medium",
-                    effortStyle?.text ?? "text-muted-foreground",
+                    effortStyle?.text ?? "text-muted-foreground"
                   )}
                 >
                   {effortStyle?.label ? `${t(effortStyle.label)} ${t("effort")}` : ""}
@@ -453,9 +439,7 @@ function DayDetailContent({
                   <span className="text-sm font-semibold">
                     {formatDistance(planned.targetDistance)}
                   </span>
-                  <span className="text-[0.625rem] text-muted-foreground">
-                    {t("distance")}
-                  </span>
+                  <span className="text-[0.625rem] text-muted-foreground">{t("distance")}</span>
                 </div>
               )}
               {(planned.targetElevation ?? 0) > 0 && (
@@ -464,9 +448,7 @@ function DayDetailContent({
                   <span className="text-sm font-semibold">
                     {formatElevation(planned.targetElevation)}
                   </span>
-                  <span className="text-[0.625rem] text-muted-foreground">
-                    {t("elevation")}
-                  </span>
+                  <span className="text-[0.625rem] text-muted-foreground">{t("elevation")}</span>
                 </div>
               )}
               {planned.targetDuration != null && planned.targetDuration > 0 && (
@@ -475,9 +457,7 @@ function DayDetailContent({
                   <span className="text-sm font-semibold">
                     {formatDuration(planned.targetDuration)}
                   </span>
-                  <span className="text-[0.625rem] text-muted-foreground">
-                    {t("duration")}
-                  </span>
+                  <span className="text-[0.625rem] text-muted-foreground">{t("duration")}</span>
                 </div>
               )}
             </div>
@@ -525,32 +505,25 @@ function DayDetailContent({
                   <span className="text-sm font-semibold">
                     {formatDistance(actual.distanceMeters)}
                   </span>
-                  <span className="text-[0.625rem] text-muted-foreground">
-                    {t("distance")}
-                  </span>
+                  <span className="text-[0.625rem] text-muted-foreground">{t("distance")}</span>
                 </div>
               )}
-              {actual.elevationGainMeters != null &&
-                actual.elevationGainMeters > 0 && (
-                  <div className="flex flex-col items-center p-2 rounded-lg bg-green-500/5">
-                    <Mountain className="h-4 w-4 text-green-600 mb-1" />
-                    <span className="text-sm font-semibold">
-                      {formatElevation(actual.elevationGainMeters)}
-                    </span>
-                    <span className="text-[0.625rem] text-muted-foreground">
-                      Elevation
-                    </span>
-                  </div>
-                )}
+              {actual.elevationGainMeters != null && actual.elevationGainMeters > 0 && (
+                <div className="flex flex-col items-center p-2 rounded-lg bg-green-500/5">
+                  <Mountain className="h-4 w-4 text-green-600 mb-1" />
+                  <span className="text-sm font-semibold">
+                    {formatElevation(actual.elevationGainMeters)}
+                  </span>
+                  <span className="text-[0.625rem] text-muted-foreground">Elevation</span>
+                </div>
+              )}
               {actual.durationSeconds > 0 && (
                 <div className="flex flex-col items-center p-2 rounded-lg bg-green-500/5">
                   <Clock className="h-4 w-4 text-green-600 mb-1" />
                   <span className="text-sm font-semibold">
                     {formatDuration(actual.durationSeconds)}
                   </span>
-                  <span className="text-[0.625rem] text-muted-foreground">
-                    {t("duration")}
-                  </span>
+                  <span className="text-[0.625rem] text-muted-foreground">{t("duration")}</span>
                 </div>
               )}
             </div>
@@ -565,11 +538,7 @@ function DayDetailContent({
 
             {/* View Activity button (past days only) */}
             {isPast && actual.activityId && (
-              <Button
-                variant="default"
-                className="w-full gap-2"
-                onClick={handleViewActivity}
-              >
+              <Button variant="default" className="w-full gap-2" onClick={handleViewActivity}>
                 <ExternalLink className="h-4 w-4" />
                 {t("viewActivityDetails")}
               </Button>

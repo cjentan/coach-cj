@@ -39,7 +39,7 @@ interface ActivityRow {
  */
 async function fetchActivitiesForDetection(
   userId: string,
-  limit: number,
+  limit: number
 ): Promise<
   Array<{
     id: string;
@@ -144,10 +144,10 @@ const DEFAULT_CONFIG: DuplicateDetectionConfig = {
 // When merging, the activity with the lowest priority wins.
 
 const SOURCE_PRIORITY: Record<string, number> = {
-  garmin: 0,    // Most detailed raw data from device
+  garmin: 0, // Most detailed raw data from device
   watch_push: 1, // FIT/GPX from watch push
-  strava: 2,    // Has Strava enrichment
-  manual: 3,    // User-entered, possibly less accurate
+  strava: 2, // Has Strava enrichment
+  manual: 3, // User-entered, possibly less accurate
 };
 
 // ─── Main detection logic ─────────────────────────────────────
@@ -166,7 +166,7 @@ export interface DetectionResult {
  */
 export async function detectDuplicates(
   userId: string,
-  config: Partial<DuplicateDetectionConfig> = {},
+  config: Partial<DuplicateDetectionConfig> = {}
 ): Promise<DetectionResult> {
   const cfg = { ...DEFAULT_CONFIG, ...config };
 
@@ -310,9 +310,21 @@ interface ScoredResult {
 }
 
 export function scorePair(
-  a: { startDate: Date; durationSeconds: number; distanceMeters: number | null; type: string; source: string },
-  b: { startDate: Date; durationSeconds: number; distanceMeters: number | null; type: string; source: string },
-  cfg: DuplicateDetectionConfig,
+  a: {
+    startDate: Date;
+    durationSeconds: number;
+    distanceMeters: number | null;
+    type: string;
+    source: string;
+  },
+  b: {
+    startDate: Date;
+    durationSeconds: number;
+    distanceMeters: number | null;
+    type: string;
+    source: string;
+  },
+  cfg: DuplicateDetectionConfig
 ): ScoredResult | null {
   // Must be same activity type
   if (a.type !== b.type) return null;
@@ -344,7 +356,12 @@ export function scorePair(
   }
 
   // 3. Distance similarity (up to 30 points)
-  if (a.distanceMeters != null && b.distanceMeters != null && a.distanceMeters > 0 && b.distanceMeters > 0) {
+  if (
+    a.distanceMeters != null &&
+    b.distanceMeters != null &&
+    a.distanceMeters > 0 &&
+    b.distanceMeters > 0
+  ) {
     const distRatio = a.distanceMeters / b.distanceMeters;
     const distDiff = Math.abs(1 - distRatio);
     if (distDiff <= cfg.maxDistanceRatioDiff) {
@@ -390,7 +407,7 @@ function getReasonText(activities: DuplicateActivity[], score: number): string {
  */
 export async function persistDuplicateGroups(
   userId: string,
-  groups: DuplicateCandidate[],
+  groups: DuplicateCandidate[]
 ): Promise<number> {
   let created = 0;
 
@@ -467,9 +484,7 @@ export interface ResolveOptions {
  * Resolve a duplicate group by keeping one activity and merging
  * metadata from the others, or marking them as duplicates.
  */
-export async function resolveDuplicateGroup(
-  options: ResolveOptions,
-): Promise<void> {
+export async function resolveDuplicateGroup(options: ResolveOptions): Promise<void> {
   const { groupId, userId, keepActivityId, resolution } = options;
 
   // Get all activities in the group — lightweight scalar fields only. rawJson
@@ -588,10 +603,7 @@ export async function resolveDuplicateGroup(
 /**
  * Mark a duplicate group as "keep both" (false positive).
  */
-export async function dismissDuplicateGroup(
-  groupId: string,
-  userId: string,
-): Promise<void> {
+export async function dismissDuplicateGroup(groupId: string, userId: string): Promise<void> {
   await prisma.duplicateGroup.update({
     where: { id: groupId, userId },
     data: {

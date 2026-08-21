@@ -129,7 +129,9 @@ export function PeriodSummary({ week, weeks, monthLabel }: PeriodSummaryProps) {
             label={t("elevation")}
             planned={stats.plannedElevation > 0 ? formatElevation(stats.plannedElevation) : "—"}
             actual={stats.actualElevation > 0 ? formatElevation(stats.actualElevation) : "—"}
-            fraction={stats.plannedElevation > 0 ? stats.actualElevation / stats.plannedElevation : 0}
+            fraction={
+              stats.plannedElevation > 0 ? stats.actualElevation / stats.plannedElevation : 0
+            }
           />
           <StatRow
             icon={<Clock className="h-3 w-3" />}
@@ -143,7 +145,9 @@ export function PeriodSummary({ week, weeks, monthLabel }: PeriodSummaryProps) {
             label={t("sessions")}
             planned={String(stats.plannedSessions)}
             actual={String(stats.completedSessions)}
-            fraction={stats.plannedSessions > 0 ? stats.completedSessions / stats.plannedSessions : 0}
+            fraction={
+              stats.plannedSessions > 0 ? stats.completedSessions / stats.plannedSessions : 0
+            }
           />
         </div>
       </CardContent>

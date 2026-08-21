@@ -114,7 +114,9 @@ export async function summarizeConversation(
 
 // ── List ──────────────────────────────────────────────
 
-export async function listConversations(userId: string): Promise<{ conversations: ConversationListItem[] }> {
+export async function listConversations(
+  userId: string
+): Promise<{ conversations: ConversationListItem[] }> {
   const conversations = await prisma.coachConversation.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
@@ -141,14 +143,32 @@ export async function listConversations(userId: string): Promise<{ conversations
 export async function getConversation(
   conversationId: string,
   userId: string
-): Promise<{
-  conversation: {
-    id: string; title: string | null; status: string;
-    contextSnapshot: unknown;
-    messages: Array<{ id: string; role: string; content: string; suggestionId: string | null; createdAt: string }>;
-    suggestions: Array<{ id: string; type: string; title: string; description: string; status: string; changes: unknown }>;
-  };
-} | { error: string; code: string }> {
+): Promise<
+  | {
+      conversation: {
+        id: string;
+        title: string | null;
+        status: string;
+        contextSnapshot: unknown;
+        messages: Array<{
+          id: string;
+          role: string;
+          content: string;
+          suggestionId: string | null;
+          createdAt: string;
+        }>;
+        suggestions: Array<{
+          id: string;
+          type: string;
+          title: string;
+          description: string;
+          status: string;
+          changes: unknown;
+        }>;
+      };
+    }
+  | { error: string; code: string }
+> {
   const conv = await prisma.coachConversation.findUnique({
     where: { id: conversationId },
     include: {

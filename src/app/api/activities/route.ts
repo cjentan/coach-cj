@@ -25,11 +25,15 @@ export async function GET(req: Request) {
   if (type && type !== "all") where.type = type;
   if (subType && subType !== "all") where.subType = subType;
   if (source && source !== "all") where.source = source;
-  if (from) where.startDate = { ...(where.startDate as object || {}), gte: parseClientDate(from, tzOffset) };
+  if (from)
+    where.startDate = {
+      ...((where.startDate as object) || {}),
+      gte: parseClientDate(from, tzOffset),
+    };
   if (to) {
     const endDate = parseClientDate(to, tzOffset);
     endDate.setUTCDate(endDate.getUTCDate() + 1); // exclusive next-day boundary in UTC
-    where.startDate = { ...(where.startDate as object || {}), lt: endDate };
+    where.startDate = { ...((where.startDate as object) || {}), lt: endDate };
   }
 
   const [logs, total] = await Promise.all([

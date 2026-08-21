@@ -38,7 +38,10 @@ export async function PUT(req: Request) {
 
   const parsed = saveSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid body" }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Invalid body" },
+      { status: 400 }
+    );
   }
 
   // Key semantics: omitted = keep, "" = clear, non-empty = set.
