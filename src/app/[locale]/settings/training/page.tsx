@@ -353,7 +353,7 @@ function BodyMetricsSection({ t, common }: { t: ReturnType<typeof useTranslation
     } catch (err) {
       setBmError(err instanceof Error ? err.message : settingsT("training.somethingWentWrong"));
     } finally { setBmLoading(false); }
-  }, []);
+  }, [settingsT]);
 
   useEffect(() => { fetchBm(); }, [fetchBm]);
 

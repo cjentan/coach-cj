@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -100,9 +100,12 @@ export default function AdminPage() {
   const timeoutIds = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
+    // Snapshot the ref's Set so cleanup clears the same timers even if other
+    // effects re-assign timeoutIds.current before unmount.
+    const ids = timeoutIds.current;
     return () => {
-      timeoutIds.current.forEach(clearTimeout);
-      timeoutIds.current.clear();
+      ids.forEach(clearTimeout);
+      ids.clear();
     };
   }, []);
 
@@ -121,7 +124,7 @@ export default function AdminPage() {
   const [engineSaving, setEngineSaving] = useState(false);
   const [engineSaved, setEngineSaved] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/users");
       if (res.status === 403) { router.push("/dashboard"); return; }
@@ -132,9 +135,9 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router, t]);
 
-  const fetchEmailSettings = async () => {
+  const fetchEmailSettings = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/email-settings");
       if (!res.ok) return;
@@ -147,9 +150,9 @@ export default function AdminPage() {
       }));
     } catch { /* ignore */ }
     setEmailLoading(false);
-  };
+  }, []);
 
-  const fetchPrompts = async () => {
+  const fetchPrompts = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/prompts");
       if (res.ok) {
@@ -158,9 +161,9 @@ export default function AdminPage() {
       }
     } catch { /* ignore */ }
     setPromptsLoading(false);
-  };
+  }, []);
 
-  const fetchEngine = async () => {
+  const fetchEngine = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/plan-engine");
       if (res.ok) {
@@ -169,7 +172,7 @@ export default function AdminPage() {
       }
     } catch { /* ignore */ }
     setEngineLoading(false);
-  };
+  }, []);
 
   const saveEngine = async () => {
     setEngineSaving(true);
@@ -210,7 +213,7 @@ export default function AdminPage() {
       fetchPrompts();
       fetchEngine();
     }
-  }, [status, router]);
+  }, [status, router, fetchUsers, fetchEmailSettings, fetchPrompts, fetchEngine]);
 
   async function generateResetLink(userId: string) {
     setGenerating(userId);
@@ -661,6 +664,10 @@ function PromptEditorCard({
   const [editValue, setEditValue] = useState(prompt.current);
   const isDefault = editValue === prompt.default;
 
+  // Keep the local editor in sync when the prompt's key/current value change.
+  // Depend on just those scalars (not the whole `prompt` object) so unrelated
+  // prop-identity changes don't wipe in-progress edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setEditValue(prompt.current); }, [prompt.key, prompt.current]);
 
   return (

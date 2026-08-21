@@ -274,6 +274,26 @@ export default function ActivitiesPage() {
     });
   }, []);
 
+  const loadAll = useCallback(
+    (cancelledRef?: { current: boolean }) => {
+      setLoading(true);
+      Promise.all([
+        fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`).then(r => r.json()),
+        fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
+        fetch("/api/activities/filter-options").then(r => r.json()),
+      ]).then(([logsData, stats, opts]) => {
+        if (cancelledRef?.current) return;
+        if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
+        const bars = stats.months || stats.weeks;
+        if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
+        if (opts.types) setFilterOptions(opts);
+      }).catch(() => {}).finally(() => {
+        if (!cancelledRef?.current) setLoading(false);
+      });
+    },
+    [dateFrom, dateTo, avgTypeFilter, avgSourceFilter, monthOffset, viewMode]
+  );
+
   const doSync = useCallback(async () => {
     if (syncing || connectedProviders.length === 0) return;
     setSyncing(true);
@@ -315,7 +335,7 @@ export default function ActivitiesPage() {
 
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => setSyncResult(null), 5000);
-  }, [syncing, connectedProviders]);
+  }, [syncing, connectedProviders, loadAll, t]);
 
   // Cleanup sync timer
   useEffect(() => {
@@ -376,47 +396,13 @@ export default function ActivitiesPage() {
 
   const [total, setTotal] = useState(0);
 
-  function loadAll(cancelledRef?: { current: boolean }) {
-    setLoading(true);
-    Promise.all([
-      fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`).then(r => r.json()),
-      fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
-      fetch("/api/activities/filter-options").then(r => r.json()),
-    ]).then(([logsData, stats, opts]) => {
-      if (cancelledRef?.current) return;
-      if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
-      const bars = stats.months || stats.weeks;
-      if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
-      if (opts.types) setFilterOptions(opts);
-    }).catch(() => {}).finally(() => {
-      if (!cancelledRef?.current) setLoading(false);
-    });
-  }
-
-  // Load on mount
+  // Load activity data on mount and whenever the filters/month/view change.
+  // keyed on the memoized `loadAll`, so it re-runs only when its inputs do.
   useEffect(() => {
     const cancelledRef = { current: false };
     loadAll(cancelledRef);
     return () => { cancelledRef.current = true; };
-  }, []);
-
-  // Reload when filters, month, or view mode change
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    Promise.all([
-      fetch(`/api/activities?limit=500&from=${dateFrom}&to=${dateTo}&type=${avgTypeFilter}&source=${avgSourceFilter}&tzOffset=${new Date().getTimezoneOffset()}`).then(r => r.json()),
-      fetch(`/api/activities/monthly-stats?offset=${monthOffset}&grouping=${viewMode}`).then(r => r.json()),
-    ]).then(([logsData, stats]) => {
-      if (cancelled) return;
-      if (logsData.logs) { setAllLogs(logsData.logs); setTotal(logsData.total); }
-      const bars = stats.months || stats.weeks;
-      if (bars) { setBarStats(bars); setCanGoBack(stats.canGoBack ?? true); }
-    }).catch(() => {}).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [avgTypeFilter, avgSourceFilter, dateFrom, dateTo, monthOffset, viewMode]);
+  }, [loadAll]);
 
   // ── Sync position state to URL ─────────────────────────────
   useEffect(() => {
@@ -550,10 +536,13 @@ export default function ActivitiesPage() {
 
   // Expand all weeks by default when month changes
   useEffect(() => {
-    if (visibleWeekGroups.length > 0 && expandedWeeks.size === 0) {
-      setExpandedWeeks(new Set(visibleWeekGroups.map(w => w.weekKey)));
-    }
-  }, [visibleWeekGroups.length]);
+    if (visibleWeekGroups.length === 0) return;
+    // Functional update reads the current expanded set without depending on it,
+    // so a manual collapse-to-zero won't re-trigger an automatic re-expansion.
+    setExpandedWeeks((prev) =>
+      prev.size === 0 ? new Set(visibleWeekGroups.map((w) => w.weekKey)) : prev
+    );
+  }, [visibleWeekGroups]);
 
   // ── Active bar stats ─────────────────────────────────
   const activeBar = barStats.find((m) => m.key === selectedBar);

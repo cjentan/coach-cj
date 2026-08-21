@@ -224,7 +224,7 @@ export default function DashboardPage() {
     return { direction: "flat", pct: 0 };
   }
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setFetchError("");
     try {
@@ -245,7 +245,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
     } finally {
       setLoading(false);
     }
-  }
+  }, [tzOffset, timeframeDays, common]);
 
   const fetchPmcHistory = useCallback(async (days: number) => {
     try {
@@ -296,7 +296,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
       newReadiness.set(goal.id, { readinessPct, status, volumeGap, elevationGap, tsbStatus, recommendations });
     }
     setRaceReadiness(newReadiness);
-  }, [goals, pmc, stats, readiness]);
+  }, [goals, pmc, stats, readiness, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,7 +317,7 @@ fetch(`/api/dashboard/intensity-distribution?days=${Math.min(timeframeDays, 365)
         .catch(() => { if (!cancelled) loadAll(); });
     }
     return () => { cancelled = true; };
-  }, [status, router]);
+  }, [status, router, loadAll]);
 
   useEffect(() => {
     if (status !== "authenticated") return;

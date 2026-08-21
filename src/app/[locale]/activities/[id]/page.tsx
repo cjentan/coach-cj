@@ -213,7 +213,7 @@ export default function ActivityDetailPage() {
       setAnalyzeError(err instanceof Error ? err.message : t("detail.analysisFailed"));
     }
     setAnalyzing(false);
-  }, [id]);
+  }, [id, t]);
 
   // Clear coach analysis
   const handleClearAnalysis = useCallback(async () => {
@@ -230,7 +230,7 @@ export default function ActivityDetailPage() {
     } catch {
       alert(t("detail.clearAnalysisFailed"));
     }
-  }, [id]);
+  }, [id, t]);
 
   // Carousel navigation — use preloaded data when available, fetch if not
   const navigateTo = useCallback((newId: string, preloadedLog?: TrainingLog | null) => {

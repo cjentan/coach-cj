@@ -26,7 +26,7 @@ import { parseClientDate } from "./utils";
 
 // ─── Exported Types ──────────────────────────────────────
 
-export interface CorosSyncResult {
+interface CorosSyncResult {
   activitiesImported: number;
   errors: string[];
 }

@@ -1,0 +1,27 @@
+# Build output
+.next/
+dist/
+dist-workers/
+coverage/
+playwright-report/
+test-results/
+
+# Dependencies / generated
+node_modules/
+package-lock.json
+prisma/
+
+# Local artifacts
+*.tgz
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Static data exports (large, machine-generated)
+strava_export/
+data/

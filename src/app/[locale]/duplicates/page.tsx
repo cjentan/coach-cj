@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -42,7 +42,7 @@ export default function DuplicatesPage() {
   // Track which activity is selected as the "keep" target per group
   const [selectedKeep, setSelectedKeep] = useState<Record<string, string>>({});
 
-  async function loadGroups() {
+  const loadGroups = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -55,9 +55,9 @@ export default function DuplicatesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [t]);
 
-  useEffect(() => { loadGroups(); }, []);
+  useEffect(() => { loadGroups(); }, [loadGroups]);
 
   async function handleScan() {
     setScanning(true);
@@ -150,11 +150,15 @@ export default function DuplicatesPage() {
 
   // Initialize default selections when groups load
   useEffect(() => {
-    const defaults: Record<string, string> = {};
-    for (const g of groups) {
-      defaults[g.id] = selectedKeep[g.id] || getDefaultKeep(g);
-    }
-    setSelectedKeep((prev) => ({ ...prev, ...defaults }));
+    // Read the current selectedKeep inside the functional updater so the effect
+    // only depends on `groups` (not every change to selectedKeep).
+    setSelectedKeep((prev) => {
+      const defaults: Record<string, string> = {};
+      for (const g of groups) {
+        defaults[g.id] = prev[g.id] || getDefaultKeep(g);
+      }
+      return { ...prev, ...defaults };
+    });
   }, [groups]);
 
   return (

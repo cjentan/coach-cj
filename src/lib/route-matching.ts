@@ -119,29 +119,3 @@ export function computeTrackSimilarity(
 
   return Math.round(((scoreAB + scoreBA) / 2) * 100);
 }
-
-// ─── Route fingerprint (for fast DB pre-filtering) ────────────
-
-export interface RouteFingerprint {
-  startLat: number;
-  startLon: number;
-  endLat: number;
-  endLon: number;
-  totalDistance: number;
-}
-
-/** Create a coarse fingerprint from trackpoints for DB queries. */
-export function createFingerprint(trackPoints: RoutePoint[], distanceMeters: number | null): RouteFingerprint | null {
-  if (trackPoints.length < 3) return null;
-  const first = trackPoints[0];
-  const last = trackPoints[trackPoints.length - 1];
-  if (!first.lat || !first.lon || !last.lat || !last.lon) return null;
-
-  return {
-    startLat: Math.round(first.lat * 1000) / 1000, // 3 decimal places ≈ 111m
-    startLon: Math.round(first.lon * 1000) / 1000,
-    endLat: Math.round(last.lat * 1000) / 1000,
-    endLon: Math.round(last.lon * 1000) / 1000,
-    totalDistance: distanceMeters || 0,
-  };
-}

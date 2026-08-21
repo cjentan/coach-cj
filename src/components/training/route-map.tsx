@@ -75,7 +75,7 @@ function MapContent({ points, expanded }: { points: RoutePoint[]; expanded: bool
       map.remove();
       mapInstance.current = null;
     };
-  }, [points]);
+  }, [points, t]);
 
   // Invalidate size when entering/leaving expanded mode
   useEffect(() => {

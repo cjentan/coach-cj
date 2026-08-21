@@ -53,7 +53,7 @@ export default function TrainingPlanPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [common, tp]);
 
   useEffect(() => {
     if (status !== "authenticated") return;

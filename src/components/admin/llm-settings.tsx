@@ -135,12 +135,15 @@ export default function LlmSettingsSection() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
-  const checkForbidden = (res: Response) => {
-    if (res.status === 403) router.push("/dashboard");
-    return res;
-  };
+  const checkForbidden = useCallback(
+    (res: Response) => {
+      if (res.status === 403) router.push("/dashboard");
+      return res;
+    },
+    [router]
+  );
 
-  const loadDefault = async () => {
+  const loadDefault = useCallback(async () => {
     try {
       const res = await checkForbidden(await fetch("/api/admin/llm-settings"));
       if (!res.ok) throw new Error(t("fetchFailed"));
@@ -157,7 +160,7 @@ export default function LlmSettingsSection() {
     } finally {
       setDefaultLoading(false);
     }
-  };
+  }, [checkForbidden, t]);
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -175,11 +178,11 @@ export default function LlmSettingsSection() {
     } finally {
       setUsersLoading(false);
     }
-  }, [skip, debouncedQuery, t, router]);
+  }, [skip, debouncedQuery, t, checkForbidden]);
 
   useEffect(() => {
     loadDefault();
-  }, []);
+  }, [loadDefault]);
 
   // Reset to first page when the search query changes.
   useEffect(() => {

@@ -18,7 +18,6 @@ import {
 import { mapFitSport } from "./sport-mappings";
 
 // fit-file-parser has no TypeScript types, so we use require-style import
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const FitParser = require("fit-file-parser").default;
 
 interface FitSession {

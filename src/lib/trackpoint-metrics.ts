@@ -72,7 +72,7 @@ export interface DecouplingResult {
   decouplingPct: number | null;
 }
 
-export interface EfficiencyFactorResult {
+interface EfficiencyFactorResult {
   /** Normalized Power / Average HR — higher = more efficient */
   ef: number | null;
   /** Trend: weekly EF values over the last N weeks */

@@ -57,7 +57,7 @@ export class GarminMFARequiredError extends Error {
 
 // ─── Exported Types ──────────────────────────────────────
 
-export interface GarminSyncResult {
+interface GarminSyncResult {
   activitiesImported: number;
   healthDaysSynced: number;
   errors: string[];
