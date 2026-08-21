@@ -671,6 +671,13 @@
       "saving": "保存中...",
       "save": "保存引擎"
     },
+    "review": {
+      "title": "手动复盘",
+      "description": "为所有拥有有效目标（active goal）的用户手动触发一次完整的周度复盘——包括 AI 教练分析、建议和下周计划。任务将在后台 worker 中运行。",
+      "trigger": "为所有用户运行复盘",
+      "running": "正在入队...",
+      "success": "已入队 {count} 个复盘任务。本周已完成复盘的 {skipped} 位用户已跳过。"
+    },
     "llm": {
       "defaultTitle": "所有用户的默认 LLM",
       "defaultDescription": "当用户未设置自己的提供商和 API 密钥时使用。将 API 密钥留空以保留当前密钥。",

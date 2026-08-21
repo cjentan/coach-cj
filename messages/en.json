@@ -677,6 +677,13 @@
       "saving": "Saving...",
       "save": "Save Engine"
     },
+    "review": {
+      "title": "Manual Review",
+      "description": "Manually trigger a full weekly review — AI coach analysis, recommendations, and next week's plan — for every user with an active goal. Jobs run in the background worker.",
+      "trigger": "Run review for all users",
+      "running": "Enqueuing jobs...",
+      "success": "Enqueued {count} review job(s). {skipped} user(s) already reviewed this week were skipped."
+    },
     "llm": {
       "defaultTitle": "Default LLM for all users",
       "defaultDescription": "Used as the fallback when a user has not set their own provider and API key. Leave the API key blank to keep the current one.",

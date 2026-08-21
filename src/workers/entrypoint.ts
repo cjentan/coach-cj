@@ -14,9 +14,9 @@ import { prisma } from "../lib/prisma";
 import { computePMC } from "../lib/pmc";
 import { detectFatigue } from "../lib/fatigue-detector";
 import { generateWeeklyPlan } from "../lib/plan-generator";
-import { getWeekStart } from "../lib/utils";
 import { analyze, analyzeActivityWorker } from "../lib/ai-coach";
 import { scheduleBatchAnalysis } from "../lib/activity-analysis-queue";
+import { sundayQueue, nextReviewWeekStart } from "../lib/review-queue";
 import { getGarminClient, syncGarminActivities, syncGarminHealthData } from "../lib/garmin";
 import { getCorosClient, syncCorosActivities } from "../lib/coros";
 
@@ -37,8 +37,9 @@ function gcNow(tag: string): void {
 }
 
 // ─── Queues ─────────────────────────────────────────────
+// Note: sundayQueue is imported from ../lib/review-queue so the scheduler and
+// the admin manual-trigger route share one queue definition.
 const fatigueQueue = new Queue("fatigue-monitor", { connection });
-const sundayQueue = new Queue("sunday-review", { connection });
 const garminQueue = new Queue("garmin-sync", { connection });
 const corosQueue = new Queue("coros-sync", { connection });
 const analysisQueue = new Queue("activity-analysis", { connection });
@@ -184,10 +185,27 @@ const sundayWorker = new Worker(
     });
 
     let plansCreated = 0;
-    const weekStart = getWeekStart(new Date());
-    weekStart.setDate(weekStart.getDate() + 7); // Next week's Monday
+    const weekStart = nextReviewWeekStart(); // Next week's Monday (the review target)
 
     for (const user of users) {
+      // Dedup that only registers after the review passes: the target week's
+      // plan gets a non-empty `coachNotes` only once its LLM analysis succeeds
+      // (set below), so a failed review — which leaves coachNotes empty — can
+      // be retried, while a successful one (or a colliding duplicate job for
+      // the same week) is skipped instead of re-running the analysis.
+      const priorPlan = await prisma.weeklyPlan.findUnique({
+        where: { userId_weekStartDate: { userId: user.id, weekStartDate: weekStart } },
+        select: { coachNotes: true },
+      });
+      if (priorPlan?.coachNotes) {
+        console.log(
+          `[sunday-review] User ${user.id}: already reviewed for ${weekStart
+            .toISOString()
+            .slice(0, 10)}, skipping`
+        );
+        continue;
+      }
+
       // Aggregate weekly volumes (last 4 weeks) — needed for the rule-based plan generator
       const now = Date.now();
       const weeklyVolumes: number[] = [];
@@ -503,14 +521,15 @@ async function scheduleRecurring() {
               if (daysSince < daysBetween) continue;
             }
 
+            // No enqueue-time dedup here: the only dedup that matters is the
+            // worker-side success check (target-week plan with coachNotes).
             await sundayQueue.add("review", { userId: user.id });
             processedReviews.set(key, Date.now());
             continue;
           }
 
           // Prevent duplicate runs this week
-          const weekStart = getWeekStart(now);
-          weekStart.setDate(weekStart.getDate() + 7); // next Monday
+          const weekStart = nextReviewWeekStart(now); // next Monday
           const key = `${user.id}:${weekStart.toISOString().split("T")[0]}`;
           if (processedReviews.has(key)) continue;
 

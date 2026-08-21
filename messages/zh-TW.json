@@ -671,6 +671,13 @@
       "saving": "儲存中...",
       "save": "儲存引擎"
     },
+    "review": {
+      "title": "手動複盤",
+      "description": "為所有擁有有效目標（active goal）的使用者手動觸發一次完整的週度複盤——包括 AI 教練分析、建議和下週計畫。任務將在背景 worker 中執行。",
+      "trigger": "為所有使用者執行複盤",
+      "running": "正在排入佇列...",
+      "success": "已排入 {count} 個複盤任務。本週已完成複盤的 {skipped} 位使用者已略過。"
+    },
     "llm": {
       "defaultTitle": "所有使用者的預設 LLM",
       "defaultDescription": "當使用者未設定自己的提供者和 API 金鑰時使用。將 API 金鑰留空以保留目前的金鑰。",

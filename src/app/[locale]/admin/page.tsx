@@ -39,6 +39,7 @@ import {
   Send,
   FileText,
   Brain,
+  RefreshCw,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { format } from "date-fns";
@@ -173,6 +174,14 @@ export default function AdminPage() {
   const [engineSaving, setEngineSaving] = useState(false);
   const [engineSaved, setEngineSaved] = useState(false);
 
+  // ── Manual review trigger state ──
+  const [reviewRunning, setReviewRunning] = useState(false);
+  const [reviewResult, setReviewResult] = useState<{
+    enqueued: number;
+    skipped: number;
+  } | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/users");
@@ -250,6 +259,25 @@ export default function AdminPage() {
     }
     setEngineSaving(false);
   };
+
+  async function runManualReview() {
+    setReviewRunning(true);
+    setReviewError(null);
+    setReviewResult(null);
+    try {
+      const res = await fetch("/api/admin/run-analysis", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setReviewError(data.error || t("saveFailed"));
+        return;
+      }
+      setReviewResult({ enqueued: data.enqueued, skipped: data.skipped });
+    } catch {
+      setReviewError(t("networkError"));
+    } finally {
+      setReviewRunning(false);
+    }
+  }
 
   const savePrompt = async (key: string, value: string) => {
     setPromptsSaving((p) => ({ ...p, [key]: true }));
@@ -816,6 +844,46 @@ export default function AdminPage() {
                         </>
                       ) : (
                         t("planEngine.save")
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Manual review trigger */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <RefreshCw className="h-5 w-5" /> {t("review.title")}
+                  </CardTitle>
+                  <CardDescription>{t("review.description")}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {reviewError && (
+                      <div className="flex items-center gap-2 text-sm text-destructive">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>{reviewError}</span>
+                      </div>
+                    )}
+                    {reviewResult && (
+                      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                        <Check className="h-4 w-4 shrink-0" />
+                        <span>
+                          {t("review.success", {
+                            count: reviewResult.enqueued,
+                            skipped: reviewResult.skipped,
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    <Button onClick={runManualReview} disabled={reviewRunning}>
+                      {reviewRunning ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {t("review.running")}
+                        </>
+                      ) : (
+                        t("review.trigger")
                       )}
                     </Button>
                   </div>
