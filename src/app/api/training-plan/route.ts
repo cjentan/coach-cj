@@ -200,20 +200,26 @@ export async function GET(request: Request) {
 
   const planStartDate = earliestPlan.weekStartDate;
 
-  // 2. Determine plan end date (nearest active RaceGoal, or +24 weeks)
-  const nearestGoal = await prisma.raceGoal.findFirst({
-    where: { userId, status: "active" },
-    orderBy: { targetDate: "asc" },
-    select: { targetDate: true },
+  // 2. Determine plan end date.
+  //    Plans are generated across the full set of active goals and can span many
+  //    months (Aug→Dec in the multi-race case), so the end must be derived from
+  //    the plan's own extent rather than truncated at the *earliest* active race
+  //    goal — that earlier logic hid every week after the first race. The end is
+  //    the later of:
+  //      - the end of the last generated week (+6 days), and
+  //      - a 24-week default window from plan start / today (keeps the calendar's
+  //        future activity overlay working even for a short/partial plan).
+  const latestPlan = await prisma.weeklyPlan.findFirst({
+    where: { userId },
+    orderBy: { weekStartDate: "desc" },
+    select: { weekStartDate: true },
   });
 
   const now = new Date();
-  // Default plan end: 24 weeks from the earlier of planStart or today
+  const latestPlanEnd = (latestPlan?.weekStartDate.getTime() ?? 0) + 6 * 86400000;
   const defaultEnd = earliestPlan.weekStartDate.getTime() + 84 * 86400000;
   const todayEnd = now.getTime() + 84 * 86400000;
-  const planEndDate = nearestGoal
-    ? nearestGoal.targetDate
-    : new Date(Math.max(defaultEnd, todayEnd));
+  const planEndDate = new Date(Math.max(latestPlanEnd, defaultEnd, todayEnd));
 
   // 3. Fetch all WeeklyPlan records in the plan range
   const dbPlans = await prisma.weeklyPlan.findMany({
