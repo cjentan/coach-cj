@@ -91,6 +91,11 @@ COPY --from=builder /app/public ./public
 # Prisma migration files (needed by prisma migrate deploy in entrypoint)
 COPY --from=builder /app/prisma ./prisma
 
+# CHANGELOG.md — the Settings → About page reads it from disk at build AND
+# request time, so it must exist in the runtime image (standalone doesn't
+# carry repo files).
+COPY --from=builder /app/CHANGELOG.md ./
+
 # Install prisma CLI globally so the entrypoint can run migrations.
 # Pin to v5 to match the project's Prisma version — v7 dropped datasource.url support in schema.
 RUN npm install -g prisma@5

@@ -7,4 +7,5 @@ strava_export/
 .env.local
 .env.production
 *.md
+!CHANGELOG.md
 .git/
