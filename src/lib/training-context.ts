@@ -189,6 +189,23 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     }),
   ]);
 
+  // ── Anchor goal resolution ─────────────────────────────
+  // A training plan is anchored to the race it was created for (WeeklyPlan.
+  // anchorGoalId). Keep that race as the "primary goal" (goals[0]) so the
+  // anchor doesn't drift when new races are added later. Falls back to the
+  // default ordering (priority, then target date) when there is no plan or the
+  // anchored race is no longer active.
+  const anchorGoal = latestPlan?.anchorGoalId
+    ? goals.find((g) => g.id === latestPlan.anchorGoalId)
+    : undefined;
+  if (anchorGoal) {
+    const anchorIndex = goals.indexOf(anchorGoal);
+    if (anchorIndex > 0) {
+      goals.splice(anchorIndex, 1);
+      goals.unshift(anchorGoal);
+    }
+  }
+
   // Compute plan end date from goals (use nearest goal, or 12 weeks out)
   const planEndDate = goals.length > 0
     ? goals.reduce((earliest, g) => g.targetDate < earliest ? g.targetDate : earliest, goals[0].targetDate)

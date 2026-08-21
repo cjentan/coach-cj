@@ -9,6 +9,7 @@ const mockPrisma = vi.hoisted(() => ({
   bodyMetric: { findMany: vi.fn(), findFirst: vi.fn() },
   dailyHealth: { findFirst: vi.fn() },
   user: { findUnique: vi.fn() },
+  weeklyPlan: { findFirst: vi.fn() },
   weeklyAssessment: { upsert: vi.fn() },
 }));
 
@@ -39,6 +40,7 @@ describe('snapshotWeek', () => {
     mockPrisma.bodyMetric.findFirst.mockResolvedValueOnce(null);
     mockPrisma.trainingLog.findFirst.mockResolvedValueOnce(null);
     mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+    mockPrisma.weeklyPlan.findFirst.mockResolvedValueOnce(null);
     mockPrisma.weeklyAssessment.upsert.mockResolvedValue({} as any);
   }
 

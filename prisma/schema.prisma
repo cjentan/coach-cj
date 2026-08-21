@@ -201,6 +201,7 @@ model WeeklyPlan {
   overridesExisting     Boolean  @default(false) @map("overrides_existing")
   createdAt             DateTime @default(now()) @map("created_at")
   adjustmentHistory     Json?    @map("adjustment_history")
+  anchorGoalId          String?  @map("anchor_goal_id")
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, weekStartDate])

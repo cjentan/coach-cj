@@ -25,7 +25,7 @@ export async function snapshotWeek(
   // ── Fetch data ──────────────────────────────────────────────
   const ninetyDaysBeforeEnd = new Date(weekEnd.getTime() - 90 * 86400000);
 
-  const [weekLogs, pmcLogs, goals, bodyMetrics, restHr, maxHr] =
+  const [weekLogs, pmcLogs, goals, bodyMetrics, restHr, maxHr, anchorPlan] =
     await Promise.all([
       // This week's logs (exclude merged duplicates)
       prisma.trainingLog.findMany({
@@ -80,7 +80,26 @@ export async function snapshotWeek(
       // maxHr is the user-level effective max (estimated > user-set > default).
       getLatestRestingHr(userId),
       getEffectiveMaxHr(userId),
+      // Most recent plan's anchor race — the race the current plan was created
+      // for, so the "primary goal" stays fixed even if new races are added.
+      prisma.weeklyPlan.findFirst({
+        where: { userId, anchorGoalId: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: { anchorGoalId: true },
+      }),
     ]);
+
+  // Keep the anchored race as the primary goal (goals[0]) when it's still active.
+  const anchorGoal = anchorPlan?.anchorGoalId
+    ? goals.find((g) => g.id === anchorPlan.anchorGoalId)
+    : undefined;
+  if (anchorGoal) {
+    const anchorIndex = goals.indexOf(anchorGoal);
+    if (anchorIndex > 0) {
+      goals.splice(anchorIndex, 1);
+      goals.unshift(anchorGoal);
+    }
+  }
 
   // ── Weekly aggregates ───────────────────────────────────────
   const weeklyVolume = weekLogs.reduce(
