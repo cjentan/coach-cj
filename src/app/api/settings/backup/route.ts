@@ -389,6 +389,7 @@ async function performBackup(userId: string, statusFile: string) {
       coachNotes: p.coachNotes,
       overridesExisting: p.overridesExisting,
       adjustmentHistory: p.adjustmentHistory,
+      anchorGoalId: p.anchorGoalId,
       createdAt: p.createdAt.toISOString(),
     }))
   );

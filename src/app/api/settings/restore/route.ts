@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
 import type {
   BackupSettings,
   SerializedActivity,
@@ -235,7 +234,6 @@ export async function POST(request: NextRequest) {
               calories: l.calories ?? null,
               tss: l.tss ?? null,
               workoutType: l.workoutType ?? null,
-              rawJson: rawJsonMap.get(l.id) as Prisma.InputJsonValue | undefined,
               simplifiedTrackPoints: l.simplifiedTrackPoints ?? undefined,
               trackMinLat: l.trackMinLat ?? null,
               trackMaxLat: l.trackMaxLat ?? null,
@@ -258,6 +256,38 @@ export async function POST(request: NextRequest) {
             })),
           });
           counts.trainingLogs = activities.length;
+
+          // ── 9b. Restore rawJson (GPS) per activity, in small batches ──
+          // rawJson blobs can exceed the single-string limit (a combined payload
+          // of all activities can be >500MB and blow up JSON.stringify in the
+          // createMany above), so they are written back row-by-row in small
+          // batches instead of being embedded in it. Mirrors backup's batched
+          // rawJson handling.
+          const rawEntries = Array.from(rawJsonMap.entries());
+          if (rawEntries.length > 0) {
+            const batchSize = 5;
+            for (let i = 0; i < rawEntries.length; i += batchSize) {
+              const chunk = rawEntries.slice(i, i + batchSize);
+              const ids: string[] = [];
+              const raws: string[] = [];
+              for (const [oldId, raw] of chunk) {
+                const newId = trainingLogIdMap.get(oldId);
+                if (!newId) continue;
+                ids.push(newId);
+                raws.push(typeof raw === "string" ? raw : JSON.stringify(raw));
+              }
+              if (ids.length === 0) continue;
+              await tx.$executeRawUnsafe(
+                `UPDATE training_logs AS tl
+                   SET raw_json = v.raw
+                   FROM (SELECT * FROM unnest($1::text[], $2::jsonb[])) AS v(id, raw)
+                   WHERE tl.id = v.id`,
+                ids,
+                raws
+              );
+            }
+            counts.rawJsonActivities = rawEntries.length;
+          }
         }
 
         // ── 10. Import RaceGoals ─────────────────────────────────────
@@ -344,6 +374,7 @@ export async function POST(request: NextRequest) {
               coachNotes: p.coachNotes ?? null,
               overridesExisting: p.overridesExisting ?? false,
               adjustmentHistory: p.adjustmentHistory ?? undefined,
+              anchorGoalId: p.anchorGoalId ?? null,
               createdAt: new Date(p.createdAt),
             })),
           });

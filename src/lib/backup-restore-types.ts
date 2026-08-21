@@ -175,6 +175,7 @@ export interface SerializedWeeklyPlan {
   coachNotes: string | null;
   overridesExisting: boolean;
   adjustmentHistory: unknown;
+  anchorGoalId: string | null;
   createdAt: string;
 }
 
