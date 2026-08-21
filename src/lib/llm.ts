@@ -4,10 +4,14 @@
  * All use OpenAI-compatible chat completions.
  *
  * Users can configure their own API key in Settings → API Credentials,
- * or the server can provide a default DeepSeek API key via the
- * DEEPSEEK_API_KEY environment variable — enabling AI features for all
- * users without per-user configuration.
+ * and the server can provide a default via the admin LLM settings page
+ * (stored in the DB) — enabling AI features for all users without
+ * per-user config.
  */
+
+import { PROVIDER_BASE_URLS, PROVIDER_MODELS } from "./llm-providers";
+
+export { PROVIDER_BASE_URLS, PROVIDER_MODELS } from "./llm-providers";
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -61,48 +65,23 @@ export function isLlmConfigured(apiKey?: string, provider?: string): boolean {
 }
 
 /**
- * Check if a server-wide default DeepSeek API key is configured via env var.
+ * Return the server-default LLM config: the admin-configured default (DB),
+ * used when a provider + model are set and a key exists (or the provider is
+ * Ollama, which needs no key). Returns null when none is configured.
  */
-export function hasServerDefaultKey(): boolean {
-  return !!(process.env.DEEPSEEK_API_KEY && process.env.DEEPSEEK_API_KEY.length > 8);
+export async function getDefaultLlmConfig(): Promise<{ apiKey: string; baseUrl: string; model: string; provider: string } | null> {
+  const { getAdminLlmDefault } = await import("./llm-defaults");
+  const adminDefault = await getAdminLlmDefault();
+  if (adminDefault.provider && adminDefault.model && (adminDefault.apiKey || adminDefault.provider === "ollama")) {
+    return {
+      apiKey: adminDefault.apiKey,
+      baseUrl: adminDefault.baseUrl || PROVIDER_BASE_URLS[adminDefault.provider] || "",
+      model: adminDefault.model,
+      provider: adminDefault.provider,
+    };
+  }
+  return null;
 }
-
-/**
- * Return the server-default LLM config (DeepSeek via env var).
- * Returns null when DEEPSEEK_API_KEY is not set.
- */
-export function getDefaultLlmConfig(): { apiKey: string; baseUrl: string; model: string; provider: string } | null {
-  const key = process.env.DEEPSEEK_API_KEY;
-  if (!key || key.length <= 8) return null;
-  return {
-    apiKey: key,
-    baseUrl: PROVIDER_BASE_URLS.deepseek,
-    model: "deepseek-v4-flash",
-    provider: "deepseek",
-  };
-}
-
-/**
- * Provider → default base URL map.
- */
-export const PROVIDER_BASE_URLS: Record<string, string> = {
-  openai: "https://api.openai.com/v1",
-  deepseek: "https://api.deepseek.com/v1",
-  deepinfra: "https://api.deepinfra.com/v1/openai",
-  anthropic: "https://api.anthropic.com/v1",
-  ollama: "http://localhost:11434/v1",
-};
-
-/**
- * Provider → available models.
- */
-export const PROVIDER_MODELS: Record<string, string[]> = {
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-  deepseek: ["deepseek-v4-flash"],
-  deepinfra: ["deepseek-ai/DeepSeek-V4-Flash-0731"],
-  anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
-  ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
-};
 
 /**
  * Shared: send a chat completion request with full body control.
@@ -278,8 +257,8 @@ export async function ask(
 
 /**
  * Fetch a user's LLM configuration from the database.
- * Falls back to the server-default DeepSeek key (env DEEPSEEK_API_KEY)
- * when the user hasn't configured their own API key.
+ * Falls back to the admin-configured server default when the user hasn't
+ * configured their own key.
  */
 export async function resolveUserLlmConfig(
   userId: string
@@ -300,8 +279,8 @@ export async function resolveUserLlmConfig(
     };
   }
 
-  // Fall back to server-default DeepSeek key
-  const defaults = getDefaultLlmConfig();
+  // Fall back to the admin-configured server default
+  const defaults = await getDefaultLlmConfig();
   if (defaults) {
     return defaults;
   }

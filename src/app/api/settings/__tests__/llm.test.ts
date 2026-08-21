@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET, PUT } from '../llm/route';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
+import { getDefaultLlmConfig } from '@/lib/llm';
 import { createRequest, jsonRequest } from '@/test/utils';
 
 vi.mock('next-auth');
@@ -16,7 +17,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/llm', () => ({
   isLlmConfigured: vi.fn(),
-  hasServerDefaultKey: vi.fn(() => false),
+  getDefaultLlmConfig: vi.fn(async () => null),
   PROVIDER_BASE_URLS: {
     deepseek: 'https://api.deepseek.com',
     deepinfra: 'https://api.deepinfra.com/v1/openai',
@@ -65,6 +66,31 @@ describe('GET /api/settings/llm', () => {
     const body = await res.json();
     expect(body.hasUserKey).toBe(false);
     expect(body.configured).toBe(false);
+  });
+
+  it('shows configured=true and the default provider/model when a server default is set', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: 'test-user' } } as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      llmApiKey: null,
+      llmBaseUrl: null,
+      llmModel: null,
+      llmProvider: null,
+    } as any);
+    vi.mocked(getDefaultLlmConfig).mockResolvedValue({
+      apiKey: 'sk-default',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      provider: 'openai',
+    });
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.hasServerDefault).toBe(true);
+    expect(body.defaultProvider).toBe('openai');
+    expect(body.defaultModel).toBe('gpt-4o');
+    expect(body.hasUserKey).toBe(false);
+    expect(body.configured).toBe(true);
   });
 });
 

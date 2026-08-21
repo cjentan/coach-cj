@@ -3,7 +3,7 @@
  * troubleshooting. Calls approvePlanProposalV2 directly against the real DB,
  * capturing all [plan-v2] / [llm] / [coach] console output to stdout.
  *
- * Run from repo root (so prisma loads .env + DEEPSEEK_API_KEY):
+ * Run from repo root (so prisma loads .env):
  *   USER_ID=962f701b-a2d2-445e-b52b-873cf9948ea8 \
  *   CONVERSATION_ID=6f933db2-3d01-4ffb-8178-abaded3020b0 \
  *   npx tsx scripts/bench-plan.ts 2>&1 | tee /tmp/plan-v2-bench.log

@@ -14,10 +14,11 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Users, Key, Copy, Check, Shield, ShieldOff, Activity,
   Target, Dumbbell, Scale, AlertTriangle, Calendar, Loader2,
-  Watch, Radio, UserCheck, Mail, Settings2, Send, FileText,
+  Watch, Radio, UserCheck, Mail, Settings2, Send, FileText, Brain,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { format } from "date-fns";
+import LlmSettingsSection from "@/components/admin/llm-settings";
 
 interface UserSummary {
   id: string; email: string; name: string; role: string; createdAt: string;
@@ -326,6 +327,9 @@ export default function AdminPage() {
           <TabsTrigger value="training-plan" className="gap-2">
             <Calendar className="h-4 w-4" /> {t("tabs.trainingPlan")}
           </TabsTrigger>
+          <TabsTrigger value="llm" className="gap-2">
+            <Brain className="h-4 w-4" /> {t("tabs.llm")}
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Users Tab ── */}
@@ -631,6 +635,11 @@ export default function AdminPage() {
               </Card>
             </div>
           )}
+        </TabsContent>
+
+        {/* ── LLM Settings Tab ── */}
+        <TabsContent value="llm">
+          <LlmSettingsSection />
         </TabsContent>
       </Tabs>
     </div>

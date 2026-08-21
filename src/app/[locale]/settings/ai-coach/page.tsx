@@ -13,22 +13,7 @@ import {
   Zap, Server, Send, CheckCircle2, XCircle, Loader2 as Spinner,
 } from "lucide-react";
 import { LONG_DAY_NAMES } from "@/lib/constants";
-
-const PROVIDER_BASE_URLS: Record<string, string> = {
-  openai: "https://api.openai.com/v1",
-  deepseek: "https://api.deepseek.com/v1",
-  deepinfra: "https://api.deepinfra.com/v1/openai",
-  anthropic: "https://api.anthropic.com/v1",
-  ollama: "http://localhost:11434/v1",
-};
-
-const PROVIDER_MODELS: Record<string, string[]> = {
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-  deepseek: ["deepseek-v4-flash"],
-  deepinfra: ["deepseek-ai/DeepSeek-V4-Flash-0731"],
-  anthropic: ["claude-sonnet-4-20250514", "claude-3-5-sonnet-latest", "claude-3-opus-latest", "claude-3-haiku-latest"],
-  ollama: ["llama3", "mistral", "mixtral", "codellama", "gemma"],
-};
+import { PROVIDER_BASE_URLS, PROVIDER_MODELS, PROVIDER_LABELS } from "@/lib/llm-providers";
 
 const QUICK_PROMPTS = [
   { labelKey: "quickTrainingWeek", promptKey: "credentials.quickPrompts.0" },
@@ -180,6 +165,8 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
   const [llmSaved, setLlmSaved] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
   const [hasServerDefault, setHasServerDefault] = useState(false);
+  const [defaultProvider, setDefaultProvider] = useState("");
+  const [defaultModel, setDefaultModel] = useState("");
   const [showLlmKey, setShowLlmKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const llmSavedTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -201,6 +188,8 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
       .then((data) => {
         setHasStoredKey(data.hasUserKey);
         setHasServerDefault(data.hasServerDefault);
+        setDefaultProvider(data.defaultProvider || "");
+        setDefaultModel(data.defaultModel || "");
         setLlmBaseUrl(data.llmBaseUrl || "");
         setLlmModel(data.llmModel || "");
         setLlmProvider(data.llmProvider || "");
@@ -231,7 +220,7 @@ function AiProviderSection({ t, common }: { t: ReturnType<typeof useTranslations
         {hasServerDefault && !hasStoredKey && !llmApiKey && !llmProvider && (
           <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-sm flex items-center gap-2">
             <Check className="h-4 w-4 shrink-0" />
-            <span>{t("serverDefaultNotice")}</span>
+            <span>{t("serverDefaultNotice", { provider: PROVIDER_LABELS[defaultProvider] || defaultProvider, model: defaultModel })}</span>
           </div>
         )}
         {hasStoredKey && !llmApiKey && !llmProvider && (

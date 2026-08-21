@@ -29,8 +29,9 @@ export async function POST(req: Request) {
   const config = await resolveUserLlmConfig(session.user.id);
 
   if (!isLlmConfigured(config.apiKey, config.provider)) {
-    const msg = getDefaultLlmConfig()
-      ? "Server default DeepSeek key is set but appears invalid. Check the DEEPSEEK_API_KEY environment variable."
+    const hasDefault = await getDefaultLlmConfig();
+    const msg = hasDefault
+      ? "Server default LLM key is set but appears invalid. Check the admin LLM settings."
       : "No API key configured. Go to Settings → API Credentials to set up your AI provider.";
     return NextResponse.json({
       success: false,
