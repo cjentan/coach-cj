@@ -11,7 +11,7 @@
  * of `ai-coach-tools` keep working unchanged.
  */
 import { prisma } from "./prisma";
-import { getWeekStart } from "./utils";
+import { getWeekStart, weekStartPlusDay } from "./utils";
 import {
   UPDATE_TRAINING_CONTEXT_TOOL,
   MANAGE_GOALS_TOOL,
@@ -313,8 +313,7 @@ async function executeUpdateWeeklyPlan(
     validSessions = [];
     for (const s of rawSessions) {
       const dow = s.dayOfWeek as number;
-      const sessionDate = new Date(weekStart);
-      sessionDate.setDate(sessionDate.getDate() + dow);
+      const sessionDate = weekStartPlusDay(weekStart, dow);
       if (sessionDate < todayStart) {
         perDayChanges.push({ dayOfWeek: dow, reason: "Skipped — this day has already passed" });
       } else {
@@ -501,8 +500,7 @@ async function executeUpdateTrainingDay(
   // Reject changes to days that have already passed
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const sessionDate = new Date(weekStart);
-  sessionDate.setDate(sessionDate.getDate() + dayOfWeek);
+  const sessionDate = weekStartPlusDay(weekStart, dayOfWeek);
   if (sessionDate < todayStart) {
     const dateStr = `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, "0")}-${String(sessionDate.getDate()).padStart(2, "0")}`;
     return {
@@ -658,8 +656,7 @@ export async function executeCreateTrainingPhase(
 
     for (const s of sessions) {
       const dow = s.dayOfWeek as number;
-      const sessionDate = new Date(weekStart);
-      sessionDate.setDate(sessionDate.getDate() + dow);
+      const sessionDate = weekStartPlusDay(weekStart, dow);
 
       if (sessionDate < todayStart) {
         perDayChanges.push({ dayOfWeek: dow, reason: "Skipped — this day has already passed" });

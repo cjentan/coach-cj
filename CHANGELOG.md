@@ -7,6 +7,11 @@ All notable changes to **Coach** are documented in this file. The format is base
 The version is tracked in `package.json` (`APP_VERSION`) and rendered in **Settings → About**.
 On each release, bump `package.json#version` and move/add a dated entry below `## [Unreleased]`.
 
+## [Unreleased]
+
+### Fixed
+- **AI Coach "this day has already passed" guard**: the coach could no longer edit a **Sunday** (and sometimes other days) in the current week because the check resolved the weekday slot against the week's **Monday** instead of the real date — an off-by-one between the `0=Sunday..6=Saturday` convention and the Monday-anchored week. Editing *Sunday, 23 Aug* therefore reported *"Cannot change Sunday (2026-08-17) — this day has already passed"* (2026-08-17 being the Monday). The guard now maps each slot to its true calendar date, so future days stay editable and genuinely past days are still rejected.
+
 ## [1.0.0] - 2026-08-21
 
 Baseline release — the first versioned build of Coach.

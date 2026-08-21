@@ -11,6 +11,7 @@ import {
   getCurrentUnits,
   getWeekStart,
   getWeekEnd,
+  weekStartPlusDay,
   getMonthStart,
   getMonthEnd,
   haversine,
@@ -248,6 +249,32 @@ describe("getWeekStart / getWeekEnd", () => {
     const result = getWeekStart(new Date("2025-01-15"));
     expect(result.getUTCDay()).toBe(1); // Monday
     expect(result.getUTCDate()).toBe(13);
+  });
+
+  it("weekStartPlusDay maps the Sunday slot to the real Sunday, not the Monday", () => {
+    // Regression: the week Monday 2026-08-17 .. Sunday 2026-08-23. The Sunday
+    // slot (0) must resolve to Aug 23, never to the week's Monday (Aug 17).
+    const monday = getWeekStart(new Date("2026-08-23"));
+    expect(monday.getUTCDate()).toBe(17);
+    const sunday = weekStartPlusDay(monday, 0);
+    expect(sunday.getUTCDate()).toBe(23);
+    expect(sunday.getUTCDay()).toBe(0); // Sunday
+  });
+
+  it("weekStartPlusDay maps each slot 0..6 to its weekday offset from Monday", () => {
+    // Monday Aug 17: slot 0=Sun(+6), 1=Mon(+0), 2=Tue(+1) ... 6=Sat(+5)
+    const monday = getWeekStart(new Date("2026-08-17"));
+    const expectedDates = [23, 17, 18, 19, 20, 21, 22]; // Sun..Sat
+    [0, 1, 2, 3, 4, 5, 6].forEach((dow) => {
+      expect(weekStartPlusDay(monday, dow).getUTCDate()).toBe(expectedDates[dow]);
+    });
+  });
+
+  it("weekStartPlusDay leaves the input date unchanged", () => {
+    const monday = getWeekStart(new Date("2026-08-17"));
+    const before = monday.getTime();
+    weekStartPlusDay(monday, 6);
+    expect(monday.getTime()).toBe(before);
   });
 
   it("getWeekEnd returns 6 days after start", () => {

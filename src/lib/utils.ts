@@ -374,6 +374,20 @@ export function getWeekStart(date: Date): Date {
 }
 
 /**
+ * Return the calendar date of a weekday slot within the week that starts on
+ * `weekStart` (a Monday). `dayOfWeek` uses the app-wide convention
+ * (0=Sunday..6=Saturday, matching Date#getUTCDay and the coach-tool docs), so
+ * it is NOT a plain day-offset from Monday: Sunday(0) is +6 days from Monday,
+ * Monday(1) is +0, Tuesday(2) is +1, ..., Saturday(6) is +5. Treating it as a
+ * raw offset from the Monday would shift every slot by one (Sunday↔Monday).
+ */
+export function weekStartPlusDay(weekStart: Date, dayOfWeek: number): Date {
+  const d = new Date(weekStart);
+  d.setUTCDate(d.getUTCDate() + ((dayOfWeek + 6) % 7));
+  return d;
+}
+
+/**
  * Return the Sunday of the week containing `date`, at 23:59:59.999 UTC.
  */
 export function getWeekEnd(date: Date): Date {
