@@ -1069,6 +1069,15 @@
     "aiCoachTab": "AI Coach",
     "connectionsTab": "Connections",
     "dataTab": "Data",
+    "aboutTab": "About",
+    "about": {
+      "title": "About",
+      "description": "App version and change log.",
+      "versionLabel": "Version",
+      "appStatement": "Coach — training intelligence for endurance athletes: goal-based weekly plans, fatigue detection, and a readiness score.",
+      "changelogTitle": "Change Log",
+      "changelogDesc": "Notable changes by release."
+    },
     "integrations": {
       "title": "Integrations",
       "description": "Connect external services to auto-import your training and health data.",

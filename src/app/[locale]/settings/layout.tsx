@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import { User, Target, Brain, Plug, Shield } from "lucide-react";
+import { User, Target, Brain, Plug, Shield, Info } from "lucide-react";
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("settings");
@@ -16,6 +16,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     { href: "/settings/ai-coach", label: t("aiCoachTab"), icon: Brain },
     { href: "/settings/connections", label: t("connectionsTab"), icon: Plug },
     { href: "/settings/data", label: t("dataTab"), icon: Shield },
+    { href: "/settings/about", label: t("aboutTab"), icon: Info },
   ];
 
   return (

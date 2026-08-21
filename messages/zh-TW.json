@@ -1069,6 +1069,15 @@
     "aiCoachTab": "AI 教練",
     "connectionsTab": "連線",
     "dataTab": "資料",
+    "aboutTab": "關於",
+    "about": {
+      "title": "關於",
+      "description": "應用程式版本與更新日誌。",
+      "versionLabel": "版本",
+      "appStatement": "Coach —— 耐力運動員的訓練智慧：以目標為基礎的每週計畫、疲勞偵測與狀態評分。",
+      "changelogTitle": "更新日誌",
+      "changelogDesc": "各版本的重要變更。"
+    },
     "integrations": {
       "title": "整合",
       "description": "連接外部服務以自動匯入您的訓練和健康資料。",

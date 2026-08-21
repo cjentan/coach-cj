@@ -1069,6 +1069,15 @@
     "aiCoachTab": "AI 教练",
     "connectionsTab": "连接",
     "dataTab": "数据",
+    "aboutTab": "关于",
+    "about": {
+      "title": "关于",
+      "description": "应用版本与更新日志。",
+      "versionLabel": "版本",
+      "appStatement": "Coach —— 耐力运动员的训练智能：基于目标的每周计划、疲劳检测和状态评分。",
+      "changelogTitle": "更新日志",
+      "changelogDesc": "各版本的重要变更。"
+    },
     "integrations": {
       "title": "集成",
       "description": "连接外部服务以自动导入您的训练和健康数据。",
