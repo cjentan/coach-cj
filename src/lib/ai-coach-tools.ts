@@ -11,7 +11,7 @@
  * of `ai-coach-tools` keep working unchanged.
  */
 import { prisma } from "./prisma";
-import { getWeekStart, weekStartPlusDay } from "./utils";
+import { getWeekStart, weekStartPlusDay, parseClientDate } from "./utils";
 import {
   UPDATE_TRAINING_CONTEXT_TOOL,
   MANAGE_GOALS_TOOL,
@@ -62,7 +62,8 @@ export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
   userId: string,
-  onProgress?: ToolProgressCallback
+  onProgress?: ToolProgressCallback,
+  tzOffset = 0
 ): Promise<ToolExecutionResult> {
   switch (toolName) {
     case "update_training_context":
@@ -78,7 +79,7 @@ export async function executeTool(
     case "update_training_day":
       return executeUpdateTrainingDay(userId, args);
     case "query_activities":
-      return executeQueryActivities(userId, args);
+      return executeQueryActivities(userId, args, tzOffset);
     case "create_training_phase":
       return executeCreateTrainingPhase(userId, args, onProgress);
     case "lookup_race":
@@ -758,7 +759,8 @@ export async function executeCreateTrainingPhase(
 
 async function executeQueryActivities(
   userId: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  tzOffset = 0
 ): Promise<ToolExecutionResult> {
   const activityType = args.type as string | undefined;
   const since = args.since as string | undefined;
@@ -772,9 +774,19 @@ async function executeQueryActivities(
   const where: Record<string, unknown> = { userId, mergedIntoId: null };
   if (activityType) where.type = activityType;
   if (since || until) {
+    // `since`/`until` are athlete-local calendar dates ("YYYY-MM-DD") that the
+    // LLM derives from the conversation. Activities are stored as UTC instants,
+    // so shift the whole day window into UTC using the browser-reported offset
+    // (negative for UTC+). Without this, a "22 August" query misses a run that
+    // happened on Aug 22 local time but was recorded at 2026-08-21T21:09Z.
     const dateFilter: Record<string, Date> = {};
-    if (since) dateFilter.gte = new Date(since);
-    if (until) dateFilter.lte = new Date(until + "T23:59:59.999Z");
+    if (since) dateFilter.gte = parseClientDate(since, tzOffset);
+    if (until) {
+      const endOfLocalDay = parseClientDate(until, tzOffset);
+      endOfLocalDay.setUTCDate(endOfLocalDay.getUTCDate() + 1);
+      endOfLocalDay.setUTCMilliseconds(endOfLocalDay.getUTCMilliseconds() - 1);
+      dateFilter.lte = endOfLocalDay;
+    }
     where.startDate = dateFilter;
   }
   if (search) where.name = { contains: search, mode: "insensitive" };

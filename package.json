@@ -15,7 +15,7 @@
     "db:recompute-zones": "node --env-file=.env --import tsx src/workers/recompute-trackpoint-metrics.ts",
     "db:reclassify-workout-types": "node --env-file=.env --import tsx src/workers/reclassify-workout-types.ts",
     "db:recompute-weekly-assessments": "node --env-file=.env --import tsx src/workers/recompute-weekly-assessments.ts",
-    "worker": "tsx src/workers/entrypoint.ts",
+    "worker": "node --env-file=.env --import tsx src/workers/entrypoint.ts",
     "lint": "next lint",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",

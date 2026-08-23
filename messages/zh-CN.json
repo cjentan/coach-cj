@@ -325,6 +325,7 @@
       "clearAnalysis": "清除分析",
       "analyzing": "正在分析活动…",
       "analysisQueued": "分析已排队——结果将很快显示。",
+      "analysisStalled": "分析耗时超出预期。它可能仍在后台完成——你可以重试或刷新。",
       "analysisFailed": "分析失败。你可以重试。",
       "retryAnalysis": "重新分析",
       "noAnalysis": "还没有教练分析。针对你的训练计划分析这项活动，可获得训练类型、表现与目标契合度的洞察。",

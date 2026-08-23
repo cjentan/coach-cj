@@ -325,6 +325,7 @@
       "clearAnalysis": "清除分析",
       "analyzing": "正在分析活動…",
       "analysisQueued": "分析已排隊——結果將很快顯示。",
+      "analysisStalled": "分析耗時超出預期。它可能仍在後台完成——你可以重試或重新整理。",
       "analysisFailed": "分析失敗。你可以重試。",
       "retryAnalysis": "重新分析",
       "noAnalysis": "還沒有教練分析。針對你的訓練計畫分析這項活動，可獲得訓練類型、表現與目標契合度的洞察。",

@@ -13,6 +13,11 @@ import {
 } from "@/components/activity/activity-card";
 import { COACH_CHAT_EVENTS } from "@/lib/coach-chat-events";
 
+// How often the detail page re-checks analysis status while it's pending, and
+// the ceiling on how long it will keep polling before giving up.
+const POLL_INTERVAL_MS = 5000;
+const POLL_TIMEOUT_MS = 2 * 60 * 1000;
+
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -129,8 +134,12 @@ export default function ActivityDetailPage() {
       .catch(() => setDuplicateGroup(null));
   }, [log?.duplicateGroupId]);
 
-  // Poll analysis status while pending or processing
+  // Poll analysis status while pending or processing. Bounded — if the status
+  // never moves (e.g. the analysis queue is stalled), stop after a couple of
+  // minutes so an unprocessed job can't keep this page polling the API forever.
+  const [analysisStalled, setAnalysisStalled] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
+  const pollDeadlineRef = useRef(0);
   useEffect(() => {
     const shouldPoll =
       !analyzing && (analysisStatus === "pending" || analysisStatus === "processing");
@@ -141,7 +150,17 @@ export default function ActivityDetailPage() {
     }
 
     if (shouldPoll) {
+      // Fresh deadline each time the poll (re)starts — e.g. when the status
+      // advances from "pending" to "processing", give the new state its own window.
+      pollDeadlineRef.current = Date.now() + POLL_TIMEOUT_MS;
+      setAnalysisStalled(false);
       pollRef.current = setInterval(() => {
+        if (Date.now() >= pollDeadlineRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = undefined;
+          setAnalysisStalled(true);
+          return;
+        }
         fetch(`/api/activities/${id}?neighbors=full`)
           .then((r) => r.json())
           .then((data) => {
@@ -153,7 +172,9 @@ export default function ActivityDetailPage() {
             }
           })
           .catch(() => {});
-      }, 5000);
+      }, POLL_INTERVAL_MS);
+    } else {
+      setAnalysisStalled(false);
     }
 
     return () => {
@@ -356,6 +377,7 @@ export default function ActivityDetailPage() {
         analyzing={analyzing}
         analyzeError={analyzeError}
         analysisStatus={analysisStatus}
+        analysisStalled={analysisStalled}
         onAnalyze={handleAnalyze}
         onClearAnalysis={handleClearAnalysis}
         isRace={isRace}

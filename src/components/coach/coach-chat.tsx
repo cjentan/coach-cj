@@ -354,6 +354,7 @@ export default function CoachChat({
               message: userMessage,
               pageContext,
               locale,
+              tzOffset: new Date().getTimezoneOffset(),
             },
             t
           );
@@ -384,7 +385,13 @@ export default function CoachChat({
 
         const streamResult = await coachApiStream(
           "chat-stream",
-          { conversationId: cid, message: userMessage, pageContext, locale },
+          {
+            conversationId: cid,
+            message: userMessage,
+            pageContext,
+            locale,
+            tzOffset: new Date().getTimezoneOffset(),
+          },
           (data) => {
             const pd = data as Record<string, unknown>;
             const type = pd.type as string;

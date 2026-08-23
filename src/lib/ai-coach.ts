@@ -1224,7 +1224,8 @@ export async function chat(
   message: string,
   options?: ChatOptions,
   pageContext?: PageContext | null,
-  locale = "en"
+  locale = "en",
+  tzOffset = 0
 ): Promise<CoachChatResult | { error: string; code: string }> {
   // 1. Load conversation + config
   const conversation = await prisma.coachConversation.findUnique({
@@ -1461,7 +1462,7 @@ export async function chat(
           }
         : undefined;
 
-      const result = await executeTool(toolCall.function.name, args, userId, toolProgressCb);
+      const result = await executeTool(toolCall.function.name, args, userId, toolProgressCb, tzOffset);
       if (result.success) allToolCallsExecuted = true;
       console.error(
         `[AI-COACH] Tool result: success=${result.success}, message="${result.message?.slice(0, 100)}"`

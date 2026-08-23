@@ -11,7 +11,7 @@ import { ask, chatWithTools, resolveUserLlmConfig, isLlmConfigured } from "./llm
 import type { LlmMessage } from "./llm";
 import { QUERY_ACTIVITIES_TOOL, executeTool } from "./ai-coach-tools";
 import { gatherTrainingContext } from "./training-context";
-import { getWeekStart, formatDuration } from "./utils";
+import { getWeekStart, formatDuration, localDateStr, localDayOfWeek } from "./utils";
 import { resolvePrompt, PROMPT_KEYS, getLanguageInstruction } from "./coach-prompts";
 import {
   buildContextSummary,
@@ -32,8 +32,14 @@ export async function analyzeActivity(
   userId: string,
   activityId: string,
   localeOverride?: string,
-  options?: { persist?: boolean }
+  options?: { persist?: boolean; tzOffset?: number }
 ): Promise<{ success: true; analysis: string } | { error: string; code: string }> {
+  // Browser-reported timezone offset (Date.getTimezoneOffset(), negative for
+  // UTC+). Used to align the activity's day-of-week to the athlete's local
+  // calendar when matching a planned session. Background callers (worker,
+  // no browser) default to 0 (UTC).
+  const tzOffset = options?.tzOffset ?? 0;
+
   // 1. Load activity — select only the scalar fields used below. The full row
   //    carries rawJson (full trackpoints, can exceed 10MB) which this analysis
   //    never touches; loading it inflated the worker heap on every analysis job.
@@ -78,9 +84,12 @@ export async function analyzeActivity(
   // 3. Gather training context
   const ctx = await gatherTrainingContext(userId);
 
-  // 4. Find the week this activity belongs to and the matching planned session
+  // 4. Find the week this activity belongs to and the matching planned session.
+  //    The activity's day-of-week is computed in the athlete's local timezone —
+  //    `startDate.getDay()` is UTC, so a Saturday-local run recorded late Friday
+  //    UTC (e.g. 2026-08-21T21:09Z) would otherwise miss its Saturday plan.
   const activityWeekStart = getWeekStart(activity.startDate);
-  const activityDayOfWeek = activity.startDate.getDay(); // 0=Sun, 1=Mon, ...
+  const activityDayOfWeek = localDayOfWeek(activity.startDate, tzOffset); // 0=Sun, 1=Mon, ...
   let plannedSession: string | null = null;
 
   // Find weekly plan for the activity's week
@@ -146,8 +155,12 @@ export async function analyzeActivity(
 
   // 9. Call LLM
   const langInstruction = getLanguageInstruction(locale);
-  const systemPrompt = `${langInstruction}${await getActivityAnalyzePrompt()}\n\n${contextStr}`;
-  const userPrompt = `${activitySummary}\n\nAnalyze this activity against the athlete's training plan and goals.`;
+  // The activity summary lives in the system prompt (not just the first user
+  // prompt) so the JSON-parse retry below inherits it too — otherwise a retry
+  // after a malformed first response analyzes a session it has no data for and
+  // invents a generic "no metrics" analysis.
+  const systemPrompt = `${langInstruction}${await getActivityAnalyzePrompt()}\n\n${contextStr}\n\n${activitySummary}`;
+  const userPrompt = `Analyze this activity against the athlete's training plan and goals.`;
 
   const result = await ask(systemPrompt, userPrompt, {
     temperature: 0.3,
@@ -269,7 +282,8 @@ async function resolveActivityFromMessage(
   userId: string,
   message: string,
   pageContext?: PageContext | null,
-  locale = "en"
+  locale = "en",
+  tzOffset = 0
 ): Promise<{ activityId: string; activityName: string } | null> {
   // Fast path: on the activity detail page and the message refers to the
   // currently-viewed activity — no extra LLM call needed.
@@ -303,12 +317,19 @@ async function resolveActivityFromMessage(
   if (!isLlmConfigured(llmConfig.apiKey, llmConfig.provider)) return null;
 
   const langInstruction = getLanguageInstruction(locale);
+  // Anchor "today"/"yesterday" references to the athlete's local calendar date
+  // so date-based query_activities searches resolve to the right day. Without
+  // this the model guesses the current date (often wrong, and never offset to
+  // the athlete's timezone).
+  const todayLocal = localDateStr(new Date(), tzOffset);
   const contextStr =
     pageContext?.page === "activity-detail" && pageContext.activityId
       ? `The athlete is currently viewing the activity with id "${pageContext.activityId}" — use it only if their message refers to it (e.g. "this activity").`
       : "";
   const systemPrompt = `${langInstruction}
 You identify which specific training activity an athlete is asking to have analyzed.
+
+Today's date (athlete's local timezone): ${todayLocal}. The query_activities tool's "since"/"until" arguments are interpreted in the athlete's local timezone, so pass calendar dates as the athlete sees them (e.g. "2026-08-22" for a local Saturday).
 
 The athlete's message: "${message}"
 
@@ -348,7 +369,7 @@ The activityId MUST come from a query_activities result. If you cannot determine
         } catch {
           /* keep empty args */
         }
-        const result = await executeTool(toolCall.function.name, args, userId);
+        const result = await executeTool(toolCall.function.name, args, userId, undefined, tzOffset);
         llmMessages.push({
           role: "tool",
           tool_call_id: toolCall.id,
@@ -425,7 +446,8 @@ export async function analyzeActivityInChat(
   userId: string,
   message: string,
   pageContext?: PageContext | null,
-  locale = "en"
+  locale = "en",
+  tzOffset = 0
 ): Promise<
   | { conversationId: string; activityId: string; activityName: string; analysis: string }
   | { error: string; code: string }
@@ -438,7 +460,7 @@ export async function analyzeActivityInChat(
     return { error: "Conversation not found.", code: "NOT_FOUND" };
   }
 
-  const resolved = await resolveActivityFromMessage(userId, message, pageContext, locale);
+  const resolved = await resolveActivityFromMessage(userId, message, pageContext, locale, tzOffset);
   if (!resolved) {
     return {
       error:
@@ -449,6 +471,7 @@ export async function analyzeActivityInChat(
 
   const analysisResult = await analyzeActivity(userId, resolved.activityId, locale, {
     persist: false,
+    tzOffset,
   });
   if ("error" in analysisResult) return analysisResult;
 

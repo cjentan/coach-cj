@@ -44,6 +44,10 @@ export async function POST(request: Request) {
 
   const userId = session.user.id;
   const locale = (body.locale as string) || session.user.locale || "en";
+  // Browser-reported timezone offset (Date.getTimezoneOffset(), negative for
+  // UTC+). Lets date-based coach tools and activity analysis interpret local
+  // calendar dates correctly. Defaults to 0 (UTC) for background callers.
+  const tzOffset = (body.tzOffset as number) ?? 0;
 
   switch (action) {
     case "analyze": {
@@ -156,7 +160,8 @@ export async function POST(request: Request) {
         message,
         undefined,
         body.pageContext as PageContext | undefined,
-        locale
+        locale,
+        tzOffset
       );
       if ("error" in result) {
         const status = result.code === "NOT_FOUND" ? 404 : 503;
@@ -212,7 +217,8 @@ export async function POST(request: Request) {
                 signal: request.signal,
               },
               body.pageContext as PageContext | undefined,
-              locale
+              locale,
+              tzOffset
             );
 
             if ("error" in result) {
@@ -412,7 +418,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "activityId is required" }, { status: 400 });
       }
 
-      const activityResult = await analyzeActivity(userId, activityId, locale);
+      const activityResult = await analyzeActivity(userId, activityId, locale, { tzOffset });
       if ("error" in activityResult) {
         const status =
           activityResult.code === "NOT_FOUND"
@@ -443,7 +449,8 @@ export async function POST(request: Request) {
         userId,
         message,
         body.pageContext as PageContext | undefined,
-        locale
+        locale,
+        tzOffset
       );
       if ("error" in chatAnalysisResult) {
         const status =

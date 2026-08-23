@@ -331,6 +331,7 @@
       "clearAnalysis": "Clear analysis",
       "analyzing": "Analyzing activity...",
       "analysisQueued": "Analysis queued — results will appear here shortly.",
+      "analysisStalled": "Analysis is taking longer than expected. It may still complete in the background — you can retry or refresh.",
       "analysisFailed": "Analysis failed. You can try again.",
       "retryAnalysis": "Retry Analysis",
       "noAnalysis": "No coach analysis yet. Analyze this activity against your training plan to get insights on training type, performance, and goal alignment.",

@@ -129,6 +129,9 @@ export interface ActivityCardProps {
   analyzing: boolean;
   analyzeError: string | null;
   analysisStatus: string | null;
+  /** True when the status poll gave up after the timeout — the job may still
+   * complete in the background, but we stop waiting on it. */
+  analysisStalled?: boolean;
   onAnalyze: () => void;
   onClearAnalysis?: () => void;
   isRace: boolean;
@@ -215,6 +218,7 @@ export function ActivityCard({
   analyzing,
   analyzeError,
   analysisStatus,
+  analysisStalled,
   onAnalyze,
   onClearAnalysis,
   isRace,
@@ -694,7 +698,15 @@ export function ActivityCard({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {analyzing || analysisStatus === "processing" ? (
+            {analysisStalled ? (
+              <div className="text-center py-6">
+                <AlertTriangle className="h-6 w-6 mx-auto mb-2 text-amber-500" />
+                <p className="text-sm text-muted-foreground mb-3">{t("card.analysisStalled")}</p>
+                <Button size="sm" onClick={onAnalyze}>
+                  <Brain className="h-4 w-4 mr-1" /> {t("card.retryAnalysis")}
+                </Button>
+              </div>
+            ) : analyzing || analysisStatus === "processing" ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("card.analyzing")}

@@ -138,7 +138,11 @@ if [ "$RUN_WORKER" = true ]; then
   info "Also starting background worker..."
   # Start worker in background, kill it when this script exits.
   # Match prod flags so forced GC (global.gc) works and the heap is bounded.
-  NODE_OPTIONS="--expose-gc --max-old-space-size=1024" npx tsx src/workers/entrypoint.ts &
+  # tsx does not load .env — without --env-file the worker would inherit no
+  # REDIS_URL/DATABASE_URL and silently connect to the wrong infra (e.g. another
+  # project's redis on localhost:6379 instead of coach-redis on 6380), leaving
+  # every queued analysis stuck at "pending" while the detail page polls forever.
+  NODE_OPTIONS="--expose-gc --max-old-space-size=1024" node --env-file=.env --import tsx src/workers/entrypoint.ts &
   WORKER_PID=$!
   trap "kill $WORKER_PID 2>/dev/null; exit" INT TERM EXIT
   ok "Worker started (PID $WORKER_PID)"
