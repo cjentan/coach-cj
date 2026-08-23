@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { localWeekStart, localDateStr, localDayOfWeek, parseClientDate } from "@/lib/utils";
 import { computePMC, fillDailyTss } from "@/lib/pmc";
-import { computeReadinessScore } from "@/lib/training-health";
+import { computeReadinessScore, recentWeeklyVolume } from "@/lib/training-health";
 import { getLatestRestingHr, getMaxHrInfo } from "@/lib/body-metrics";
 
 interface PeriodStats {
@@ -183,7 +183,18 @@ export async function GET(request: Request) {
   const latestRestingHr = restingHr;
   const { effective: maxHr, source: maxHrSource } = maxHrInfo;
 
+  // Recent sustained weekly volume (4-week rolling average) — caps the
+  // early-week projection so a single session can't claim more than the
+  // athlete has been sustaining.
+  const recentWeeklyVolumeMeters = recentWeeklyVolume(pmcLogs, now);
+
   const stats = {
+    // Days elapsed in the current local Mon–Sun week (1..7). The client
+    // prorates this week's partial volume/elevation to a full-week equivalent
+    // with this before comparing it to race targets — same-day normalization
+    // as the lastWeek comparison window above.
+    daysElapsedThisWeek,
+    recentWeeklyVolumeMeters,
     weeklyDistance: aggregateLogs(weekLogs, 7).weeklyDistance,
     weeklyElevation: aggregateLogs(weekLogs, 7).weeklyElevation,
     weeklyDuration: aggregateLogs(weekLogs, 7).weeklyDuration,
@@ -291,6 +302,7 @@ export async function GET(request: Request) {
     weekStartDate: weekStart,
     primaryGoal: goals[0] || null,
     activityLogs: weekLogs,
+    recentWeeklyVolumeMeters,
     // Bucket consistency's active days in the user's local timezone, matching
     // the local week boundaries used for weekStart/elapsed days above.
     tzOffset,

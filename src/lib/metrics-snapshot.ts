@@ -11,7 +11,7 @@ import { computeBestTss } from "./trackpoint-metrics";
 import { estimateTss } from "@/lib/training-math";
 import { getEffectiveMaxHr, getLatestRestingHr } from "./body-metrics";
 import { getWeekStart } from "./utils";
-import { computeReadinessScore, computeFatigueSignals } from "./training-health";
+import { computeReadinessScore, computeFatigueSignals, recentWeeklyVolume } from "./training-health";
 
 /** Snapshots the given week's metrics for the user. Idempotent (upsert). */
 export async function snapshotWeek(userId: string, weekStartDate: Date): Promise<void> {
@@ -56,6 +56,7 @@ export async function snapshotWeek(userId: string, weekStartDate: Date): Promise
       orderBy: { startDate: "asc" },
       select: {
         startDate: true,
+        distanceMeters: true,
         tss: true,
         durationSeconds: true,
       },
@@ -149,6 +150,7 @@ export async function snapshotWeek(userId: string, weekStartDate: Date): Promise
     weekEndDate: weekEnd,
     primaryGoal: goals[0] ?? null,
     activityLogs: weekLogs,
+    recentWeeklyVolumeMeters: recentWeeklyVolume(pmcLogs, weekEnd),
   });
 
   // ── Fatigue signals ──

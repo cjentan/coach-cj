@@ -13,7 +13,7 @@
 import { prisma } from "./prisma";
 import { getWeekStart } from "./utils";
 import { computePMC, fillDailyTss } from "./pmc";
-import { computeReadinessScore, computeFatigueSignals } from "./training-health";
+import { computeReadinessScore, computeFatigueSignals, recentWeeklyVolume } from "./training-health";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -314,6 +314,7 @@ export async function gatherTrainingContext(userId: string): Promise<TrainingCon
     weekStartDate: weekStart,
     primaryGoal: goals[0] ?? null,
     activityLogs: currentWeekLogs,
+    recentWeeklyVolumeMeters: recentWeeklyVolume(trainingLogs, now),
   });
   let volumeAdherence = readinessResult.volumeAdherence;
   const consistencyScore = readinessResult.consistencyScore;

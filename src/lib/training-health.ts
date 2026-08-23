@@ -26,6 +26,14 @@ export interface ReadinessInput {
   /** Activity logs in the period — used for consistency calculation */
   activityLogs: ReadonlyArray<{ startDate: Date }>;
   /**
+   * Recent sustained weekly volume (meters), e.g. a 4-week rolling average.
+   * When provided and > 0, the projected partial-week volume is capped at
+   * `recentWeeklyVolumeMeters * PROJECTION_CAP_FACTOR` so a single early-week
+   * session can't claim more than the athlete has demonstrated — otherwise a
+   * 3×/week trainer would be scored as if every day were a training day.
+   */
+  recentWeeklyVolumeMeters?: number | null;
+  /**
    * Client's UTC offset in minutes as reported by `Date.getTimezoneOffset()`
    * (negative for UTC+). Activity dates are bucketed to this local calendar
    * day so consistency matches the caller's week boundaries. Defaults to UTC
@@ -59,6 +67,34 @@ export interface FatigueResult {
 
 // ── Readiness Score ───────────────────────────────────────────────
 
+/** Max a projected weekly volume may exceed the athlete's recent weekly norm. */
+export const PROJECTION_CAP_FACTOR = 1.2;
+
+/**
+ * Recent weekly training volume as a 4-week rolling average of the supplied
+ * activity logs (ascending by date), relative to `referenceDate`. Used to cap
+ * the early-week volume projection so a single session can't claim more than
+ * the athlete has been sustaining. Returns null when there's too little
+ * history (fewer than two sessions in the window) to estimate a norm.
+ */
+export function recentWeeklyVolume(
+  logs: ReadonlyArray<{ startDate: Date; distanceMeters: number | null }>,
+  referenceDate: Date
+): number | null {
+  const windowMs = 28 * 86_400_000;
+  const cutoff = referenceDate.getTime() - windowMs;
+  const inWindow = logs.filter(
+    (l) => l.startDate.getTime() >= cutoff && l.startDate.getTime() <= referenceDate.getTime()
+  );
+  if (inWindow.length < 2) return null;
+  const total = inWindow.reduce((sum, l) => sum + (l.distanceMeters || 0), 0);
+  const earliest = Math.min(...inWindow.map((l) => l.startDate.getTime()));
+  const latest = Math.max(...inWindow.map((l) => l.startDate.getTime()));
+  // Calendar days actually covered, capped at the window, at least 1.
+  const coveredDays = Math.min(28, Math.max(1, (latest - earliest) / 86_400_000 + 1));
+  return (total / coveredDays) * 7;
+}
+
 /**
  * Computes a 0-100 readiness score based on:
  *  - Volume adherence to the primary goal (40 %)
@@ -75,12 +111,30 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
     weekEndDate,
     primaryGoal,
     activityLogs,
+    recentWeeklyVolumeMeters,
     tzOffset,
   } = input;
   const now = new Date();
   const endDate = weekEndDate ?? now;
 
-  // Volume adherence — how close the athlete is to the primary goal's target volume
+  // Days of the window that have actually elapsed (1..7). A partial window —
+  // e.g. the current Mon–Sun week viewed on a Wednesday — is projected to a
+  // full week before volume adherence is scored, so a healthy athlete isn't
+  // penalized for the days of the week that haven't happened yet.
+  const elapsedDays = Math.max(
+    1,
+    Math.min(
+      7,
+      Math.ceil((Math.min(now.getTime(), endDate.getTime()) - weekStartDate.getTime()) / 86_400_000)
+    )
+  );
+  const weeklyProjectionFactor = 7 / elapsedDays;
+
+  // Volume adherence — how close the athlete is to the primary goal's target
+  // volume. The partial week's volume is projected to a full-week equivalent
+  // (so day one isn't scored against the whole week), then capped at the
+  // athlete's demonstrated recent weekly volume so a low-frequency trainer
+  // isn't over-credited for a single session.
   let volumeAdherence = 50;
   if (primaryGoal) {
     const weeksUntil = Math.max(
@@ -88,9 +142,13 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
       Math.ceil((primaryGoal.targetDate.getTime() - now.getTime()) / (7 * 86_400_000))
     );
     const targetWeekly = primaryGoal.distanceMeters / (weeksUntil * 0.7);
+    let projectedVolume = weeklyVolumeMeters * weeklyProjectionFactor;
+    if (recentWeeklyVolumeMeters && recentWeeklyVolumeMeters > 0) {
+      projectedVolume = Math.min(projectedVolume, recentWeeklyVolumeMeters * PROJECTION_CAP_FACTOR);
+    }
     volumeAdherence = Math.min(
       100,
-      Math.round((weeklyVolumeMeters / Math.max(1, targetWeekly)) * 100)
+      Math.round((projectedVolume / Math.max(1, targetWeekly)) * 100)
     );
   }
 
@@ -99,13 +157,6 @@ export function computeReadinessScore(input: ReadinessInput): ReadinessResult {
   // window above (which is derived from the caller's local week boundaries);
   // `toISOString()` would shift activities into UTC days. tzOffset defaults to
   // UTC (0) for background callers that don't know the user's timezone.
-  const elapsedDays = Math.max(
-    1,
-    Math.min(
-      7,
-      Math.ceil((Math.min(now.getTime(), endDate.getTime()) - weekStartDate.getTime()) / 86_400_000)
-    )
-  );
   const activeDays = new Set(activityLogs.map((l) => localDateStr(l.startDate, tzOffset ?? 0)))
     .size;
   const consistencyScore = Math.min(100, Math.round((activeDays / elapsedDays) * 100));

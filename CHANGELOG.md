@@ -9,8 +9,12 @@ On each release, bump `package.json#version` and move/add a dated entry below `#
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-24
+
 ### Fixed
+- **Readiness no longer bottoms out early in the week**: the race readiness card and the readiness score compared the *partial* current week's volume/elevation against *full-week* targets, so on Monday–Wednesday an otherwise healthy, on-plan athlete scored "behind". Partial-week volume and elevation are now prorated to a 7-day equivalent before scoring (matching the same-day normalization already used for the last-week comparison windows). The projection is additionally capped at 1.2× the athlete's recent 4-week average weekly volume, so a low-frequency (3×/week) trainer isn't over-credited for a single early-week session.
 - **AI Coach "this day has already passed" guard**: the coach could no longer edit a **Sunday** (and sometimes other days) in the current week because the check resolved the weekday slot against the week's **Monday** instead of the real date — an off-by-one between the `0=Sunday..6=Saturday` convention and the Monday-anchored week. Editing *Sunday, 23 Aug* therefore reported *"Cannot change Sunday (2026-08-17) — this day has already passed"* (2026-08-17 being the Monday). The guard now maps each slot to its true calendar date, so future days stay editable and genuinely past days are still rejected.
+- **Timezone-aware AI coach activity resolution**: the coach chat could miss activities it was asked to analyze because `query_activities` and planned-session matching ran against UTC instants while the user reasoned in their local calendar. The browser-reported timezone offset is now threaded end-to-end, so activity queries and planned-session matches align to the user's local days. The activity detail page's analysis-status poll also no longer spins forever when a job is stuck at "pending" — it stops after 2 minutes and shows a stalled message with a retry button.
 
 ## [1.0.0] - 2026-08-21
 

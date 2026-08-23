@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistance, formatDuration } from "@/lib/utils";
+import { PROJECTION_CAP_FACTOR } from "@/lib/training-health";
 import type {
   PlanDay,
   PlanDayActual,
@@ -89,6 +90,10 @@ interface Stats {
   weeklyTss: number;
   avgDailyTss: number;
   avgHr: number | null;
+  /** Days elapsed in the current local Mon–Sun week (1..7). */
+  daysElapsedThisWeek: number;
+  /** Recent sustained weekly volume (meters, 4-week rolling average), for capping the projection. */
+  recentWeeklyVolumeMeters: number | null;
   activeGoals: number;
   latestWeight: number | null;
   latestRestingHr: number | null;
@@ -499,15 +504,28 @@ export default function DashboardPage() {
         weeksUntilRace <= 4
           ? targetPeakWeekly
           : targetPeakWeekly * (1 - (weeksUntilRace - 4) * 0.02);
+      // Prorate this week's partial volume/elevation to a full 7-day week so an
+      // athlete isn't scored against the full-week peak target on day one, then
+      // cap the projection at the athlete's demonstrated recent weekly volume so
+      // a low-frequency trainer isn't over-credited for a single session.
+      const weekProjection = 7 / Math.max(1, stats.daysElapsedThisWeek ?? 7);
+      let projectedWeeklyDistance = stats.weeklyDistance * weekProjection;
+      if (stats.recentWeeklyVolumeMeters && stats.recentWeeklyVolumeMeters > 0) {
+        projectedWeeklyDistance = Math.min(
+          projectedWeeklyDistance,
+          stats.recentWeeklyVolumeMeters * PROJECTION_CAP_FACTOR
+        );
+      }
       const volumeGap =
         volumeProgress > 0
-          ? Math.min(100, Math.round((stats.weeklyDistance / volumeProgress) * 100))
+          ? Math.min(100, Math.round((projectedWeeklyDistance / volumeProgress) * 100))
           : 0;
       let elevationGap: number | null = null;
       if (goal.elevationGainMeters && goal.elevationGainMeters > 0) {
+        const projectedWeeklyElevation = stats.weeklyElevation * weekProjection;
         elevationGap = Math.min(
           100,
-          Math.round((stats.weeklyElevation / (goal.elevationGainMeters * 0.5)) * 100)
+          Math.round((projectedWeeklyElevation / (goal.elevationGainMeters * 0.5)) * 100)
         );
       }
       const tsbStatus = pmc.tsb > 10 ? "fresh" : pmc.tsb > -10 ? "balanced" : "fatigued";
