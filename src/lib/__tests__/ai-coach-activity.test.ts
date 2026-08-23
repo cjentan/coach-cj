@@ -121,9 +121,7 @@ describe("analyzeActivity", () => {
 
   it("keeps the activity summary in the JSON-parse retry call", async () => {
     // First attempt returns invalid JSON, retry returns a valid analysis
-    mocks.ask
-      .mockResolvedValueOnce("{}")
-      .mockResolvedValueOnce(VALID_ANALYSIS_JSON);
+    mocks.ask.mockResolvedValueOnce("{}").mockResolvedValueOnce(VALID_ANALYSIS_JSON);
 
     const result = await analyzeActivity("user-1", "activity-1", "en", { persist: false });
 
@@ -141,9 +139,7 @@ describe("analyzeActivity", () => {
   });
 
   it("produces a data-grounded analysis after a malformed first response", async () => {
-    mocks.ask
-      .mockResolvedValueOnce("{not json")
-      .mockResolvedValueOnce(VALID_ANALYSIS_JSON);
+    mocks.ask.mockResolvedValueOnce("{not json").mockResolvedValueOnce(VALID_ANALYSIS_JSON);
 
     const result = await analyzeActivity("user-1", "activity-1", "en", { persist: false });
 
@@ -153,6 +149,41 @@ describe("analyzeActivity", () => {
     const retrySystemPrompt = mocks.ask.mock.calls[1][0] as string;
     expect(retrySystemPrompt).toContain("HarbourFront Evening Run");
     expect(retrySystemPrompt).toContain("14.01km");
+  });
+
+  it("tells the retry call specifically that an empty {} was returned", async () => {
+    mocks.ask.mockResolvedValueOnce("{}").mockResolvedValueOnce(VALID_ANALYSIS_JSON);
+
+    const result = await analyzeActivity("user-1", "activity-1", "en", { persist: false });
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) throw new Error(result.error);
+    const retryUserPrompt = mocks.ask.mock.calls[1][1] as string;
+    expect(retryUserPrompt).toContain("empty JSON object");
+  });
+
+  it("tells the retry call when the previous response was truncated", async () => {
+    mocks.ask
+      // A response cut off mid-JSON string, exactly like the production
+      // finish=length failures at the 4096-token ceiling.
+      .mockResolvedValueOnce('{"trainingType":"easy_recovery","analysis":"long analysis text...')
+      .mockResolvedValueOnce(VALID_ANALYSIS_JSON);
+
+    const result = await analyzeActivity("user-1", "activity-1", "en", { persist: false });
+
+    expect("error" in result).toBe(false);
+    if ("error" in result) throw new Error(result.error);
+    const retryUserPrompt = mocks.ask.mock.calls[1][1] as string;
+    expect(retryUserPrompt).toContain("truncated");
+  });
+
+  it("raises maxTokens on the analysis call so long responses aren't cut off", async () => {
+    mocks.ask.mockResolvedValueOnce(VALID_ANALYSIS_JSON);
+
+    await analyzeActivity("user-1", "activity-1", "en", { persist: false });
+
+    const opts = mocks.ask.mock.calls[0][2] as { maxTokens?: number };
+    expect(opts.maxTokens).toBe(8192);
   });
 
   it("matches the planned session by the athlete's local day-of-week", async () => {

@@ -172,7 +172,7 @@ Rules:
 4. If the activity is tagged as a **race**, evaluate it differently: focus on pacing strategy, execution under race conditions, and what it reveals about goal readiness rather than comparing to a planned training session. Note if the effort and pacing were appropriate for the race distance/terrain.
 5. Flag concerns: pacing too hard for an easy day, missing the intended stimulus, poor execution relative to plan, signs of fatigue, insufficient recovery.
 6. Highlight positives: hitting target pace/effort, good execution, appropriate intensity for the training phase.
-7. Keep the analysis to 2-3 concise paragraphs. Write in second person ("You...").
+7. Keep the analysis to 2-3 concise paragraphs, 120-250 words total (hard maximum 300 words). Write in second person ("You..."). A longer response is a failure and will be rejected.
 8. Return ONLY valid JSON matching the schema. No markdown, no commentary.
 
 Output schema:

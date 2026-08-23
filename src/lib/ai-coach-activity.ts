@@ -164,7 +164,11 @@ export async function analyzeActivity(
 
   const result = await ask(systemPrompt, userPrompt, {
     temperature: 0.3,
-    maxTokens: 4096,
+    // The model frequently writes far more than the prompt's "2-3 concise
+    // paragraphs" — at 4096 tokens those responses got truncated mid-JSON
+    // (finish=length), breaking the parse. 8192 gives the retry enough headroom
+    // for a long-but-complete response.
+    maxTokens: 8192,
     jsonMode: true,
     apiKey: llmConfig.apiKey,
     baseUrl: llmConfig.baseUrl,
@@ -190,20 +194,24 @@ export async function analyzeActivity(
     );
     console.error("[activity-analyze] First parse error:", (firstErr as Error).message);
 
-    // Retry once with stricter instruction
-    const retry = await ask(
-      systemPrompt,
-      `Your previous response was invalid JSON. Return ONLY valid JSON matching the schema exactly.`,
-      {
-        temperature: 0.2,
-        maxTokens: 4096,
-        jsonMode: true,
-        apiKey: llmConfig.apiKey,
-        baseUrl: llmConfig.baseUrl,
-        model: llmConfig.model,
-        thinking: "disabled",
-      }
-    );
+    // Retry once, telling the model specifically what went wrong. The two real
+    // failure modes are (a) an empty `{}` object (valid JSON, wrong shape) and
+    // (b) a response truncated by the token ceiling (unterminated string).
+    // A generic "invalid JSON" retry fixes neither.
+    const firstResponse = result?.trim();
+    const retryPrompt =
+      firstResponse === "{}"
+        ? `Your previous response was an empty JSON object \`{}\` — no analysis at all. Return ONLY valid JSON matching the schema exactly, with a complete 2-3 paragraph "analysis" field.`
+        : `Your previous response was invalid or truncated JSON. Keep the "analysis" field to 2-3 concise paragraphs (hard maximum 300 words) so the response fits within the output limit, and return ONLY valid JSON matching the schema exactly.`;
+    const retry = await ask(systemPrompt, retryPrompt, {
+      temperature: 0.2,
+      maxTokens: 8192,
+      jsonMode: true,
+      apiKey: llmConfig.apiKey,
+      baseUrl: llmConfig.baseUrl,
+      model: llmConfig.model,
+      thinking: "disabled",
+    });
     if (!retry)
       return { error: "AI coach returned invalid data after retry.", code: "PARSE_FAILED" };
     try {
