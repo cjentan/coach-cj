@@ -12,6 +12,7 @@
  */
 import { prisma } from "./prisma";
 import { getWeekStart, weekStartPlusDay, parseClientDate } from "./utils";
+import { LONG_DAY_NAMES } from "./constants";
 import {
   UPDATE_TRAINING_CONTEXT_TOOL,
   MANAGE_GOALS_TOOL,
@@ -351,7 +352,11 @@ async function executeUpdateWeeklyPlan(
     const history = (plan.adjustmentHistory as Array<Record<string, unknown>>) || [];
     history.push(adjEntry);
     updateData.adjustmentHistory = history;
-    updateData.adjustments = [`🤖 ${adjEntry.summary}`, ...(plan.adjustments || [])];
+    updateData.adjustments = mergeAdjustments(
+      plan.adjustments,
+      `🤖 ${adjEntry.summary}`,
+      perDayChanges.map((c) => c.dayOfWeek)
+    );
     await prisma.weeklyPlan.update({ where: { id: plan.id }, data: updateData });
   } else {
     await prisma.weeklyPlan.create({
@@ -383,7 +388,61 @@ async function executeUpdateWeeklyPlan(
   };
 }
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_NAMES = LONG_DAY_NAMES as unknown as string[];
+
+/**
+ * Merge a newly-prepended adjustment into a weekly plan's `adjustments` array,
+ * pruning superseded entries so the changelog reflects the current state of the
+ * week instead of accumulating contradictory narratives forever.
+ *
+ * Strategy:
+ * - Keep every "🏋️" phase entry — the training-plan phase detector reads them to
+ *   classify the week's phase, so they must never be dropped.
+ * - Drop older "🤖" AI-coach entries that describe a change to the SAME day of
+ *   week as the new entry (e.g. "Friday set to rest day" superseded by "Friday
+ *   updated to run: …"). These are identifiable by a leading day name, which is
+ *   exactly how `executeUpdateTrainingDay` writes them.
+ * - Cap the number of "🤖" AI-coach entries so the list cannot grow unbounded.
+ *
+ * The full, timestamped audit trail lives in `adjustmentHistory`; `adjustments`
+ * is the concise current-state summary, so dropping superseded prose is safe.
+ */
+export function mergeAdjustments(
+  existing: string[] | null | undefined,
+  newEntry: string,
+  changedDays: number[] = [],
+  maxAiCoach = 8
+): string[] {
+  const prior = Array.isArray(existing) ? existing : [];
+  const aiCoach = prior.filter((a) => a.startsWith("🤖"));
+  const others = prior.filter((a) => !a.startsWith("🤖"));
+
+  // Day names touched by the NEW entry.
+  const newTargets: Set<string> = new Set(changedDays.map((d) => LONG_DAY_NAMES[d]));
+
+  // Day a given "🤖 <Day> ..." adjustment targets, or null when the summary is
+  // a full-week narrative rather than a single-day change. Only the first word
+  // is matched to avoid false positives from day names appearing mid-prose.
+  const targetOf = (a: string): string | null => {
+    const tail = a.replace(/^🤖\s*/, "");
+    for (const name of LONG_DAY_NAMES) {
+      if (tail.startsWith(`${name} `) || tail.startsWith(`${name}:`)) return name;
+    }
+    return null;
+  };
+
+  let keep = aiCoach.filter((a) => {
+    if (newTargets.size === 0) return true;
+    const t = targetOf(a);
+    return t === null || !newTargets.has(t);
+  });
+
+  keep = keep.slice(0, Math.max(0, maxAiCoach - 1));
+
+  const merged = [newEntry, ...keep, ...others];
+  // Guard against pushing the identical summary back on top of the same string.
+  return merged.length >= 2 && merged[0] === merged[1] ? merged.slice(1) : merged;
+}
 
 /**
  * Read one week's planned sessions from the training plan.
@@ -548,7 +607,9 @@ async function executeUpdateTrainingDay(
     const history = (existingPlan.adjustmentHistory as Array<Record<string, unknown>>) || [];
     history.push(adjEntry);
     updateData.adjustmentHistory = history;
-    updateData.adjustments = [`🤖 ${changeSummary}`, ...(existingPlan.adjustments || [])];
+    updateData.adjustments = mergeAdjustments(existingPlan.adjustments, `🤖 ${changeSummary}`, [
+      dayOfWeek,
+    ]);
     await prisma.weeklyPlan.update({ where: { id: existingPlan.id }, data: updateData });
   } else {
     await prisma.weeklyPlan.create({
@@ -705,10 +766,11 @@ export async function executeCreateTrainingPhase(
         generatedAt: now,
         anchorGoalId: raceGoalId,
         adjustmentHistory: structuredClone(history) as any,
-        adjustments: [
+        adjustments: mergeAdjustments(
+          existingPlan.adjustments,
           `🏋️ ${phaseName} W${week.weekNumber}: ${coachNotes || `${validSessions.length} session(s)`}`,
-          ...(existingPlan.adjustments || []),
-        ],
+          perDayChanges.map((c) => c.dayOfWeek)
+        ),
       };
 
       await prisma.weeklyPlan.update({

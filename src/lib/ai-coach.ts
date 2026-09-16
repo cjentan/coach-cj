@@ -23,6 +23,7 @@ import {
   QUERY_ACTIVITIES_TOOL,
   executeTool,
   executeCreateTrainingPhase,
+  mergeAdjustments,
 } from "./ai-coach-tools";
 import { gatherTrainingContext } from "./training-context";
 import { getWeekStart, formatDistance, formatDuration } from "./utils";
@@ -1462,7 +1463,13 @@ export async function chat(
           }
         : undefined;
 
-      const result = await executeTool(toolCall.function.name, args, userId, toolProgressCb, tzOffset);
+      const result = await executeTool(
+        toolCall.function.name,
+        args,
+        userId,
+        toolProgressCb,
+        tzOffset
+      );
       if (result.success) allToolCallsExecuted = true;
       console.error(
         `[AI-COACH] Tool result: success=${result.success}, message="${result.message?.slice(0, 100)}"`
@@ -1820,7 +1827,19 @@ export async function applySuggestion(
     plannedSessions: structuredClone(sessions) as any,
     overridesExisting: true,
     generatedAt: now,
-    adjustments: [`🤖 ${summary}`, ...(existingPlan.adjustments || [])],
+    adjustments: mergeAdjustments(
+      existingPlan.adjustments,
+      `🤖 ${summary}`,
+      // The days this suggestion actually changed, so superseded single-day
+      // adjustments for the same days are pruned.
+      suggestion.suggestionType === "rest_day_addition" && changes.dayOfWeek !== undefined
+        ? [changes.dayOfWeek as number]
+        : suggestion.suggestionType === "session_change" && Array.isArray(changes.sessions)
+          ? (changes.sessions as Array<{ dayOfWeek?: number }>)
+              .map((s) => s.dayOfWeek)
+              .filter((d): d is number => typeof d === "number")
+          : []
+    ),
     adjustmentHistory,
   };
 
