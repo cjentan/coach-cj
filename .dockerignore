@@ -2,7 +2,6 @@ node_modules/
 .next/
 dist-workers/
 data/
-github-runner/
 .env
 .env.local
 .env.production

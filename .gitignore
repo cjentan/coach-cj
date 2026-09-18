@@ -13,9 +13,6 @@ dist-workers/
 .env.local
 .env.production
 
-# self-hosted CI runner (registration credentials + ~674MB install)
-github-runner/
-
 # scratch / throwaway investigation scripts & captured payloads
 .dsh/
 
