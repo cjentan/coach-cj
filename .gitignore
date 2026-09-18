@@ -13,10 +13,8 @@ dist-workers/
 .env.local
 .env.production
 
-# personal data exports
-garmin_fit/
-strava_export/
-activities.csv
+# self-hosted CI runner (registration credentials + ~674MB install)
+github-runner/
 
 # scratch / throwaway investigation scripts & captured payloads
 .dsh/

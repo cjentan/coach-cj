@@ -2,7 +2,7 @@ node_modules/
 .next/
 dist-workers/
 data/
-strava_export/
+github-runner/
 .env
 .env.local
 .env.production
